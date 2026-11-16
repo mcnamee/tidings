@@ -17,6 +17,9 @@ jobs:
         with:
           node-version: 22
           cache: npm
+      # Match the npm major used to write package-lock.json. npm 10 (bundled with
+      # Node 22) mis-reads the optional @tailwindcss/oxide-wasm32-wasi deps.
+      - run: npm install -g npm@11.6.2
       - run: npm ci
       - run: npm run typecheck
       - run: npm run lint
