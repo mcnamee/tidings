@@ -6,24 +6,24 @@ Owner: product-manager. Last updated 2026-11-16.
 - Each acceptance criterion (AC) must map to at least one automated test unless it is marked *(manual)*.
 - "Agents" lists who works on the story: **SE** software-engineer, **QA** tester, **UX** ux-engineer, **PM** product-manager.
 - References like FR-RD-8 or §7.3 point to `docs/PRODUCT_SPEC.md`.
-- Status values: `Ready`, `Blocked`, `In progress`, `In review`, `Done`, `Later`.
+- Status values: `Ready`, `Blocked`, `In progress`, `In review`, `In verification` (built; tester and UX checking, fixes in flight), `Done`, `Later`.
 
 ## Summary
 
 | ID | Title | Milestone | Status | Depends on |
 |---|---|---|---|---|
-| TID-001 | Monorepo scaffolding, tooling and CI | M0 | Ready | – |
-| TID-002 | Spike: feed parse CPU on Workers Free | M0 | Ready | TID-001 |
-| TID-003 | Spike: fan-out isolation, WebAuthn CPU, rate-limit binding | M0 | Ready | TID-001 |
-| TID-004 | D1 schema v1 and data-access layer | M0 | Ready | TID-001 |
-| TID-005 | Test infrastructure and fixture corpus | M0 | Ready | TID-001 |
-| TID-006 | Design system and app shell with theming | M0 | Ready | TID-001 |
-| TID-007 | First-run setup with a passkey and recovery codes | M1 | Blocked | TID-003, 004, 005, 006 |
+| TID-001 | Monorepo scaffolding, tooling and CI | M0 | Done | – |
+| TID-002 | Spike: feed parse CPU on Workers Free | M0 | Done | TID-001 |
+| TID-003 | Spike: fan-out isolation, WebAuthn CPU, rate-limit binding | M0 | Done | TID-001 |
+| TID-004 | D1 schema v1 and data-access layer | M0 | Done | TID-001 |
+| TID-005 | Test infrastructure and fixture corpus | M0 | Done | TID-001 |
+| TID-006 | Design system and app shell with theming | M0 | In verification | TID-001 |
+| TID-007 | First-run setup with a passkey and recovery codes | M1 | Ready (UX + API now; SPA screens once TID-006 is merged) | TID-003, 004, 005, 006 |
 | TID-008 | Passkey sign-in, sessions, sign-out and API security middleware | M1 | Blocked | TID-007 |
 | TID-009 | Sign in with a recovery code | M1 | Blocked | TID-008 |
-| TID-010 | SSRF-safe fetcher | M1 | Blocked | TID-004 |
-| TID-011 | Feed parser and normalisation | M1 | Blocked | TID-002 |
-| TID-012 | Background refresh pipeline | M1 | Blocked | TID-003, 010, 011 |
+| TID-010 | SSRF-safe fetcher | M1 | Ready | TID-004 |
+| TID-011 | Feed parser and normalisation | M1 | Ready | TID-002 |
+| TID-012 | Background refresh pipeline | M1 | Blocked (on 010, 011) | TID-003, 010, 011 |
 | TID-013 | Subscribe to a feed | M1 | Blocked | TID-008, 012 |
 | TID-014 | Folders and subscription management | M1 | Blocked | TID-013 |
 | TID-015 | Feed health and "Refresh now" | M1 | Blocked | TID-014 |
@@ -36,7 +36,7 @@ Owner: product-manager. Last updated 2026-11-16.
 | TID-022 | Settings: theme, reading, account | M1 | Blocked | TID-008, 009 |
 | TID-023 | Persisted client cache and installable PWA shell | M1 | Blocked | TID-018, 019 |
 | TID-024 | Production deployment, runbook and budget check | M1 | Blocked | all M1 |
-| TID-025 … TID-034 | Comfort features | M2 | Later | M1 |
+| TID-025 … TID-035 | Comfort features | M2 | Later | M1 |
 | TID-040 … TID-045 | Later features | M3 | Later | M2 |
 
 ---
@@ -47,7 +47,7 @@ Owner: product-manager. Last updated 2026-11-16.
 
 - **Agents:** SE (build), QA (reviews CI test stages), PM (accept)
 - **Depends on:** –
-- **Status:** Ready
+- **Status:** Done (accepted 2026-11-16; merged to `main`, CI green)
 
 **User story:** As the team, we want a working monorepo with the agreed stack, scripts and CI, so that every later story starts from the same foundation.
 
@@ -71,7 +71,7 @@ Owner: product-manager. Last updated 2026-11-16.
 
 - **Agents:** SE (run), PM (decide, update ADR 0006 and spec §7.3/§9.7)
 - **Depends on:** TID-001
-- **Status:** Ready
+- **Status:** Done (accepted 2026-11-16 with AC2 restated; see Outcome)
 
 **User story:** As the PM, I want measured CPU costs for parsing real feeds inside a Free-plan Worker, so that we pick a parser and set body/item caps that keep refreshes under 10 ms.
 
@@ -80,11 +80,13 @@ Owner: product-manager. Last updated 2026-11-16.
 **Acceptance criteria**
 
 1. Given the spike Worker, when each fixture is parsed 200+ times per library, then a results table records p50/p95/p99 CPU ms and the count of `exceededCpu` outcomes, in `docs/decisions/0006-feed-parsing-and-sanitisation.md` (Results section).
-2. Given the results, when the PM reviews them, then the ADR names the chosen library and sets `MAX_BODY_BYTES` and `MAX_ITEMS_PER_FETCH` so that the "typical" fixture's p99 is ≤ 8 ms.
+2. Given the results, when the PM reviews them, then the ADR names the chosen library and sets `MAX_BODY_BYTES` and `MAX_ITEMS_PER_FETCH` so that the "typical" fixture's p99 is ≤ 8 ms. **Amended 2026-11-16:** no option met p99 ≤ 8 ms because the tail is GC/JIT, not size. The target is restated as zero `exceededCpu` plus p95 (ADR 0006 PM decision).
 3. Given the chosen settings, when the "huge" fixture is parsed, then the outcome is documented (either succeeds within caps or is rejected as `too_large` before parsing).
-4. Given the spike is done, then the throwaway Worker is deleted and no spike code is merged into `main` except fixtures (moved to `e2e/fixtures/feeds/`).
+4. Given the spike is done, then the throwaway Worker is deleted and no spike code is merged into `main` except fixtures (moved to `e2e/fixtures/feeds/`). **Amended 2026-11-16:** the spike fixtures are not merged; `e2e/fixtures/generate-feeds.ts` generates the same sizes (ADR 0006 decision 10).
 
 **Out of scope:** production parser code (TID-011).
+
+**Outcome (2026-11-16):** htmlparser2 12 chosen; `MAX_ITEMS_PER_FETCH` 50 with true early stop; `MAX_BODY_BYTES` 1 MiB; refresh CPU gate = zero `exceededCpu` and p95 ≤ 8 ms for the whole invocation (parse p95 ≤ 6 ms); the huge feed is rejected as `too_large` before parsing. Unmeasured costs (body read, hash, dedup, D1) move to TID-012 AC13. All three spike Workers were deleted.
 
 ---
 
@@ -92,7 +94,7 @@ Owner: product-manager. Last updated 2026-11-16.
 
 - **Agents:** SE (run), PM (decide, update ADR 0004, spec §9.1)
 - **Depends on:** TID-001
-- **Status:** Ready
+- **Status:** Done (accepted 2026-11-16; AC3 measured the same day)
 
 **User story:** As the PM, I want to know whether a per-feed loopback RPC gets its own CPU and subrequest budget on the Free plan, so that the refresh design (ADR 0004) is safe to build.
 
@@ -109,13 +111,15 @@ Owner: product-manager. Last updated 2026-11-16.
 
 **Out of scope:** production refresh code.
 
+**Outcome (2026-11-16):** `ctx.exports` fan-out confirmed: each callee has its own CPU and subrequest budget, and the RPC calls don't use the dispatcher's 50 subrequests. `REFRESH_BATCH_SIZE` stays 20. Callee invocations **do** count toward 100k requests/day (GraphQL: 21 per tick = 1 cron + 20 callees), so the budget uses the "callees count" case (spec §9.3). The Rate Limiting binding works on Free (approximate) and is adopted for the API backstop. WebAuthn: warm p99 3 ms, cold up to 10 ms; lazy import (ADR 0002). Every spike Worker is deleted.
+
 ---
 
 ### TID-004: D1 schema v1 and data-access layer
 
 - **Agents:** SE, QA, PM
 - **Depends on:** TID-001
-- **Status:** Ready
+- **Status:** Done (accepted 2026-11-16; merged to `main`, CI green; DEF-001 ruled below)
 
 **User story:** As an engineer, I want the schema and typed query helpers in place, so that features can be built on a consistent, budget-aware data layer.
 
@@ -127,7 +131,7 @@ Owner: product-manager. Last updated 2026-11-16.
 2. Given the migration, when I insert two `entries` with the same `(feed_id, guid_hash)`, then the second is rejected or ignored with `ON CONFLICT DO NOTHING`.
 3. Given the canonicaliser, when given `HTTP://Example.com:80/feed#x`, `feed://example.com/rss`, `https://例え.jp/feed`, `javascript:alert(1)`, then it returns `http://example.com/feed`, `https://example.com/rss`, the punycode URL, and an error respectively (unit tests, plus the rest of §6.4's rules).
 4. Given a cursor `{p, i}`, when encoded and decoded, then it round-trips; when a malformed cursor is decoded, then it throws a validation error that maps to `400 validation_failed`.
-5. Given the seeded DB, when the "All unread" list query (§8.6) runs with `limit 50`, then D1 `meta.rows_read` ≤ 102 (NFR-7).
+5. Given the seeded DB, when the "All unread" list query (§8.6) runs with `limit 50`, then D1 `meta.rows_read` ≤ 102 (NFR-7). **Amended 2026-11-16 (DEF-001, ADR 0008):** ≤ 102 on page 1; on continuation pages ≤ 102 + T, where T is the number of the user's rows in the view sharing the cursor's `published_at` (T = 1 on the seed data, so ≤ 103). DEF-001 → Won't fix (budget relaxed); the tester updates DEFECTS.md and the test comment. A tied-timestamp case is added in TID-018 AC5.
 6. Given a lint rule or unit test, when SQL is built with template-literal interpolation inside `prepare()`, then lint fails.
 
 **Out of scope:** API routes.
@@ -138,7 +142,7 @@ Owner: product-manager. Last updated 2026-11-16.
 
 - **Agents:** QA (owns), SE (support), PM
 - **Depends on:** TID-001
-- **Status:** Ready
+- **Status:** Done (accepted 2026-11-16; merged to `main`, CI green)
 
 **User story:** As the tester, I want integration and E2E harnesses with deterministic fixtures, so that every story can prove its acceptance criteria automatically.
 
@@ -160,7 +164,7 @@ Owner: product-manager. Last updated 2026-11-16.
 
 - **Agents:** UX (design first), SE (build), QA, PM
 - **Depends on:** TID-001
-- **Status:** Ready
+- **Status:** In verification (UX fixes M1-M3/m1-m2 on `tid-006-ux-fixes`; DEF-002 to DEF-005 being fixed on `tid-006-defect-fixes`)
 
 **User story:** As the owner, I want the app to look right in light and dark mode from the first screen and to follow my phone's setting, so that reading at night is comfortable.
 
@@ -175,8 +179,15 @@ Owner: product-manager. Last updated 2026-11-16.
 5. Given every route in spec §11.1 rendered as a placeholder, when axe runs in all four Playwright projects, then there are zero serious/critical violations.
 6. Given the production build served locally, when I load any SPA route, then the response has the CSP and other headers from spec §10.4 and the console shows no CSP violations.
 7. Given the design tokens, when I check text/background pairs listed in `DESIGN_SYSTEM.md`, then each meets WCAG 2.2 AA (4.5:1 body, 3:1 large text and UI) in both themes *(UX verifies; tokens file lists ratios)*.
+8. *(Added 2026-11-16.)* Given I open `/manage/add` or `/manage/import` from inside the app, when I tap the header Back, then I return one history entry (for example to `/all`); given I open either route directly in a new tab, then header Back goes to `/manage` with `replace` (E2E for both cases).
+9. *(Added 2026-11-16.)* Given an article route opened inside the app, header Back goes one history entry back; opened directly, it goes to the list in its own route (`/all`, `/folders/:id`, `/feeds/:id`) (E2E; already built, keep the test).
 
-**Out of scope:** the settings screen (TID-022), real data.
+**Out of scope:** the settings screen (TID-022), real data, swipe-to-close on the drawer (TID-035), PWA icons (TID-023).
+
+**PM rulings (2026-11-16)**, ratified as built or designed, recorded in spec §11:
+- Placeholder titles "Set up Tidings" and "Use a recovery code" accepted. "Folder" and "Feed" are acceptable only as the loading `document.title` fallback; TID-018 replaces the header text with a skeleton.
+- Ratified: serif article body; in-flow sticky bottom bar; no edge-swipe to open and no swipe-to-close in MVP; the drawer pushes a history entry; the sticky header doesn't hide on scroll; no split view in MVP; in unread-only mode read rows stay until the user leaves; `theme-init` also applies `data-text-size`; no favicons in MVP.
+- The offline banner on the `offline` event alone is accepted for TID-006; the failed-request trigger is TID-018 AC12.
 
 ---
 
@@ -200,6 +211,7 @@ Owner: product-manager. Last updated 2026-11-16.
 6. Given 10 failed setup attempts from one IP in 10 minutes, when an 11th is made, then it gets `429 rate_limited` with `Retry-After`.
 7. Given the DB after setup, when I inspect `recovery_codes` and `sessions`, then only SHA-256 hashes are stored (no plaintext codes or tokens).
 8. Given a challenge older than 5 minutes or already used, when `setup/verify` is called with it, then it fails with `401 webauthn_failed`.
+9. Given the Worker source, then `@simplewebauthn/server` is imported only via `await import()` in `apps/worker/src/auth/webauthn.ts`, and no other module imports it statically (a unit test scans `apps/worker/src`, or a lint rule) (ADR 0002).
 
 **Out of scope:** adding more passkeys (TID-022), invites.
 
@@ -215,7 +227,7 @@ Owner: product-manager. Last updated 2026-11-16.
 
 **Acceptance criteria**
 
-1. Given I'm signed out, when I tap "Sign in with a passkey" and complete the platform prompt, then I land on my default view with a new session cookie.
+1. Given I'm signed out, when I tap "Sign in with a passkey" and complete the platform prompt, then I land on my default view (spec §11.1: the last list viewed on this device, else `/all`) with a new session cookie.
 2. Given an assertion with a wrong signature, unknown credential, or wrong origin/RP ID, when `login/verify` is called, then it returns `401 webauthn_failed` and no session is created.
 3. Given a valid session, when 23+ days remain on it, then requests don't write to `sessions`; when fewer than 23 days remain, then the next request extends `expires_at` to now + 30 days (fixed-clock integration test).
 4. Given a session past `expires_at` or `absolute_expires_at`, when any authenticated route is called, then it returns `401 unauthenticated` and the SPA routes to `/login`.
@@ -225,6 +237,7 @@ Owner: product-manager. Last updated 2026-11-16.
 8. Given any API response, then it carries `Cache-Control: no-store`, `X-Content-Type-Options: nosniff` and `Cross-Origin-Resource-Policy: same-origin`, and no `Access-Control-Allow-Origin` header.
 9. Given user B's session and user A's folder/subscription/entry/passkey IDs, when B calls any route with those IDs, then the response is `404 not_found` and A's data is unchanged (isolation suite).
 10. Given 10 failed sign-ins from one IP in 10 minutes, when an 11th is attempted, then `429 rate_limited`.
+11. Given the `API_RL` Rate Limiting binding (spec §4.6, §10.7) reports the limit exceeded for my user ID, when I call any authenticated route, then it returns `429 rate_limited` with `Retry-After: 60`; auth routes never consult it (integration test with a stubbed binding).
 
 **Out of scope:** session list (M2).
 
@@ -260,7 +273,7 @@ Owner: product-manager. Last updated 2026-11-16.
 1. Given each URL in the SSRF list (`http://127.0.0.1/`, `http://[::1]/`, `http://169.254.169.254/latest/meta-data`, `http://0x7f000001/`, `http://2130706433/`, `http://10.0.0.1/`, `http://192.168.1.1/`, `http://172.16.0.1/`, `http://100.64.0.1/`, `http://[fd00::1]/`, `http://[::ffff:127.0.0.1]/`, `http://localhost/`, `http://localhost./`, `http://printer/`, `http://foo.internal/`, `http://<APP_ORIGIN host>/`, `ftp://example.com/`, `http://user:pw@example.com/`, `http://example.com:22/`), when `safeFetch` is called, then it returns `blocked_address` (or `invalid_url`) without calling the injected `fetch`.
 2. Given a public URL that redirects (301) to `http://127.0.0.1/`, when fetched, then the redirect is not followed and the result is `blocked_address`.
 3. Given a chain of 4 redirects, when fetched, then it stops after 3 with `too_many_redirects`.
-4. Given a response body of 2 MB + 1 byte, when fetched, then the read is aborted and the result is `too_large`; given a server that stalls, then the result is `timeout` after 10 s (fake timers).
+4. Given a response body of 1 MiB + 1 byte (`MAX_BODY_BYTES` = 1,048,576, ADR 0006), when fetched, then the read is aborted and the result is `too_large`; given a server that stalls, then the result is `timeout` after 10 s (fake timers).
 5. Given ETag/Last-Modified inputs, when fetched, then `If-None-Match` and `If-Modified-Since` are sent and the `User-Agent` matches spec §7.3; no cookies or auth headers are ever sent, including on redirects.
 6. Given `ALLOW_FETCH_HOSTS` is set while `APP_ORIGIN` isn't `http://localhost:*`, when the Worker handles any request, then it refuses with a logged configuration error (unit test of the guard).
 7. Given a 200 response, then the fetcher returns the body bytes and its SHA-256 computed while streaming.
@@ -270,7 +283,7 @@ Owner: product-manager. Last updated 2026-11-16.
 ### TID-011: Feed parser and normalisation
 
 - **Agents:** SE, QA, PM
-- **Depends on:** TID-002 (library and caps decided)
+- **Depends on:** TID-002 (done: htmlparser2 12, 50 items, 1 MiB; ADR 0006)
 - **Spec:** §6.3, §6.5, ADR 0006
 
 **User story:** As the owner, I want my RSS, Atom and RDF feeds read correctly, with no duplicate articles, so that my reading list is accurate.
@@ -279,12 +292,15 @@ Owner: product-manager. Last updated 2026-11-16.
 
 1. Given the fixture corpus (RSS 2.0, Atom 1.0, RSS 1.0/RDF, CDATA, HTML entities, namespaced `content:encoded`, `media:thumbnail`, `dc:date`), when parsed, then title, link, guid, author, published date, content, summary (≤ 300 chars plain text) and image URL match the expected JSON snapshot per fixture.
 2. Given an item without a guid, when its key is computed, then it falls back to canonical link, then to title+date+enclosure (§6.3); the same item parsed twice yields the same `guid_hash`.
-3. Given a feed with 200 items, when parsed with `MAX_ITEMS_PER_FETCH = 50`, then exactly the first 50 items in document order are returned and the parser stops consuming input after them.
+3. Given a feed with 200 items, when parsed with `MAX_ITEMS_PER_FETCH = 50`, then exactly the first 50 items in document order are returned and the parser stops consuming input after them. Proven two ways: (a) a fixture whose 51st item onward is malformed garbage still parses successfully with 50 items; (b) a spy shows no parser callbacks after the 50th item closes.
 4. Given malformed XML (unclosed tags, stray `&`, wrong encoding declaration), when parsed, then either a best-effort result with ≥ 1 item or a `parse_error`, never an uncaught exception.
 5. Given a published date in the future or missing, then `published_at` equals the fetch time; given `javascript:` or `data:` links or image URLs, then they are null.
 6. Given an entity-expansion payload (billion laughs) or a 5 MB single attribute, when parsed, then it completes within the caps without expanding custom entities (unit test asserts output size).
 7. Given `content_html` over 100 KB, then it is truncated to 100 KB.
 8. Given an HTML page with `<link rel="alternate" type="application/rss+xml" href="/feed">`, when discovery runs (HTMLRewriter), then it returns the absolute feed URL; JSON Feed links are returned with `supported: false`.
+9. Given an item whose content is 5 MB of text, when parsed, then the text accumulated for that item stops growing at 100 KB (the cap is applied during accumulation, not after; a unit test asserts the accumulator length never exceeds the cap).
+10. Given `npm run bench -w @tidings/feed-parser`, when run, then it prints p50/p95 parse time for each `generate-feeds.ts` fixture (`rss-small`, `rss-typical`, `atom-typical`, `rdf-typical`, `rss-large`, `rss-huge`) with the 50-item cap. The output is pasted into the PR. Informational, not a CI gate: Node timings don't predict Workers CPU.
+11. Given `packages/feed-parser/package.json`, then its only XML dependency is `htmlparser2` 12.x (no feedsmith, no fast-xml-parser).
 
 ---
 
@@ -307,11 +323,16 @@ Owner: product-manager. Last updated 2026-11-16.
 7. Given 410, then `state = 'gone'` and the feed is never leased again.
 8. Given 20 consecutive failures, then `state = 'dead'` and later failures schedule `now + 86400`.
 9. Given a 301 to a new valid URL that no other feed uses, then on success `feeds.url` is updated to the canonical new URL.
-10. Given a callee that throws (simulated CPU-limit kill), when the dispatcher's `allSettled` sees the rejection, then the dispatcher records `last_error_code = 'internal'` (or `cpu_limit` when detectable), increments `error_count` and applies backoff.
+10. Given a callee that rejects, when the dispatcher's `allSettled` sees the rejection, then it records `last_error_code = 'cpu_limit'` if the message is `Worker exceeded CPU time limit.` (the message observed in TID-003) and `'internal'` otherwise, increments `error_count` and applies backoff (one test per case).
 11. Given a feed with no subscriptions, then it is never leased (parked at `next_fetch_at = 253402300799`).
 12. Given `npm run dev`, when I call `/cdn-cgi/local/scheduled?cron=*+*+*+*+*`, then the dispatcher runs against the fixture server *(manual check documented in README)*.
+13. **Deployed CPU gate (ADR 0006, spec §9.7).** Given a time-boxed benchmark deployment of this branch on the Workers Free plan (a separate throwaway Worker name, fixtures from `generate-feeds.ts` served over HTTPS from a separate throwaway origin, both deleted afterwards), when the real `FeedRefresher.refresh` runs ≥ 200 times per fixture with new-item content every time, then CPU read from Cloudflare GraphQL Analytics (never `performance.now()`) shows:
+    - for `rss-small`, `rss-typical`, `atom-typical` and `rdf-typical`: **zero `exceededCpu`** and **p95 ≤ 8 ms** for the whole invocation;
+    - for unchanged bodies (hash match) and for `rss-large`/`rss-huge` (rejected as `too_large` at 1 MiB): zero `exceededCpu` and p95 ≤ 2 ms;
+    - recorded but not gated: p50, p99, p99.9, cold first refresh, and the body-read + SHA-256 cost at a 1 MiB body and at a 2 MiB body (with the cap temporarily raised in the benchmark only).
+    The results table goes in ADR 0006 under "Results (TID-012)". If the gate fails, the engineer stops and the PM applies ADR 0006's ladder. *(manual deployment, PM reviews the table)*
 
-**Out of scope:** adaptive intervals (M2), first-fetch-for-user behaviour (TID-013).
+**Out of scope:** adaptive intervals (M2), first-fetch-for-user behaviour (TID-013), raising `MAX_BODY_BYTES` (PM decision after AC13).
 
 ---
 
@@ -423,16 +444,21 @@ Owner: product-manager. Last updated 2026-11-16.
 
 **Acceptance criteria**
 
-1. Given seeded data, when I open `/all`, `/folders/:id` and `/feeds/:id`, then each shows the matching articles newest first, 50 per page, with feed title, title, relative time, summary and thumbnail when present.
+1. Given seeded data, when I open `/all`, `/folders/:id` and `/feeds/:id`, then each shows the matching articles newest first, 50 per page, with feed title, title, relative time, summary and thumbnail when present. While the folder or feed name is loading, the header shows a skeleton bar, never the word "Folder" or "Feed".
 2. Given "Unread only", then only unread articles appear; toggling to "All articles" shows read ones too, and the toggle's default comes from my settings.
 3. Given I scroll to the end of a page, then the next page loads via `nextCursor`; given 3 new entries are inserted between page 1 and page 2, then page 2 contains no duplicates and skips nothing (integration test).
 4. Given `GET /api/counts`, then totals per subscription, per folder (sum of its subscriptions) and overall match the number of unread `user_entries` (integration test), and `rows_read` ≤ unread rows + subscriptions + 10.
-5. Given the "All unread" and "Feed unread" list queries with `limit=50`, then `rows_read` ≤ 102 (NFR-7).
+5. Given the list queries with `limit=50` (NFR-7, ADR 0008):
+    - "All" and "Feed" views, unread and all: page 1 `rows_read` ≤ 102; continuation pages ≤ 102 + T (T = rows in the view sharing the cursor's `published_at`), including a seeded case where 60 entries share one `published_at` and the cursor lands inside that group;
+    - folder view: `rows_read` ≤ M + 51 + S + 10 (M = matching rows in the folder at or below the cursor, S = subscriptions in the folder), for both unread and all states.
 6. Given the drawer, then it shows All, folders (expandable) and unfiled feeds with unread counts, and zero-count items are dimmed.
 7. Given a view with no subscriptions / no unread / a never-fetched feed / a failing feed, then the matching empty state from UX is shown.
 8. Given `?view=feed&id=<another user's subscription>`, then `404 not_found`.
 9. Given pull-to-refresh on a list, then the list and counts are refetched from the API and no feed fetch is triggered.
 10. Given 375 × 812 in both themes, the lists match the UX spec and pass axe *(E2E + UX review)*.
+11. Given I last viewed `/folders/:id` on this device, when I open `/`, then I'm redirected to that folder; given nothing is stored, the stored value is malformed, or that folder or feed no longer exists, then I'm redirected to `/all` (spec §11.1).
+12. Given the app is online per `navigator.onLine`, when an API request fails with no response (network error), then the offline banner appears within 1 s; when the next API request succeeds or the `online` event fires, then it disappears (spec FR-PW-3; E2E with request interception).
+13. Given unread-only mode, when I open an unread article and come back with Back, then its row is still in the list, shown as read; it disappears only after I leave the list and return, or pull to refresh (FR-RD-4).
 
 ---
 
@@ -452,7 +478,7 @@ Owner: product-manager. Last updated 2026-11-16.
 4. Given I tap "Mark as unread", then it becomes unread again (list and counts).
 5. Given the XSS payload corpus as `content_html` (script tags, `onerror`, `javascript:` links, `<iframe>`, `<svg onload>`, `<style>`, `<form>`, `srcdoc`, `<base>`, `<meta http-equiv>`), when rendered, then no script executes (E2E listens for dialogs/console errors and checks a global canary), forbidden elements are absent from the DOM, and iframes are replaced with an "Open embedded content" link.
 6. Given content with relative links and images, then they're resolved against the entry URL; every image has `loading="lazy"` and `referrerpolicy="no-referrer"` and never overflows the viewport at 375 px.
-7. Given I'm in a list view, when I tap "Next"/"Previous" in the article, then I move through that list's order (loading the next page if needed); "Back" returns to the list at the same scroll position.
+7. Given I'm in a list view, when I tap "Next"/"Previous" in the article, then I move through that list's order (loading the next page if needed) using history `replace`; "Back" returns to the list at the same scroll position, after any number of Next/Previous taps (spec §11.1).
 8. Given `dangerouslySetInnerHTML` appears anywhere except `ArticleContent`, then lint fails (from TID-001; regression check).
 9. Given `GET /api/entries/:id` for another user's entry, then `404`.
 10. Given `POST /api/entries/read-state` with 1,001 IDs, then `400 validation_failed`; with IDs including another user's, then only mine change.
@@ -510,7 +536,7 @@ Owner: product-manager. Last updated 2026-11-16.
 **Acceptance criteria**
 
 1. Given I pick Light, Dark or System, then the theme changes immediately, `PATCH /api/me` stores it, `localStorage['tidings.theme']` is updated, and a fresh load on another device (new browser context with the same account) uses it.
-2. Given I change "Unread only by default", "Mark as read when opened" or text size, then the change persists across reloads and takes effect in lists and the article view.
+2. Given I change "Unread only by default", "Mark as read when opened" or text size, then the change persists across reloads and takes effect in lists and the article view. Text size is mirrored to `localStorage['tidings.textSize']` and `<html data-text-size>` is correct before first paint on reload (E2E checks the attribute at `DOMContentLoaded`).
 3. Given the passkeys section, then I can add a passkey (virtual authenticator), rename it, and remove one; removing the last one returns `409 last_passkey` and the UI explains why.
 4. Given my session's `authenticated_at` is older than 15 minutes, when I regenerate recovery codes, then the API returns `403 reauth_required`, the UI runs a passkey sign-in, then retries and shows 10 new codes; the old codes no longer work.
 5. Given I tap "Sign out everywhere", then all my sessions are deleted and every browser context gets `401` on the next request.
@@ -525,6 +551,8 @@ Owner: product-manager. Last updated 2026-11-16.
 - **Depends on:** TID-018, TID-019
 - **Spec:** FR-PW-1 to FR-PW-3, NFR-1, NFR-3
 
+**Scope note (2026-11-16):** UX designs the app icon set and the wordmark treatment in `docs/ux/` before SE builds: 192 and 512 px, a maskable 512 px with safe zone, 180 px `apple-touch-icon`, an SVG favicon, all legible on light and dark home screens.
+
 **User story:** As the owner, I want the app to open instantly from my home screen showing what I last saw, so that it feels like a native reader.
 
 **Acceptance criteria**
@@ -532,7 +560,7 @@ Owner: product-manager. Last updated 2026-11-16.
 1. Given I've used the app, when I reload with the network throttled to Slow 4G and 4× CPU slowdown, then the last view's list renders from IndexedDB within 1.0 s of navigation start (median of 5, NFR-1), then revalidates.
 2. Given the network is offline, when I launch the app, then the shell and cached lists, counts and up to 50 recently opened articles render, an "Offline" indicator shows, and a mutation shows an error toast.
 3. Given a new app version is deployed, then the persisted cache is discarded (buster = app version) and the service worker updates on next launch.
-4. Given the manifest, then Lighthouse's installability check passes and icons exist for 192 and 512 px plus a maskable icon; `theme-color` is set for both schemes.
+4. Given the manifest, then Lighthouse's installability check passes and icons from UX exist for 192 and 512 px, a maskable icon, a 180 px `apple-touch-icon` and an SVG favicon. The manifest's single `theme_color`/`background_color` use the light surface values, and the `<meta name="theme-color">` matches the resolved theme (light and dark E2E). Known limitation, accepted 2026-11-16: an Android dark-mode launch splash may briefly show light.
 5. Given the production build, then initial JS ≤ 170 KB gzipped and CSS ≤ 30 KB gzipped (CI size check, NFR-3).
 6. Given an iPhone with iOS 17+, when I "Add to Home Screen" and open it, then it launches standalone and I stay signed in *(manual, PM sign-off)*.
 
@@ -550,9 +578,14 @@ Owner: product-manager. Last updated 2026-11-16.
 
 1. Given a push to `main` with CI green, then the workflow applies remote D1 migrations and deploys the Worker; a failed migration stops the deploy.
 2. Given the README, then it documents: first-time setup (create D1, set `SETUP_TOKEN`, choose the hostname per Q2, custom domain route), local dev, where to see Workers/D1 usage, the break-glass passkey recovery procedure, and how to roll back a deploy.
-3. Given production with the owner's real OPML imported, after 48 hours, then the PM records actual daily requests, D1 rows read/written, storage and refresh CPU p99 in spec §9 ("Measured" column) and they're within 70% of each free limit *(manual, PM)*.
+3. Given production with the owner's real OPML imported, after 48 hours, then the PM records actual daily requests, D1 rows read/written, storage, refresh CPU p95/p99 and `exceededCpu` counts in spec §9 ("Measured" column) and they're within 70% of each free limit *(manual, PM)*.
 4. Given production, then `exceededCpu` outcomes are < 1% of refresh invocations, and any feed affected shows `cpu_limit` or `too_large` in Manage *(manual check of logs)*.
 5. Given the production origin, then the response headers match spec §10.4 including HSTS (custom domain) *(automated header check script run against production)*.
+6. Given 10 cold sign-ins in production (each after a deploy or idle period), then auth-route CPU is recorded; if any shows `exceededCpu`, or 2 or more exceed 10 ms, a follow-up story moves WebAuthn verification behind `ctx.exports` (ADR 0002) *(manual, PM)*.
+
+**Notes**
+- Cloudflare's per-account `workers.dev` TLS certificate can take about 10 minutes to provision after the first deploy. Allow for it before the first smoke check, and don't treat early TLS errors as a failed deploy.
+- The TID-003 spike Worker `tidings-spike-fanout` was deleted on 2026-11-16 after AC3 was read. Check the account's Workers list holds no `tidings-spike-*` scripts before the production deploy.
 
 **M1 exit criteria:** every M1 story Done; full suite green; real-iPhone manual pass in both themes; budget measured; the owner confirms they can cancel Inoreader.
 
@@ -594,6 +627,10 @@ Owner: product-manager. Last updated 2026-11-16.
 
 ### TID-034: Storage warning
 - **AC:** Given DB size > 70% of 500 MB (from the daily maintenance metric), then Settings shows a warning with the size and a link to the retention docs.
+
+### TID-035: Swipe to close the navigation drawer
+- **User story:** As a one-handed phone reader, I want to swipe the open drawer away, so that I can close it without reaching for the Close button.
+- **AC:** Given the drawer is open on a touch device, when I swipe it left past 40% of its width or flick it, then it closes and the history entry it pushed is popped; `prefers-reduced-motion` removes the follow-the-finger animation. No edge-swipe to open (it collides with iOS back). **Depends on:** TID-006. **Agents:** UX, SE, QA.
 
 ---
 
