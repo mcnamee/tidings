@@ -1,0 +1,4 @@
+@import 'tailwindcss';
+
+/* Dark mode keyed on data-theme on <html>; real tokens arrive with TID-006. */
+@custom-variant dark (&:where([data-theme=dark], [data-theme=dark] *));

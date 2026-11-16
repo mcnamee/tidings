@@ -1,0 +1,9 @@
+{
+  "name": "@tidings/e2e",
+  "private": true,
+  "version": "0.0.0",
+  "type": "module",
+  "scripts": {
+    "test:e2e": "echo 'E2E suite arrives with TID-005 (placeholder)'"
+  }
+}

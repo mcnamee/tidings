@@ -1,0 +1,9 @@
+node_modules
+dist
+.wrangler
+package-lock.json
+coverage
+lint-fixtures
+.claude
+docs
+CLAUDE.md

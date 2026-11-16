@@ -1,0 +1,21 @@
+{
+  "name": "@tidings/worker",
+  "private": true,
+  "version": "0.0.0",
+  "type": "module",
+  "scripts": {
+    "dev": "mkdir -p ../web/dist && wrangler dev --port 8787",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "build": "wrangler deploy --dry-run --outdir .wrangler/dry-run",
+    "db:migrate:local": "wrangler d1 migrations apply tidings --local"
+  },
+  "dependencies": {
+    "@tidings/shared": "*",
+    "hono": "4.13.18"
+  },
+  "devDependencies": {
+    "@cloudflare/workers-types": "5.20261116.1",
+    "wrangler": "4.162.0"
+  }
+}

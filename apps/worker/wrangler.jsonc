@@ -1,0 +1,28 @@
+{
+  "name": "tidings",
+  "main": "src/index.ts",
+  "compatibility_date": "2026-11-16",
+  "compatibility_flags": ["enable_ctx_exports"], // loopback RPC; confirmed or replaced by TID-003
+  "assets": {
+    "directory": "../web/dist",
+    "not_found_handling": "single-page-application",
+    "run_worker_first": ["/api/*"],
+  },
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "tidings",
+      // PLACEHOLDER: replace with the real ID from `wrangler d1 create tidings` (TID-024).
+      "database_id": "00000000-0000-0000-0000-000000000000",
+      "migrations_dir": "migrations",
+    },
+  ],
+  "triggers": { "crons": ["* * * * *", "17 * * * *"] },
+  "routes": [{ "pattern": "tidings.mcn.am", "custom_domain": true }],
+  "vars": {
+    "APP_ORIGIN": "https://tidings.mcn.am",
+    "RP_ID": "tidings.mcn.am",
+    "RP_NAME": "Tidings",
+  },
+  // secrets: SETUP_TOKEN (wrangler secret put)
+}
