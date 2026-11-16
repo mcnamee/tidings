@@ -19,16 +19,26 @@ export function HeaderActions({ children }: { children: ReactNode }) {
   return headerActions ? createPortal(children, headerActions) : null;
 }
 
-/** Height the bar occupies above the safe-area inset; toasts sit above it. */
-const BAR_HEIGHT = '3.5rem';
-
+/**
+ * Publishes the bar's measured height as --bottom-offset so toasts sit 12 px above it, even when the
+ * bar grows (large text, wrapped actions). The toast formula adds the safe-area inset itself, so the
+ * bar's own bottom padding (that inset) is subtracted here. Removed when the bar unmounts.
+ */
 export function BottomBar({ children }: { children: ReactNode }) {
   const { bottomBar } = useContext(ShellSlotsContext);
   useEffect(() => {
     if (!bottomBar) return;
-    document.documentElement.style.setProperty('--bottom-offset', BAR_HEIGHT);
+    const root = document.documentElement;
+    const publish = () => {
+      const inset = parseFloat(getComputedStyle(bottomBar).paddingBottom) || 0;
+      root.style.setProperty('--bottom-offset', `${bottomBar.offsetHeight - inset}px`);
+    };
+    publish();
+    const observer = typeof ResizeObserver === 'undefined' ? null : new ResizeObserver(publish);
+    observer?.observe(bottomBar);
     return () => {
-      document.documentElement.style.removeProperty('--bottom-offset');
+      observer?.disconnect();
+      root.style.removeProperty('--bottom-offset');
     };
   }, [bottomBar]);
   return bottomBar
