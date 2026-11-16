@@ -189,6 +189,7 @@ export function sniffedHtml(decoded: string, cap: number): string {
   return cut;
 }
 
+// eslint-disable-next-line no-control-regex -- matching U+0000 is the point (ADR 0009 section 6)
 const BAD_UTF16 = /\u0000|[\uD800-\uDBFF](?![\uDC00-\uDFFF])|(?<![\uD800-\uDBFF])[\uDC00-\uDFFF]/g;
 
 /**
