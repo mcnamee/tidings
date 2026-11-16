@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<rss version="2.0">
+  <channel>
+    <title>Sloppy Markup & Unescaped Ampersands</title>
+    <link>https://sloppy.example.test/</link>
+    <description>Unescaped ampersand above, mismatched tags, unclosed <br> elements and stray control characters</description>
+    <item>
+      <title>Mismatched <b>tags</i></title>
+      <link>https://sloppy.example.test/1?a=1&b=2</link>
+      <guid>sloppy-1</guid>
+      <pubDate>Tue, 10 Nov 2026 09:00:00 GMT</pubDate>
+      <description>Control char here: and an undefined entity &nbsp; &bogus; end.</description>
+    </item>
+    <item>
+      <title>Second item still parseable</title>
+      <link>https://sloppy.example.test/2</link>
+      <guid>sloppy-2</guid>
+      <pubDate>Mon, 09 Nov 2026 09:00:00 GMT</pubDate>
+    </item>
+  </channel>
+</rss>

@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<rss version="2.0">
+  <channel>
+    <title>Truncated Mid-Item</title>
+    <link>https://broken.example.test/</link>
+    <description>The connection dropped while sending this feed; the first item is complete</description>
+    <item>
+      <title>Complete item</title>
+      <link>https://broken.example.test/1</link>
+      <guid>broken-1</guid>
+      <pubDate>Tue, 10 Nov 2026 09:00:00 GMT</pubDate>
+      <description>This one is fine.</description>
+    </item>
+    <item>
+      <title>Cut off in the mid</title>
+      <link>https://broken.example.test/2</link>
+      <guid>broken-2</guid>
+      <description>This description never ends and the closing tags are mis

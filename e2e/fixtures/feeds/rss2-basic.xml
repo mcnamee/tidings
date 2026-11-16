@@ -1,0 +1,33 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<rss version="2.0" xmlns:dc="http://purl.org/dc/elements/1.1/">
+  <channel>
+    <title>RSS 2.0 Basic Example</title>
+    <link>https://rss.example.test/</link>
+    <description>A well-formed RSS 2.0 feed</description>
+    <language>en-au</language>
+    <lastBuildDate>Tue, 10 Nov 2026 12:00:00 GMT</lastBuildDate>
+    <item>
+      <title>Item three</title>
+      <link>https://rss.example.test/posts/3</link>
+      <guid isPermaLink="true">https://rss.example.test/posts/3</guid>
+      <pubDate>Tue, 10 Nov 2026 09:00:00 GMT</pubDate>
+      <dc:creator>Ada Example</dc:creator>
+      <description>Description of item three.</description>
+    </item>
+    <item>
+      <title>Item two</title>
+      <link>https://rss.example.test/posts/2</link>
+      <guid isPermaLink="false">rss-example-2</guid>
+      <pubDate>Mon, 09 Nov 2026 23:00:00 +1000</pubDate>
+      <description>Description of item two.</description>
+      <enclosure url="https://rss.example.test/audio/2.mp3" length="12345" type="audio/mpeg"/>
+    </item>
+    <item>
+      <title>Item one</title>
+      <link>https://rss.example.test/posts/1?utm_source=feed&amp;ref=rss</link>
+      <guid>rss-example-1</guid>
+      <pubDate>Sun, 08 Nov 2026 00:00:00 GMT</pubDate>
+      <description>Description of item one.</description>
+    </item>
+  </channel>
+</rss>

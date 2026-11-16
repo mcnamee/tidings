@@ -1,0 +1,38 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<rss version="2.0"
+  xmlns:content="http://purl.org/rss/1.0/modules/content/"
+  xmlns:dc="http://purl.org/dc/elements/1.1/"
+  xmlns:media="http://search.yahoo.com/mrss/"
+  xmlns:atom="http://www.w3.org/2005/Atom">
+  <channel>
+    <title>Caf&#233; &amp; Cr&#232;me: CDATA, entities and namespaces</title>
+    <link>https://rich.example.test/</link>
+    <description><![CDATA[A feed with <b>CDATA</b> and "entities" &amp; friends]]></description>
+    <atom:link href="https://rich.example.test/feed" rel="self" type="application/rss+xml"/>
+    <item>
+      <title><![CDATA[CDATA title with <angle> brackets & ampersand]]></title>
+      <link>https://rich.example.test/a</link>
+      <guid isPermaLink="false">rich-a</guid>
+      <dc:date>2026-11-10T08:15:00+00:00</dc:date>
+      <dc:creator><![CDATA[Zo&euml; O'Brien]]></dc:creator>
+      <description><![CDATA[<p>Summary with <a href="https://rich.example.test/a">a link</a>.</p>]]></description>
+      <content:encoded><![CDATA[<p>Full body.</p><p><img src="https://rich.example.test/img/a.jpg" alt="inline"> Smart quotes &ldquo;like this&rdquo;, an em dash &mdash; and a snowman &#9731;.</p>]]></content:encoded>
+      <media:thumbnail url="https://rich.example.test/thumbs/a.jpg" width="320" height="180"/>
+    </item>
+    <item>
+      <title>Escaped &lt;b&gt;markup&lt;/b&gt; in title &amp;amp; double escape</title>
+      <link>https://rich.example.test/b</link>
+      <guid isPermaLink="false">rich-b</guid>
+      <pubDate>Mon, 09 Nov 2026 08:15:00 EST</pubDate>
+      <description>&lt;p&gt;Entity-escaped HTML description with &amp;nbsp; and &#x2019;apostrophe&#x2019;.&lt;/p&gt;</description>
+      <media:content url="https://rich.example.test/media/b.jpg" medium="image"/>
+    </item>
+    <item>
+      <title>Emoji and CJK: 🎉 日本語 العربية</title>
+      <link>https://rich.example.test/c</link>
+      <guid isPermaLink="false">rich-c</guid>
+      <pubDate>Sun, 08 Nov 2026 08:15:00 GMT</pubDate>
+      <description>Unicode body.</description>
+    </item>
+  </channel>
+</rss>
