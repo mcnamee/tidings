@@ -121,11 +121,11 @@ describe('Worker config guard: every route, every origin shape', () => {
   it('scheduled() logs a configuration error and does not run the job', () => {
     const err = vi.spyOn(console, 'error').mockImplementation(() => undefined);
     const log = vi.spyOn(console, 'log').mockImplementation(() => undefined);
-    worker.scheduled!(
-      { cron: '* * * * *', scheduledTime: 0 } as ScheduledController,
-      { ...env, APP_ORIGIN: PROD, ALLOW_FETCH_HOSTS: '127.0.0.1:8790' },
-      createExecutionContext(),
-    );
+    worker.scheduled!({ cron: '* * * * *', scheduledTime: 0 } as ScheduledController, {
+      ...env,
+      APP_ORIGIN: PROD,
+      ALLOW_FETCH_HOSTS: '127.0.0.1:8790',
+    });
     expect(err).toHaveBeenCalledWith(expect.stringContaining('configuration error'));
     expect(log).not.toHaveBeenCalled();
     err.mockRestore();
@@ -134,11 +134,10 @@ describe('Worker config guard: every route, every origin shape', () => {
 
   it('scheduled() runs normally on a production config without the var', () => {
     const log = vi.spyOn(console, 'log').mockImplementation(() => undefined);
-    worker.scheduled!(
-      { cron: '* * * * *', scheduledTime: 0 } as ScheduledController,
-      { ...env, APP_ORIGIN: PROD },
-      createExecutionContext(),
-    );
+    worker.scheduled!({ cron: '* * * * *', scheduledTime: 0 } as ScheduledController, {
+      ...env,
+      APP_ORIGIN: PROD,
+    });
     expect(log).toHaveBeenCalledOnce();
     log.mockRestore();
   });
