@@ -24,7 +24,7 @@ Entry template:
 ### DEF-011: Stripping HTML tags from plain-text fields in one pass re-forms a tag
 - Story: TID-011 (ADR 0009 section 2, defence in depth)
 - Severity: S3 (minor). Owner: SE.
-- Status: Fixed (COMMIT), awaiting tester closure
+- Status: Fixed (9a0d6f4), awaiting tester closure
 - Found by: `packages/feed-parser/src/adversarial.test.ts` > "stripping cannot re-form an element tag: <scr<b>ipt> (DEF-011)" (`it.fails`)
 - Steps to reproduce: `<title><![CDATA[<scr<b>ipt>x</scr<b>ipt>]]></title>` (also `<<b>script>alert(1)<</b>/script>` and `<im<i>g src=x>`), and the same text in `<description>`.
 - Expected: no HTML element tag survives in `title`, `author`, feed title or `summary` (ADR 0009 section 2). Stripping `<b>` should not leave `<script>` behind.
