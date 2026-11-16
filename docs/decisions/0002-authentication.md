@@ -1,6 +1,6 @@
 # 0002. Authentication: passkeys with recovery codes, single owner, server-side sessions
 
-- Status: Accepted (user may override: spec Q3). WebAuthn CPU results in from spike TID-003, decision pending PM (see Results).
+- Status: Accepted (user may override: spec Q3). WebAuthn CPU measured in spike TID-003; PM decision recorded 2026-11-16 (see end).
 - Date: 2026-11-16
 - Deciders: product-manager
 
@@ -28,7 +28,7 @@ The account holds one person's subscriptions and reading history. Every API rout
 
 ## Consequences
 
-- No passwords to leak or hash; auth CPU cost is low (to be confirmed in TID-003, including library cold start).
+- No passwords to leak or hash; auth CPU cost is low: warm p99 3 ms, cold first request up to 10 ms (TID-003, 2026-11-16).
 - The production hostname must be chosen before setup (spec Q2); changing it means re-registering passkeys.
 - E2E tests use Chromium's virtual authenticator.
 - Browsers without passkey support are unsupported (spec NFR-12).
@@ -68,3 +68,11 @@ Warm p99 is 3 ms against the 8 ms target. (p99 equals max at these sample sizes.
 ### Recommendation (for the PM to decide)
 
 Keep `@simplewebauthn/server` and passkeys (ADR 0002 stands). Do not build the lighter Web Crypto verifier (spec R9 fallback) now: warm cost is 3 ms and cold cost is borderline, not clearly over. Re-label spec §9.7 "WebAuthn verify" as "warm p99 3 ms, cold up to 10 ms, verified 2026-11-16" and have TID-007 load the library dynamically in the auth routes. If TID-007 measures cold login above 10 ms in the real Worker, move verification behind a `ctx.exports` entrypoint first, and only then consider the lighter verifier (ES256 and EdDSA only, which covers Apple, Google and password-manager passkeys; RS256 is Windows Hello).
+
+## PM decision (2026-11-16)
+
+1. **Keep `@simplewebauthn/server` 14 and passkeys.** No lighter Web Crypto verifier now (spec R9 fallback stays in reserve). No `nodejs_compat` flag (the library didn't need it).
+2. **Load the library lazily.** `@simplewebauthn/server` is reached only through `await import()` inside the auth route handlers (one loader module, `apps/worker/src/auth/webauthn.ts`), so hot API routes never evaluate it. TID-007 enforces this with a test.
+3. **Cold login is accepted at up to 10 ms** (median 5 ms, max 10 ms over 15 cold samples). Sign-in happens about once per 30 days per device, a killed attempt can be retried on a warm isolate (0-3 ms), and Cloudflare documents isolate flexibility for infrequent overruns.
+4. **Trigger for the next mitigation:** if production logs (TID-024) show any `exceededCpu` outcome on an auth route, or deployed cold login CPU above 10 ms in 2 or more of 10 cold samples, move verification behind a `ctx.exports` `WorkerEntrypoint` first. Only if that fails, build the ES256/EdDSA-only verifier.
+5. Spec §9.7 "WebAuthn verify" now reads: warm p99 3 ms, cold up to 10 ms, verified 2026-11-16.

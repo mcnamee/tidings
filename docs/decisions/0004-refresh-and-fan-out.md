@@ -1,6 +1,6 @@
 # 0004. Background refresh: per-minute cron dispatcher with per-feed loopback RPC
 
-- Status: Results in, decision pending PM (spike TID-003 ran 2026-11-16; was: Accepted, provisional on spike TID-003)
+- Status: **Accepted** (2026-11-16, after spike TID-003; all ACs measured; see "PM decision" at the end)
 - Date: 2026-11-16
 - Deciders: product-manager
 
@@ -20,9 +20,9 @@ Baseline load is 250 feeds every 30 minutes: 12,000 fetches/day. On the Free pla
 
 Option 3:
 
-- Cron `* * * * *` runs the dispatcher; one `UPDATE … RETURNING` leases up to 20 due feeds by moving `next_fetch_at` forward atomically (no double fetch across overlapping ticks).
-- For each, `ctx.exports.FeedRefresher.refresh(job)`; `Promise.allSettled`; the dispatcher records failures (including CPU-limit kills) for callees that couldn't.
-- Each refresh: conditional GET → body hash → streaming parse capped at 50 items and 2 MB → dedup → one `batch()` write. No write when nothing changed.
+- Cron `* * * * *` runs the dispatcher; one `UPDATE … RETURNING` leases up to `REFRESH_BATCH_SIZE` = 20 due feeds by moving `next_fetch_at` forward atomically (no double fetch across overlapping ticks).
+- For each, `ctx.exports.FeedRefresher.refresh(job)`; `Promise.allSettled`; the dispatcher records failures for callees that couldn't. A rejection whose message is `Worker exceeded CPU time limit.` is recorded as `cpu_limit`; any other rejection as `internal`.
+- Each refresh: conditional GET → body hash → streaming parse with early stop at 50 items, body capped at 1 MiB (ADR 0006) → dedup → one `batch()` write. No write when nothing changed.
 - Capacity 28,800 fetches/day (600 feeds at 30 min). More capacity: add dispatcher crons (up to 3 more).
 - New subscriptions call the same entrypoint directly from the API so the first fetch is immediate and in its own CPU budget.
 - Hourly maintenance cron does bounded cleanup.
@@ -37,7 +37,7 @@ Option 3:
 ## Consequences
 
 - Every feed is isolated: one pathological feed fails alone and backs off.
-- Requests/day ≈ 16,000 at baseline (assuming callee invocations count as requests).
+- Callee invocations count as requests (measured, AC3). Requests/day ≈ 16,000 at baseline (16%), ≈ 30,600 heavy (31%); ceiling at full dispatcher capacity ≈ 30,240 for refresh alone (see PM decision).
 - The lease costs one row written per fetch: the largest single item in the write budget.
 
 ## Results (spike TID-003, run 2026-11-16, Workers Free plan)
@@ -73,7 +73,11 @@ Findings:
 - **But the RPC call itself counts differently by mechanism.** Through a service binding, each RPC call counts as one of the dispatcher's 50 subrequests (n=50 fulfilled, then `Too many subrequests` at 60 and at 100 calls). Through `ctx.exports`, 100 RPC calls in one invocation all succeeded. The "32 service-binding invocations per request" figure in spec §9.1 did not bite: 33 calls succeeded in both modes.
 - Wall time: 20 callees x 3 sequential fetches finished in about 6 to 8 s wall (example.com from the Sydney colo). Far under the 15 min cron wall limit.
 
-### AC3: do callee invocations count toward 100,000 requests/day? (method only; a day couldn't pass in the session)
+### AC3: do callee invocations count toward 100,000 requests/day?
+
+**Result (measured 2026-11-16 by the orchestrator): yes, they count.** Cloudflare GraphQL Analytics, `workersInvocationsAdaptive` `sum.requests` for `scriptName: "tidings-spike-fanout"`, 10:20-10:45 UTC on 2026-11-16. That window falls after the spike's ad hoc test traffic, with only the `*/5` cron running. Every 5-minute tick showed exactly **21 requests** (1 scheduled + 20 `ctx.exports` callees); five consecutive ticks totalled 105. The expected counts are deterministic (table below), so 25 minutes is conclusive. The service-binding case was not measured (that mechanism isn't used). `tidings-spike-fanout` was deleted afterwards.
+
+Method as planned by the engineer, kept for reference:
 
 Left deployed: `tidings-spike-fanout` only, cron `*/5 * * * *` (deployed 2026-11-16 10:13 UTC). Each tick is one scheduled invocation plus exactly 20 `ctx.exports` callee invocations, with no outbound fetches and about 0 ms CPU, so the expected counts are deterministic:
 
@@ -130,6 +134,30 @@ Caveat: this answers it for `ctx.exports` (the chosen mechanism). For service-bi
 3. Treat the soft CPU limit as a bonus, not as budget: keep TID-002's caps so a refresh stays under 10 ms.
 4. Update spec §9.1 rows: callee CPU and subrequest budget = verified 2026-11-16 (`ctx.exports` and service binding), service-binding calls count toward the 50 subrequests (`ctx.exports` calls don't), the 32-invocation cap not observed (33 calls in both modes, 100 via `ctx.exports`), rate limiting = available and approximate on Free, callee request counting = pending AC3 read.
 
-### Still deployed (AC3)
+### Cleanup
 
-`tidings-spike-fanout` only. Delete after reading the result: `npx wrangler delete --name tidings-spike-fanout --force`.
+All spike Workers are deleted: `tidings-spike-fanout-callee` during the spike, `tidings-spike-fanout` on 2026-11-16 after AC3 was read.
+
+## PM decision (2026-11-16)
+
+1. **Fan-out mechanism: option 3 as written, `ctx.exports.FeedRefresher.refresh(job)` in the one Worker.** Confirmed: each callee is its own invocation with its own CPU and subrequest budget, a killed callee fails alone, and `ctx.exports` RPC calls don't use the dispatcher's 50 subrequests (service-binding calls do). The fallback ladder is retired; it is kept above for history only.
+2. **`REFRESH_BATCH_SIZE` = 20** (unchanged). Subrequests no longer bound it. It is bounded by the daily request quota (callees count) and by having headroom over the average need (≈ 8 feeds per tick at baseline). Raising it doesn't add requests at a given load, because requests scale with fetches, not batch size. It only raises the ceiling.
+3. **Requests budget, callees counted (measured):**
+
+   | Case | Requests/day | Share of 100,000 |
+   |---|---|---|
+   | Baseline A (250 feeds / 30 min): 1,464 cron + 12,000 callees + 2,500 API | ≈ 16,000 | 16% |
+   | Heavy B (300 feeds / 20 min, 3 users): 1,464 + 21,600 + 7,500 | ≈ 30,600 | 31% |
+   | Ceiling of one dispatcher at B = 20 (1,440 × (1 + 20)) + 24 maintenance + 7,500 API | ≈ 37,800 | 38% |
+   | Ceiling with all 4 dispatcher crons full (1,440 × 4 × 21) | ≈ 121,000 | **over quota**: never add dispatcher crons without re-running this table |
+
+   Adding dispatcher crons is now a budget decision, not a free capacity knob: each extra cron at full batch adds up to 30,240 requests/day. The first extra cron needs an ADR update.
+4. **CPU limit is soft in practice; we still budget to 10 ms.** Cloudflare documents per-isolate flexibility for infrequent overruns (limits page, checked 2026-11-16). The spike saw kills only around 100 ms and above. Design targets stay as in ADR 0006 and spec §9.7.
+5. **Rate Limiting binding: adopt** for the 600 requests/minute per-user API backstop (spec §10.7) as binding `API_RL` (`simple: { limit: 600, period: 60 }`). It is approximate (per location, eventually consistent), so it is never used for auth limits. Those stay on the D1 counter. Built in TID-008.
+6. **The 32 service-binding invocations per request figure** was not observed (33 calls in both modes, 100 through `ctx.exports`) and isn't on the current limits page. The design doesn't depend on it.
+
+### Consequences
+
+- Spec §4.2, §4.6, §7.1, §7.2, §9.1, §9.3, §10.7 and risk R2 updated.
+- TID-012 AC10 records `cpu_limit` by message match. TID-008 adds the rate-limit binding.
+- ADR 0001's two-Worker contingency is no longer needed.
