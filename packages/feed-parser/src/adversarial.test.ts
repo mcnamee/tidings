@@ -361,21 +361,21 @@ describe('real-world shapes', () => {
 });
 
 describe('plain-text fields keep literal angle brackets (DEF-010)', () => {
-  it.fails('XML-escaped "<" and ">" in a title survive', () => {
+  it('XML-escaped "<" and ">" in a title survive', () => {
     const t = firstItem(
       parse(rss(`<item><guid>g</guid><title>5 &lt; 6 and 7 &gt; 3</title></item>`)),
     ).title;
     expect(t).toBe('5 < 6 and 7 > 3');
   });
 
-  it.fails('"I <3 RSS" keeps its tail', () => {
+  it('"I <3 RSS" keeps its tail', () => {
     const t = firstItem(
       parse(rss(`<item><guid>g</guid><title>I &lt;3 RSS feeds</title></item>`)),
     ).title;
     expect(t).toContain('RSS feeds');
   });
 
-  it.fails('a CDATA title with a generic type like Vec<T> keeps the <T>', () => {
+  it('a CDATA title with a generic type like Vec<T> keeps the <T>', () => {
     const t = firstItem(
       parse(rss(`<item><guid>g</guid><title><![CDATA[Vec<T> in Rust]]></title></item>`)),
     ).title;

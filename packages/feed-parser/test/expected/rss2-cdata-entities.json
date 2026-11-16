@@ -8,7 +8,7 @@
       {
         "guidKey": "rich-a",
         "guid": "rich-a",
-        "title": "CDATA title with brackets & ampersand",
+        "title": "CDATA title with <angle> brackets & ampersand",
         "link": "https://rich.example.test/a",
         "author": "Zoë O'Brien",
         "publishedAt": 1794298500,

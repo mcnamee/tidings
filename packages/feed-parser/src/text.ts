@@ -86,6 +86,23 @@ export function decodeEntities(input: string): string {
 }
 
 /**
+ * WHATWG HTML element names (plus the common obsolete ones). Only a tag with one of these names
+ * is stripped from plain-text fields and summaries, so `5 < 6`, `I <3 RSS` and `Vec<T>` survive
+ * (ADR 0009 section 2). Accepted edge case: `List<Map>` loses `<Map>`.
+ */
+const HTML_ELEMENT_NAMES =
+  'a|abbr|acronym|address|applet|area|article|aside|audio|b|base|basefont|bdi|bdo|bgsound|big|' +
+  'blink|blockquote|body|br|button|canvas|caption|center|cite|code|col|colgroup|data|datalist|' +
+  'dd|del|details|dfn|dialog|dir|div|dl|dt|em|embed|fieldset|figcaption|figure|font|footer|form|' +
+  'frame|frameset|h[1-6]|head|header|hgroup|hr|html|i|iframe|img|input|ins|isindex|kbd|keygen|' +
+  'label|legend|li|link|listing|main|map|mark|marquee|menu|menuitem|meta|meter|multicol|nav|' +
+  'nextid|nobr|noembed|noframes|noscript|object|ol|optgroup|option|output|p|param|picture|' +
+  'plaintext|pre|progress|q|rb|rp|rt|rtc|ruby|s|samp|script|search|section|select|slot|small|' +
+  'source|spacer|span|strike|strong|style|sub|summary|sup|table|tbody|td|template|textarea|' +
+  'tfoot|th|thead|time|title|tr|track|tt|u|ul|var|video|wbr|xmp|svg|math';
+const HTML_TAG_RE = new RegExp(`</?(?:${HTML_ELEMENT_NAMES})(?=[\\s/>]|$)[^>]*(?:>|$)`, 'gi');
+
+/**
  * Plain text from markup: strips script/style bodies and tags over a bounded window, decodes
  * entities and collapses whitespace. Never inspects more than `limit` characters.
  */
@@ -99,7 +116,7 @@ export function htmlToText(html: string, limit = SUMMARY_SOURCE_CHARS): string {
       /<\/?(?:p|div|br|li|ul|ol|h[1-6]|tr|td|th|table|blockquote|pre|section|article|hr)\b[^>]*(?:>|$)/gi,
       ' ',
     )
-    .replace(/<[^>]*(?:>|$)/g, '');
+    .replace(HTML_TAG_RE, '');
   return decodeEntities(stripped).replace(/\s+/g, ' ').trim();
 }
 

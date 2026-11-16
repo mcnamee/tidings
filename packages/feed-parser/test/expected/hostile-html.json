@@ -24,7 +24,7 @@
         "author": null,
         "publishedAt": 1794297600,
         "contentHtml": "<scr<script>ipt>alert('nested')</scr</script>ipt> &lt;script&gt;alert('double')&lt;/script&gt;",
-        "summary": "<script>alert('double')</script>",
+        "summary": "<scr ipt> <script>alert('double')</script>",
         "imageUrl": null
       },
       {

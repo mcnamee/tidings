@@ -642,3 +642,43 @@ describe('dates and zones (AC15, ADR 0009 section 5)', () => {
     expect(at('Mon, 31 Feb 2026 08:15:00 GMT')).toBe(new Date(FETCHED_AT * 1000).toISOString());
   });
 });
+
+describe('literal angle brackets in plain text (AC16, ADR 0009 section 2)', () => {
+  const titleOf = (inner: string): string => {
+    const r = parseFeed(
+      `<rss version="2.0"><channel><title>T</title><item><guid>g</guid>${inner}</item></channel></rss>`,
+      { fetchedAt: FETCHED_AT },
+    );
+    if (!r.ok) throw new Error('parse failed');
+    return r.feed.items[0]!.title;
+  };
+
+  it.each([
+    ['<title>5 &lt; 6 and 7 &gt; 3</title>', '5 < 6 and 7 > 3'],
+    ['<title>I &lt;3 RSS feeds</title>', 'I <3 RSS feeds'],
+    ['<title><![CDATA[Vec<T> in Rust]]></title>', 'Vec<T> in Rust'],
+    ['<title>&lt;b&gt;Bold&lt;/b&gt; title</title>', 'Bold title'],
+    ['<title>a<!-- c -->b</title>', 'ab'],
+    ['<title>&lt;P CLASS="x"&gt;Upper&lt;/P&gt;</title>', 'Upper'],
+  ])('%s', (xml, expected) => {
+    expect(titleOf(xml)).toBe(expected);
+  });
+
+  it('keeps literal angle brackets in summaries too', () => {
+    const r = parseFeed(
+      `<rss version="2.0"><channel><title>T</title><item><guid>g</guid><title>t</title><description><![CDATA[<p>1 < 2 and Vec<T></p>]]></description></item></channel></rss>`,
+      { fetchedAt: FETCHED_AT },
+    );
+    if (!r.ok) throw new Error('parse failed');
+    expect(r.feed.items[0]!.summary).toBe('1 < 2 and Vec<T>');
+  });
+
+  it('the dedup fallback key uses the corrected title', () => {
+    const r = parseFeed(
+      `<rss version="2.0"><channel><title>T</title><item><title>5 &lt; 6</title><pubDate>Mon, 09 Nov 2026 08:15:00 GMT</pubDate></item></channel></rss>`,
+      { fetchedAt: FETCHED_AT },
+    );
+    if (!r.ok) throw new Error('parse failed');
+    expect(r.feed.items[0]!.guidKey).toBe('5 < 6\n2026-11-09T08:15:00.000Z\n');
+  });
+});
