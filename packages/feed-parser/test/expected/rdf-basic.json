@@ -1,0 +1,33 @@
+{
+  "ok": true,
+  "feed": {
+    "format": "rdf",
+    "title": "RSS 1.0 (RDF) Example",
+    "siteUrl": "https://rdf.example.test/",
+    "items": [
+      {
+        "guidKey": "https://rdf.example.test/posts/2",
+        "guid": "https://rdf.example.test/posts/2",
+        "title": "RDF item two",
+        "link": "https://rdf.example.test/posts/2",
+        "author": "Lin Example",
+        "publishedAt": 1794290400,
+        "contentHtml": "<p>Full text of the second RDF item.</p>",
+        "summary": "Second RDF item.",
+        "imageUrl": null
+      },
+      {
+        "guidKey": "https://rdf.example.test/posts/1",
+        "guid": "https://rdf.example.test/posts/1",
+        "title": "RDF item one",
+        "link": "https://rdf.example.test/posts/1",
+        "author": null,
+        "publishedAt": 1794182400,
+        "contentHtml": "First RDF item.",
+        "summary": "First RDF item.",
+        "imageUrl": null
+      }
+    ],
+    "stoppedEarly": false
+  }
+}

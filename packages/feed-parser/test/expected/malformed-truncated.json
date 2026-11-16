@@ -1,0 +1,22 @@
+{
+  "ok": true,
+  "feed": {
+    "format": "rss",
+    "title": "Truncated Mid-Item",
+    "siteUrl": "https://broken.example.test/",
+    "items": [
+      {
+        "guidKey": "broken-1",
+        "guid": "broken-1",
+        "title": "Complete item",
+        "link": "https://broken.example.test/1",
+        "author": null,
+        "publishedAt": 1794301200,
+        "contentHtml": "This one is fine.",
+        "summary": "This one is fine.",
+        "imageUrl": null
+      }
+    ],
+    "stoppedEarly": false
+  }
+}

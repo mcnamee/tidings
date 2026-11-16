@@ -1,0 +1,88 @@
+{
+  "ok": true,
+  "feed": {
+    "format": "rss",
+    "title": "Duplicate GUIDs",
+    "siteUrl": "https://dupes.example.test/",
+    "items": [
+      {
+        "guidKey": "dup-1",
+        "guid": "dup-1",
+        "title": "Same GUID, link A",
+        "link": "https://dupes.example.test/a",
+        "author": null,
+        "publishedAt": 1794301200,
+        "contentHtml": null,
+        "summary": null,
+        "imageUrl": null
+      },
+      {
+        "guidKey": "dup-1",
+        "guid": "dup-1",
+        "title": "Same GUID, link B",
+        "link": "https://dupes.example.test/b",
+        "author": null,
+        "publishedAt": 1794297600,
+        "contentHtml": null,
+        "summary": null,
+        "imageUrl": null
+      },
+      {
+        "guidKey": "dup-2a",
+        "guid": "dup-2a",
+        "title": "Same link, different GUID (1)",
+        "link": "https://dupes.example.test/same?utm_source=x",
+        "author": null,
+        "publishedAt": 1794294000,
+        "contentHtml": null,
+        "summary": null,
+        "imageUrl": null
+      },
+      {
+        "guidKey": "dup-2b",
+        "guid": "dup-2b",
+        "title": "Same link, different GUID (2)",
+        "link": "https://dupes.example.test/same",
+        "author": null,
+        "publishedAt": 1794290400,
+        "contentHtml": null,
+        "summary": null,
+        "imageUrl": null
+      },
+      {
+        "guidKey": "https://dupes.example.test/noguid",
+        "guid": null,
+        "title": "No GUID, with link",
+        "link": "https://dupes.example.test/noguid",
+        "author": null,
+        "publishedAt": 1794286800,
+        "contentHtml": null,
+        "summary": null,
+        "imageUrl": null
+      },
+      {
+        "guidKey": "No GUID, no link\n2026-11-10T04:00:00.000Z\n",
+        "guid": null,
+        "title": "No GUID, no link",
+        "link": null,
+        "author": null,
+        "publishedAt": 1794283200,
+        "contentHtml": "Identity must come from title and date.",
+        "summary": "Identity must come from title and date.",
+        "imageUrl": null
+      },
+      {
+        "guidKey": "https://dupes.example.test/emptyguid",
+        "guid": null,
+        "title": "Empty GUID",
+        "link": "https://dupes.example.test/emptyguid",
+        "author": null,
+        "publishedAt": 1794279600,
+        "contentHtml": null,
+        "summary": null,
+        "imageUrl": null
+      }
+    ],
+    "stoppedEarly": false
+  }
+}
