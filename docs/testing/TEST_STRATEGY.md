@@ -1,7 +1,7 @@
 # Tidings test strategy
 
 Owner: tester. Source of truth for what is tested where, with which tool, and how to run it. The product
-spec's section 13 is the outline; this file is the working detail. Last updated for TID-005.
+spec's section 13 is the outline; this file is the working detail. Last updated for TID-006.
 
 ## Principles
 
@@ -146,6 +146,28 @@ expected parser output (JSON snapshots) is added with TID-011.
 Migrations are applied per test file from `apps/worker/migrations/`. Until TID-004 adds `0001_init.sql`
 that directory is empty, so AC1 is proven with an in-test probe migration through the same
 `applyD1Migrations` call (`smoke.test.ts`).
+
+## TID-006 traceability
+
+Specs: `e2e/specs/tid-006-app-shell.spec.ts` (engineer), `e2e/specs/tid-006-app-shell-qa.spec.ts` (tester),
+`apps/web/src/App.test.tsx`, `theme-init.test.ts`, `headers.test.ts`, `lib/toast.test.ts` (engineer),
+`apps/web/src/qa-shell.test.tsx` (tester).
+
+| Criterion                         | Status   | Tests                                                                                                                                                                            |
+| --------------------------------- | -------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| AC1: dark OS, no flash            | pass     | engineer: DOMContentLoaded attribute and held-CSS tests. QA: "AC1 pixels" (CDP screencast frames sampled), "AC1 control" (detector fails without theme-init.js), "AC1 paint timing" |
+| AC1 with a stored opposite choice | fail     | "AC1: before the stylesheet arrives the canvas colour scheme equals the stored choice" (`test.fail`, DEF-002)                                                                                                         |
+| AC2: stored choice beats the OS   | pass     | engineer "AC2"; QA "AC2" (computed colours, other-tab storage event, corrupted values)                                                                                             |
+| AC3: live OS changes              | pass     | engineer "AC3" (two); QA "AC3: theme-color meta follows live OS changes"                                                                                                           |
+| AC4: drawer                       | pass     | engineer "AC4" (two) and App.test.tsx; QA "drawer stress", "tap targets" per route. Repeated-input robustness fails (DEF-005)                                                        |
+| AC5: axe on every route           | pass     | engineer "AC5" per route; QA adds drawer-open, offline banner, 320 px reflow, 200 status per route                                                                                 |
+| AC6: headers and no CSP violation | pass     | engineer "AC6"; QA headers on static files plus HSTS, violation listener with control, bundle has no inline code                                                                   |
+| AC7: contrast ratios              | untested | UX verifies with `docs/ux/check-contrast.mjs`; not run by the tester                                                                                                              |
+
+Technique notes. The no-flash check records the frames the compositor produced
+(`Page.startScreencast`), decodes them in a scratch page and classifies the bottom-centre pixel, with the
+stylesheet held back by `page.route`. `test.fail` marks a known defect by ID; remove it when the defect is
+fixed so the test guards the fix. `localStorage` blocking is simulated by a throwing property getter.
 
 ## Security and free-tier checks (applied per story)
 
