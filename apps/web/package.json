@@ -10,6 +10,7 @@
     "test": "vitest run --passWithNoTests"
   },
   "dependencies": {
+    "@simplewebauthn/browser": "14.0.0",
     "@tanstack/react-query": "5.107.1",
     "@tidings/shared": "*",
     "lucide-react": "1.73.0",

@@ -1,11 +1,12 @@
 import { Hono } from 'hono';
 import type { ApiError, HealthResponse } from '@tidings/shared';
 import type { Env } from '../../env';
+import { createAuthRoutes, type AuthDeps } from '../auth/routes';
 import { FetchConfigError, resolveFetchPolicy } from '../fetch';
 
 export const APP_VERSION = '0.0.0';
 
-export function createApp(): Hono<{ Bindings: Env }> {
+export function createApp(deps?: Partial<AuthDeps>): Hono<{ Bindings: Env }> {
   const app = new Hono<{ Bindings: Env }>().basePath('/api');
 
   // TID-010 AC6: a misconfigured ALLOW_FETCH_HOSTS makes every request fail loudly.
@@ -24,6 +25,15 @@ export function createApp(): Hono<{ Bindings: Env }> {
     }
     await next();
   });
+
+  // Spec 8.1. Recovery codes travel in these responses, so nothing may be cached. TID-008 adds
+  // the rest of the API security headers next to this.
+  app.use('*', async (c, next) => {
+    await next();
+    c.header('Cache-Control', 'no-store');
+  });
+
+  app.route('/auth', createAuthRoutes(deps));
 
   app.get('/health', (c) => {
     const body: HealthResponse = { ok: true, version: APP_VERSION };

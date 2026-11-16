@@ -17,7 +17,12 @@ export default defineConfig(async () => {
       cloudflareTest({
         wrangler: { configPath: './wrangler.jsonc' },
         miniflare: {
-          bindings: { TEST_MIGRATIONS: migrations, SEED_SQL: (buildSeedSql as () => string)() },
+          bindings: {
+            TEST_MIGRATIONS: migrations,
+            SEED_SQL: (buildSeedSql as () => string)(),
+            // A throwaway value for tests only; production sets the real secret with wrangler.
+            SETUP_TOKEN: 'test-setup-token-0123456789abcdef-xyz',
+          },
         },
       }),
     ],
