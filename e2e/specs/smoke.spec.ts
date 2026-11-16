@@ -5,10 +5,14 @@ import { expect, test } from '../support/test.ts';
 // Projects: mobile-light, mobile-dark (375x812), desktop-light, desktop-dark (1280x800).
 
 test.describe('smoke', () => {
-  test('AC2: placeholder page renders and reaches the API', async ({ page }) => {
+  // TID-006 replaced the TID-001 placeholder page with the app shell: "/" now lands on /all.
+  test('AC2: the app shell renders and the API is reachable', async ({ page, request }) => {
     await page.goto('/');
-    await expect(page.getByRole('heading', { name: 'Tidings' })).toBeVisible();
-    await expect(page.getByTestId('api-status')).toContainText('API ok');
+    await expect(page).toHaveURL(/\/all$/);
+    await expect(page.getByRole('heading', { level: 1, name: 'All articles' })).toBeVisible();
+    const health = await request.get('/api/health');
+    expect(health.status()).toBe(200);
+    expect((await health.json()).ok).toBe(true);
   });
 
   test('AC2: project viewport and colour scheme are applied', async ({ page }, testInfo) => {
@@ -31,11 +35,9 @@ test.describe('smoke', () => {
     expect(overflow).toBeLessThanOrEqual(0);
   });
 
-  test('AC2: axe reports zero serious/critical violations on the placeholder page', async ({
-    page,
-  }) => {
+  test('AC2: axe reports zero serious/critical violations on the shell', async ({ page }) => {
     await page.goto('/');
-    await expect(page.getByTestId('api-status')).toContainText('API ok');
+    await expect(page.getByRole('heading', { level: 1, name: 'All articles' })).toBeVisible();
     await expectNoSeriousA11yViolations(page);
   });
 
@@ -45,7 +47,7 @@ test.describe('smoke', () => {
   }) => {
     const response = await page.goto('/some/client/route');
     expect(response?.status()).toBe(200);
-    await expect(page.getByRole('heading', { name: 'Tidings' })).toBeVisible();
+    await expect(page.getByRole('heading', { level: 1, name: 'Page not found' })).toBeVisible();
     const api = await request.get('/api/nope');
     expect(api.status()).toBe(404);
     expect((await api.json()).error.code).toBe('not_found');

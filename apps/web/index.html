@@ -2,11 +2,18 @@
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <meta name="color-scheme" content="light dark" />
+    <meta name="theme-color" content="#ffffff" />
+    <!-- Blocking on purpose: must run before the stylesheet so tokens resolve under the right theme. -->
+    <script src="/theme-init.js"></script>
     <title>Tidings</title>
   </head>
   <body>
     <div id="root"></div>
+    <noscript
+      ><p class="noscript">Tidings needs JavaScript to run. Turn it on and reload.</p></noscript
+    >
     <script type="module" src="/src/main.tsx"></script>
   </body>
 </html>

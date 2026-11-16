@@ -32,53 +32,96 @@ Entry template:
 - Decision needed: either NFR-7 and AC5 allow +1 on continuation pages (then tighten the test comment and keep the <= 103 assertion), or the query must change to hit 102. The test currently asserts <= 103 and references this ID. Impact is one row per page, so free-tier risk is negligible.
 - Related observation (not a defect): folder view reads 211 rows for limit 50 on a 150-entry folder, consistent with spec 8.6 ("reads every matching row in that folder"). It is guarded at <= 2 x folder size.
 
-### DEF-002: Atom `type="text"` (and untyped) content is stored unescaped
+### DEF-006: Atom `type="text"` (and untyped) content is stored unescaped
 - Story: TID-011 (hostile input requirement, spec 6.5, ADR 0006)
 - Severity: S2 (major). Owner: SE.
 - Status: Open
-- Found by: `packages/feed-parser/src/adversarial.test.ts` > "Atom summary/content type=\"text\" is escaped, not live markup (DEF-002)" and two siblings (marked `it.fails`)
+- Found by: `packages/feed-parser/src/adversarial.test.ts` > "Atom summary/content type=\"text\" is escaped, not live markup (DEF-006)" and two siblings (marked `it.fails`)
 - Steps to reproduce: `parseFeed('<feed xmlns="http://www.w3.org/2005/Atom"><title>T</title><entry><id>1</id><title>x</title><content type="text">&lt;script&gt;alert(1)&lt;/script&gt;</content></entry></feed>', ...)`. Same for an untyped `<summary>` and for `type="text"` in CDATA.
 - Expected: plain text is escaped when stored as HTML: `contentHtml === '&lt;script&gt;alert(1)&lt;/script&gt;'`, so the reader shows the characters. The code's own comment and the engineer's note say `type="text"` is escaped.
 - Actual: `contentHtml === '<script>alert(1)</script>'`. `modeForAtomType` returns `'escape'` but `ontext` in `parse.ts` only escapes when `mode === 'xhtml'`; `'escape'` is never acted on. The parser turns text into live markup before DOMPurify, and the article renders wrong (markup shown as formatting or stripped). DOMPurify should still neutralise scripts, so this is defence-in-depth plus a correctness bug, not a known exploit.
 - Note for the fix: untyped Atom text is, in practice, often HTML in the wild. The PM should rule on whether untyped `summary`/`content` stays "text" per RFC 4287 (then escape) or is treated as HTML (then document it). The snapshot for `atom-basic` item 1 ("Plain text summary.") is unaffected.
 
-### DEF-003: Deeply nested elements make parse time quadratic (CPU budget)
+### DEF-007: Deeply nested elements make parse time quadratic (CPU budget)
 - Story: TID-011 (AC4/AC6 robustness, spec 7.3, ADR 0006 CPU gate)
 - Severity: S2 (major). Owner: SE.
 - Status: Open
-- Found by: `adversarial.test.ts` > "bounds work for deeply nested elements (DEF-003)" (`it.fails`); the engineer's "nested elements" test only asserts `typeof result.ok` and does not measure work.
+- Found by: `adversarial.test.ts` > "bounds work for deeply nested elements (DEF-007)" (`it.fails`); the engineer's "nested elements" test only asserts `typeof result.ok` and does not measure work.
 - Steps to reproduce: parse an item containing N unclosed `<x>` elements. Node 25, M-series: 10k tags (30 KB) 11 ms, 20k 53 ms, 40k (120 KB) 434 ms, 200k (600 KB) 10.4 s, 300k (900 KB, inside the 1 MiB body cap) 16.6 s. Bare htmlparser2 with no callbacks shows the same curve, so the cost is inside the library's open-element stack.
 - Expected: bounded work for any body within `MAX_BODY_BYTES`. Real feeds nest under 30 levels deep.
 - Actual: a 100 KB hostile feed uses far more than the 10 ms Free-plan CPU budget; a 1 MiB one runs for tens of seconds in Node. On Workers it would be killed (`cpu_limit`) and backed off, but it could be repeated every refresh.
 - Suggested fix: track depth in `onopentag` and stop (as the early stop does, via `parser.pause()`) past a limit such as 64, returning what was parsed so far.
 
-### DEF-004: `xml:base` is ignored when resolving relative links
+### DEF-008: `xml:base` is ignored when resolving relative links
 - Story: TID-011 (real-world shapes)
 - Severity: S3 (minor). Owner: PM ruling, then SE.
 - Status: Open
-- Found by: `adversarial.test.ts` > "xml:base on an Atom entry is honoured for relative links (DEF-004)" (`it.fails`)
+- Found by: `adversarial.test.ts` > "xml:base on an Atom entry is honoured for relative links (DEF-008)" (`it.fails`)
 - Steps to reproduce: Atom entry with `xml:base="https://b.example.test/dir/"` and `<link href="p1"/>`, parsed with `baseUrl: 'https://a.example.test/feed'`.
 - Expected: `https://b.example.test/dir/p1` (RFC 4287 s2).
 - Actual: `https://a.example.test/p1`, a wrong URL that opens a 404 on the wrong host. Without `baseUrl` the link is null. The spec does not mention `xml:base`; if the PM rules it out of MVP, close as Won't fix and keep the test as documentation.
 
-### DEF-005: RFC 822 dates with non-US zone names fall back to the fetch time
+### DEF-009: RFC 822 dates with non-US zone names fall back to the fetch time
 - Story: TID-011 (AC5, spec 6.5)
 - Severity: S3 (minor). Owner: SE.
 - Status: Open
-- Found by: `adversarial.test.ts` > "non-US named zones (CEST, BST, IST) are not silently replaced by the fetch time (DEF-005)" (`it.fails`)
+- Found by: `adversarial.test.ts` > "non-US named zones (CEST, BST, IST) are not silently replaced by the fetch time (DEF-009)" (`it.fails`)
 - Steps to reproduce: `<pubDate>Mon, 09 Nov 2026 08:15:00 CEST</pubDate>`. `BST` behaves the same.
 - Expected: a date near 2026-11-09T06:15Z (or at least a documented table of zones).
 - Actual: `Date.parse` returns NaN, so `published_at = fetched_at`. Articles from European and Australian feeds that use zone names sort as "just fetched". The dedup key is unaffected (it uses the parsed ISO date or empty). `EST`, `EDT`, `CST`, `PST`, `GMT+1` and numeric offsets are correct (tested). Also note: a date with no zone (`2026-11-09 08:15:00`) is read in the host's local zone; Workers run in UTC so production is fine, but Node test runs depend on `TZ`.
 
-### DEF-006: Plain-text fields lose text around literal `<` and `>`
+### DEF-010: Plain-text fields lose text around literal `<` and `>`
 - Story: TID-011 (AC1: title match)
 - Severity: S3 (minor). Owner: SE.
 - Status: Open
-- Found by: `adversarial.test.ts` > "plain-text fields keep literal angle brackets (DEF-006)" (three `it.fails` tests)
+- Found by: `adversarial.test.ts` > "plain-text fields keep literal angle brackets (DEF-010)" (three `it.fails` tests)
 - Steps to reproduce: `<title>5 &lt; 6 and 7 &gt; 3</title>`; `<title>I &lt;3 RSS feeds</title>`; `<title><![CDATA[Vec<T> in Rust]]></title>`.
 - Expected: titles `5 < 6 and 7 > 3`, `I <3 RSS feeds`, `Vec<T> in Rust`.
 - Actual: `5 3`, `I`, `Vec in Rust`. `plainField` runs the tag-stripping regex over decoded text, and an unterminated `<` swallows everything to the end. The fixture snapshot `rss2-cdata-entities.json` freezes this: "CDATA title with <angle> brackets & ampersand" is stored as "CDATA title with brackets & ampersand". Suggested fix: strip only recognisable tags (`<` followed by a letter, `/` or `!` and a closing `>` within a short window), and decode entities after stripping.
 
 ## Closed
 
-None.
+### DEF-002: A stored theme opposite to the OS flashes the OS tone while the stylesheet loads
+- Story: TID-006 (AC1 spirit; FR-ST-1, NFR-10 "no flash of the wrong theme on load")
+- Severity: S3. Owner: SE.
+- Status: Verified, closed (fix 95792b2)
+- Found by: `e2e/specs/tid-006-app-shell-qa.spec.ts` > "AC1: before the stylesheet arrives the canvas colour scheme equals the stored choice (DEF-002)" (marked `test.fail`, so it turns red when fixed and the marker must then be removed). A pixel-level run of the same scenario, with CDP screencast frames, showed tones dark,light,light under a dark OS with a stored light choice; that version is timing-dependent (the pre-stylesheet frame is not always composited), so the deterministic cause check is what is committed.
+- Steps to reproduce: set `localStorage['tidings.theme'] = 'light'` with the OS in dark mode (or the reverse), hold back `/assets/*.css` for 1.5 s, load `/all`, and read `meta[name=color-scheme]` once `data-theme` is set.
+- Expected: every frame is the stored theme's colour.
+- Actual: the meta stays `light dark`, and the first composited frame is the OS canvas colour (rgb 18,18,18 under a dark OS) before the light stylesheet arrives. `theme-init.js` sets `data-theme`, but with the stylesheet outstanding the only thing colouring the canvas is `<meta name="color-scheme" content="light dark">`, which follows the OS, not the stored choice. The OS-equals-stored case (AC1 as written) is fine: all frames are correct, and the control test proves the detector fails when `theme-init.js` is absent.
+- Suggested fix: have `theme-init.js` also set `meta[name=color-scheme]` content to the resolved theme (`light` or `dark`), and update it in `apply()`.
+- Verification: `test.fail` removed, assertion unchanged from a42605d; passes in all four projects, twice. Root cause fixed: `theme-init.js` `apply()` now sets `meta[name=color-scheme]` to the resolved theme, so the canvas follows the stored choice before the stylesheet loads.
+
+### DEF-003: App crashes when `localStorage` access throws (storage blocked)
+- Story: TID-006 (robustness of the "/" redirect and last-list memory, FLOWS 1.8)
+- Severity: S2 for affected browsers (blank app), S3 overall. Owner: SE.
+- Status: Verified, closed (fix 95792b2)
+- Found by: `apps/web/src/qa-shell.test.tsx` > "returns /all and does not throw when the localStorage global itself throws on access" (`it.fails`), and `e2e/specs/tid-006-app-shell-qa.spec.ts` > "localStorage blocked: the app still renders, follows the OS and "/" lands on /all (DEF-003)" (`test.fail`).
+- Steps to reproduce: in a browser that throws `SecurityError` on reading `window.localStorage` (Chrome with "Block all cookies", some embedded webviews), open `/`.
+- Expected: `/` redirects to `/all`, the shell renders, the theme follows the OS.
+- Actual: `apps/web/src/lib/lastList.ts` uses `storage = localStorage` as a default parameter of `readLastList()` and `saveLastList()`. Default parameters are evaluated outside the function's `try/catch`, so the SecurityError propagates out of render (`App`) and an effect (`AppShell`) and React unmounts the tree. `theme-init.js` is safe (its access is inside `try`).
+- Suggested fix: read the global inside the `try` (`try { return (storage ?? localStorage).getItem(...) }`).
+- Verification: `it.fails` and `test.fail` removed, assertions unchanged. Root cause fixed: the `localStorage` global is read inside the `try` in `readLastList` and `saveLastList`. Unit and E2E (blocked storage) tests pass.
+
+### DEF-004: A throwing Undo action leaves the toast on screen
+- Story: TID-006 (toast region, UX app-shell 2.4)
+- Severity: S4. Owner: SE.
+- Status: Verified, closed (fix e16e62b)
+- Found by: `apps/web/src/qa-shell.test.tsx` > "keeps the toast usable when the Undo action throws..." (`it.fails`).
+- Steps to reproduce: show an Undo toast whose `run` throws, click Undo.
+- Expected: the toast is dismissed, so a second click cannot re-run a failing action.
+- Actual: `ToastCard` calls `item.action.run()` before `store.dismiss(item.id)`; the throw skips the dismiss and the Undo button stays until the timer expires.
+- Suggested fix: dismiss first, or call `run()` in a `try/finally`.
+- Verification: `it.fails` removed, assertion unchanged. The toast is dismissed before `run()`; a throw is logged and an error toast is shown. Checked against the store rules: dismiss promotes any queued toast, the error toast then replaces it (errors win over non-undo kinds), and an Undo toast is never replaced because it is already gone. `toast.test.ts` "Undo runs once" and the queueing tests pass. Observation (copy, not a defect): the error text says "Try again" although the Undo is gone; UX may want to reword.
+
+### DEF-005: Drawer close inputs are not idempotent, so a repeated input leaves the screen
+- Story: TID-006 (AC4, drawer closes on Escape and backdrop tap; UX app-shell 2.2 rule 1 "pushes one history entry")
+- Severity: S3. Owner: SE.
+- Status: Verified, closed (fix e16e62b)
+- Found by: `e2e/specs/tid-006-app-shell-qa.spec.ts` (all `test.fail`, so they turn red when fixed and the markers must then be removed): "a double tap on the scrim closes the drawer once and stays on the screen (DEF-005)", "two Escape events in the same task do not navigate away from the screen (DEF-005)", "double-clicking Menu leaves exactly one history entry to unwind (DEF-005)".
+- Steps to reproduce (mobile, 375 px): open `/settings`, then `/all`; open the drawer; double-tap the scrim (or the Close button), or press Escape twice quickly.
+- Expected: the drawer closes and the user stays on `/all`.
+- Actual: each input calls `navigate(-1)` (`closeDrawer` in `AppShell.tsx`) because nothing guards against a second call before React re-renders, so the second input pops the previous screen and the user lands on `/settings`. Likewise a second Menu click before the drawer has rendered pushes a second `state.drawer` entry, and one Escape then leaves the drawer open.
+- Suggested fix: ignore close while a close is pending (a ref cleared when `open` flips), and make `openDrawer` a no-op when `location.state.drawer` is already set.
+- Related observation (test-only, not a defect): right after Menu is clicked the dialog can take more than 100 ms to appear on a loaded machine; a tap on the scrim position in that window is a tap on the page behind. The drawer-stress tests wait for the dialog before interacting.
+- Verification: three `test.fail` markers removed, assertions unchanged; pass in all projects, twice. Root cause fixed with ref guards (`openPending`, `closePending`) cleared on `[location.key, open]`. New edge cases probed and added as QA tests (3 of 3 runs pass on both mobile projects): browser Back closes the drawer, then Menu reopens and one Escape closes it, and a further Escape with nothing open does not navigate; after a reload onto a stale drawer entry, double-click Menu then one Escape stays on the screen. Residual, not fixable in the page: Escape and browser Back in the same task pop two entries.

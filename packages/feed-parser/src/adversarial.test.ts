@@ -35,7 +35,7 @@ const payloads = JSON.parse(
 ) as { payloads: { id: string; html: string }[]; urlPayloads: string[] };
 
 describe('hostile text never becomes more dangerous', () => {
-  it.fails('Atom summary/content type="text" is escaped, not live markup (DEF-002)', () => {
+  it.fails('Atom summary/content type="text" is escaped, not live markup (DEF-006)', () => {
     // Atom 1.0 s4.1.3.1: type="text" content is plain text; "&lt;script&gt;" means the literal
     // characters <script>. Stored as HTML it must therefore be &lt;script&gt;.
     const xml = atom(
@@ -44,14 +44,14 @@ describe('hostile text never becomes more dangerous', () => {
     expect(firstItem(parse(xml)).contentHtml).toBe('&lt;script&gt;alert(1)&lt;/script&gt;');
   });
 
-  it.fails('Atom content type="text" in CDATA is escaped (DEF-002)', () => {
+  it.fails('Atom content type="text" in CDATA is escaped (DEF-006)', () => {
     const xml = atom(
       `<entry><id>1</id><title>x</title><content type="text"><![CDATA[<img src=x onerror=1>]]></content></entry>`,
     );
     expect(firstItem(parse(xml)).contentHtml).not.toContain('<img');
   });
 
-  it.fails('Atom summary with no type attribute defaults to text and is escaped (DEF-002)', () => {
+  it.fails('Atom summary with no type attribute defaults to text and is escaped (DEF-006)', () => {
     const xml = atom(
       `<entry><id>1</id><title>x</title><summary>&lt;b&gt;bold&lt;/b&gt;</summary></entry>`,
     );
@@ -205,7 +205,7 @@ describe('robustness: never throw, bounded work', () => {
     expect(typeof r.ok).toBe('boolean');
   });
 
-  it.fails('bounds work for deeply nested elements (DEF-003)', () => {
+  it.fails('bounds work for deeply nested elements (DEF-007)', () => {
     // htmlparser2's open-element bookkeeping is quadratic: 40k nested tags cost ~0.4 s and a
     // 1 MiB body of nested tags costs ~16 s (10 ms CPU budget). The parser must give up at a sane
     // depth. Deterministic check: count tag-open events instead of wall time.
@@ -299,7 +299,7 @@ describe('real-world shapes', () => {
     expect(f.siteUrl).toBe('https://a.example.test/');
   });
 
-  it.fails('xml:base on an Atom entry is honoured for relative links (DEF-004)', () => {
+  it.fails('xml:base on an Atom entry is honoured for relative links (DEF-008)', () => {
     const item = firstItem(
       parse(
         atom(
@@ -329,7 +329,7 @@ describe('real-world shapes', () => {
     });
 
     it.fails(
-      'non-US named zones (CEST, BST, IST) are not silently replaced by the fetch time (DEF-005)',
+      'non-US named zones (CEST, BST, IST) are not silently replaced by the fetch time (DEF-009)',
       () => {
         expect(iso(at('Mon, 09 Nov 2026 08:15:00 CEST'))).toBe('2026-11-09T06:15:00.000Z');
       },
@@ -360,7 +360,7 @@ describe('real-world shapes', () => {
   });
 });
 
-describe('plain-text fields keep literal angle brackets (DEF-006)', () => {
+describe('plain-text fields keep literal angle brackets (DEF-010)', () => {
   it.fails('XML-escaped "<" and ">" in a title survive', () => {
     const t = firstItem(
       parse(rss(`<item><guid>g</guid><title>5 &lt; 6 and 7 &gt; 3</title></item>`)),

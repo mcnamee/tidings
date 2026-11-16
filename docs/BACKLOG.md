@@ -1,6 +1,6 @@
 # Tidings Backlog
 
-Owner: product-manager. Last updated 2026-11-16.
+Owner: product-manager. Last updated 2026-11-17.
 
 - Stories are in priority order within each milestone. Build top to bottom unless dependencies allow parallel work.
 - Each acceptance criterion (AC) must map to at least one automated test unless it is marked *(manual)*.
@@ -17,13 +17,13 @@ Owner: product-manager. Last updated 2026-11-16.
 | TID-003 | Spike: fan-out isolation, WebAuthn CPU, rate-limit binding | M0 | Done | TID-001 |
 | TID-004 | D1 schema v1 and data-access layer | M0 | Done | TID-001 |
 | TID-005 | Test infrastructure and fixture corpus | M0 | Done | TID-001 |
-| TID-006 | Design system and app shell with theming | M0 | In verification | TID-001 |
-| TID-007 | First-run setup with a passkey and recovery codes | M1 | Ready (UX + API now; SPA screens once TID-006 is merged) | TID-003, 004, 005, 006 |
+| TID-006 | Design system and app shell with theming | M0 | Done | TID-001 |
+| TID-007 | First-run setup with a passkey and recovery codes | M1 | Ready (UX specs ratified 2026-11-17; merge TID-006 first) | TID-003, 004, 005, 006 |
 | TID-008 | Passkey sign-in, sessions, sign-out and API security middleware | M1 | Blocked | TID-007 |
 | TID-009 | Sign in with a recovery code | M1 | Blocked | TID-008 |
-| TID-010 | SSRF-safe fetcher | M1 | Ready | TID-004 |
-| TID-011 | Feed parser and normalisation | M1 | Ready | TID-002 |
-| TID-012 | Background refresh pipeline | M1 | Blocked (on 010, 011) | TID-003, 010, 011 |
+| TID-010 | SSRF-safe fetcher | M1 | Done | TID-004 |
+| TID-011 | Feed parser and normalisation | M1 | In progress (defects DEF-006 to DEF-010) | TID-002 |
+| TID-012 | Background refresh pipeline | M1 | Blocked (on 011) | TID-003, 010, 011 |
 | TID-013 | Subscribe to a feed | M1 | Blocked | TID-008, 012 |
 | TID-014 | Folders and subscription management | M1 | Blocked | TID-013 |
 | TID-015 | Feed health and "Refresh now" | M1 | Blocked | TID-014 |
@@ -36,6 +36,8 @@ Owner: product-manager. Last updated 2026-11-16.
 | TID-022 | Settings: theme, reading, account | M1 | Blocked | TID-008, 009 |
 | TID-023 | Persisted client cache and installable PWA shell | M1 | Blocked | TID-018, 019 |
 | TID-024 | Production deployment, runbook and budget check | M1 | Blocked | all M1 |
+| TID-036 | SSRF guard hardening (TID-010 follow-up) | M1 | Ready | TID-010 |
+| TID-037 | Design-token drift and contrast check in CI (TID-006 follow-up) | M1 | Ready | TID-006 |
 | TID-025 … TID-035 | Comfort features | M2 | Later | M1 |
 | TID-040 … TID-045 | Later features | M3 | Later | M2 |
 
@@ -164,7 +166,7 @@ Owner: product-manager. Last updated 2026-11-16.
 
 - **Agents:** UX (design first), SE (build), QA, PM
 - **Depends on:** TID-001
-- **Status:** In verification (UX fixes M1-M3/m1-m2 on `tid-006-ux-fixes`; DEF-002 to DEF-005 being fixed on `tid-006-defect-fixes`)
+- **Status:** Done (accepted 2026-11-17 on `tid-006-defect-fixes`; merge to `main` next)
 
 **User story:** As the owner, I want the app to look right in light and dark mode from the first screen and to follow my phone's setting, so that reading at night is comfortable.
 
@@ -189,6 +191,10 @@ Owner: product-manager. Last updated 2026-11-16.
 - Ratified: serif article body; in-flow sticky bottom bar; no edge-swipe to open and no swipe-to-close in MVP; the drawer pushes a history entry; the sticky header doesn't hide on scroll; no split view in MVP; in unread-only mode read rows stay until the user leaves; `theme-init` also applies `data-text-size`; no favicons in MVP.
 - The offline banner on the `offline` event alone is accepted for TID-006; the failed-request trigger is TID-018 AC12.
 
+**Acceptance (2026-11-17): Accepted.** AC1-AC9 pass, with 376 E2E tests green across the four Playwright projects. The UX review's majors and minors are fixed and mutation-tested. DEF-002 to DEF-005 are closed by the tester, who recommends acceptance.
+- **AC7 evidence ruled sufficient.** The AC is marked "UX verifies". `docs/ux/check-contrast.mjs` computes all 74 pairs from the tokens in `DESIGN_SYSTEM.md` (74/74 pass), and AC5's axe runs (including `color-contrast`) cover the rendered placeholders in both themes. The remaining gap is that the shipped CSS tokens could drift from the documented ones. TID-037 closes it in CI.
+- **Follow-up:** the failed-Undo copy "Couldn't undo. Your change was kept." goes to TID-020 AC7, the only MVP undo.
+
 ---
 
 ## M1: MVP, "switch from Inoreader"
@@ -212,8 +218,13 @@ Owner: product-manager. Last updated 2026-11-16.
 7. Given the DB after setup, when I inspect `recovery_codes` and `sessions`, then only SHA-256 hashes are stored (no plaintext codes or tokens).
 8. Given a challenge older than 5 minutes or already used, when `setup/verify` is called with it, then it fails with `401 webauthn_failed`.
 9. Given the Worker source, then `@simplewebauthn/server` is imported only via `await import()` in `apps/worker/src/auth/webauthn.ts`, and no other module imports it statically (a unit test scans `apps/worker/src`, or a lint rule) (ADR 0002).
+10. *(Added 2026-11-17, ADR 0010.)* Given the recovery-codes step, when I tap "Download .txt", then in every Playwright project a download named `tidings-recovery-codes.txt` occurs containing all 10 codes in the UX format, and no CSP violation is logged. The CSP is not changed. If any project blocks the download, stop and raise it with the PM.
+11. *(Added 2026-11-17.)* Given `setup/verify` with `passkeyName` missing, empty, whitespace-only or 65+ characters, then setup still succeeds and the passkey's name is the trimmed value capped at 64 characters, or "Passkey". The new session has `auth_method = 'setup'`.
+12. *(Added 2026-11-17.)* Given the codes from setup, then none of them contains I, L, O or U (Crockford alphabet), and they are never written to the query cache, IndexedDB, `localStorage`, `sessionStorage`, history state or the URL (E2E inspects storage after Continue).
 
 **Out of scope:** adding more passkeys (TID-022), invites.
+
+**UX rulings ratified 2026-11-17** (`docs/ux/screens/auth-common.md`, `setup.md`, `login.md`, `recover.md` on `ux-m0-updates`; these apply to TID-007 to TID-009): no auto-start of the passkey prompt on `/login`; a cancelled prompt is an info banner with the recovery-code hint; after a recovery-code sign-in, go to the default view with the persistent "Add a new passkey" banner; session expiry keeps the IndexedDB cache and only an explicit sign-out clears it (with the user-ID guard, TID-023 AC7); `passkeyName` is a client best-effort label; auth errors are inline, not toasts. There is no "Lost your codes too?" link (ADR 0010).
 
 ---
 
@@ -238,6 +249,8 @@ Owner: product-manager. Last updated 2026-11-16.
 9. Given user B's session and user A's folder/subscription/entry/passkey IDs, when B calls any route with those IDs, then the response is `404 not_found` and A's data is unchanged (isolation suite).
 10. Given 10 failed sign-ins from one IP in 10 minutes, when an 11th is attempted, then `429 rate_limited`.
 11. Given the `API_RL` Rate Limiting binding (spec §4.6, §10.7) reports the limit exceeded for my user ID, when I call any authenticated route, then it returns `429 rate_limited` with `Retry-After: 60`; auth routes never consult it (integration test with a stubbed binding).
+12. *(Added 2026-11-17.)* Given the shared `ErrorCode` type, then it matches spec §8.1 exactly, including `internal` (rename the current `internal_error`) and `config_error`, and an unhandled exception returns `500 internal` with a fixed message (no exception text).
+13. *(Added 2026-11-17, ADR 0010.)* Given a passkey sign-in, then the new session has `auth_method = 'passkey'`. Given a `401` on any request, then the SPA routes to `/login` with the "Your session ended" banner and keeps the persisted cache, without painting it behind the login card. Given an explicit Sign out, then the persisted cache is cleared (E2E checks IndexedDB).
 
 **Out of scope:** session list (M2).
 
@@ -253,10 +266,11 @@ Owner: product-manager. Last updated 2026-11-16.
 
 **Acceptance criteria**
 
-1. Given a valid unused code (any case, with or without dashes), when I submit it on `/recover`, then I'm signed in, the code's `used_at` is set, and a persistent banner "Add a new passkey" links to settings until I've registered a passkey in this session.
+1. Given a valid unused code (any case, with or without dashes or spaces, and with O typed for 0 or I/L typed for 1), when I submit it on `/recover`, then I'm signed in, the code's `used_at` is set, and a persistent banner "Add a new passkey" links to settings until a passkey has been registered since this session began (ADR 0010).
 2. Given the same code again, when submitted, then `401 invalid_recovery_code`.
 3. Given an invalid code, when submitted, then `401 invalid_recovery_code` and the response time doesn't differ by code validity by more than noise (single hashed lookup; no early return before hashing).
 4. Given 10 attempts from one IP in 10 minutes or 30 globally in an hour, when another is made, then `429 rate_limited`.
+5. *(Added 2026-11-17, ADR 0010.)* Given migration `0002_session_auth_method.sql`, when I sign in with a recovery code, then the session has `auth_method = 'recovery'` and `GET /api/auth/session` returns `mustAddPasskey: true`, so the banner is still there after a reload (E2E reloads). Given a passkey is then registered from any session, then the next session fetch returns `mustAddPasskey: false` and the banner is gone. Given a passkey or setup session, `mustAddPasskey` is always false, and computing it adds no D1 writes.
 
 ---
 
@@ -265,6 +279,8 @@ Owner: product-manager. Last updated 2026-11-16.
 - **Agents:** SE, QA, PM
 - **Depends on:** TID-004
 - **Spec:** §10.6, §7.3 step 1, §7.4 redirects
+
+- **Status:** Done (accepted 2026-11-17 on `tid-010-safe-fetch`; merge to `main` next)
 
 **User story:** As the owner, I want feed fetching to refuse internal and private addresses, so that my instance can't be used to probe networks or metadata services.
 
@@ -278,6 +294,13 @@ Owner: product-manager. Last updated 2026-11-16.
 6. Given `ALLOW_FETCH_HOSTS` is set while `APP_ORIGIN` isn't `http://localhost:*`, when the Worker handles any request, then it refuses with a logged configuration error (unit test of the guard).
 7. Given a 200 response, then the fetcher returns the body bytes and its SHA-256 computed while streaming.
 
+**Acceptance (2026-11-17): Accepted.** All 7 ACs pass. The tester found no defects after about 85 hostile encodings, about 25 hostile redirects, a gzip bomb, a lying `Content-Length` and a slow drip.
+- **Hardening observations** (reserved names `.lan`, `.localdomain`, `.corp`, `.intranet`, `.test`, `.invalid`; IPv6 `2001::/23` and `3fff::/20`; empty `ALLOW_FETCH_HOSTS` treated as unset; `isLocalDevOrigin` accepting a path) go to **TID-036**. None is exploitable from the internet today: the names don't resolve publicly, and the config gaps need a misconfigured deploy.
+- **The 1 MiB cap is on decoded bytes**, which is the intent: it bounds what we hash and parse (spec §7.3 step 4). TID-024 AC7 verifies deployed workerd behaviour.
+- **`config_error`** (500) is added to spec §8.1 and §10.6.
+- **Static assets aren't guarded**, and that is fine: they never fetch. The guard must also wrap the `FeedRefresher` entrypoint (TID-012 AC16).
+- **Blind-SSRF oracle:** `safeFetch`'s raw outputs stay internal. TID-012 AC15, TID-013 AC10 and TID-015 AC5 require that users see only fixed messages (FR-FH-1, §10.6 rule 8).
+
 ---
 
 ### TID-011: Feed parser and normalisation
@@ -285,6 +308,8 @@ Owner: product-manager. Last updated 2026-11-16.
 - **Agents:** SE, QA, PM
 - **Depends on:** TID-002 (done: htmlparser2 12, 50 items, 1 MiB; ADR 0006)
 - **Spec:** §6.3, §6.5, ADR 0006
+
+- **Status:** In progress (defects). Rejected 2026-11-17: DEF-006 to DEF-010 open; rulings in ADR 0009.
 
 **User story:** As the owner, I want my RSS, Atom and RDF feeds read correctly, with no duplicate articles, so that my reading list is accurate.
 
@@ -301,6 +326,16 @@ Owner: product-manager. Last updated 2026-11-16.
 9. Given an item whose content is 5 MB of text, when parsed, then the text accumulated for that item stops growing at 100 KB (the cap is applied during accumulation, not after; a unit test asserts the accumulator length never exceeds the cap).
 10. Given `npm run bench -w @tidings/feed-parser`, when run, then it prints p50/p95 parse time for each `generate-feeds.ts` fixture (`rss-small`, `rss-typical`, `atom-typical`, `rdf-typical`, `rss-large`, `rss-huge`) with the 50-item cap. The output is pasted into the PR. Informational, not a CI gate: Node timings don't predict Workers CPU.
 11. Given `packages/feed-parser/package.json`, then its only XML dependency is `htmlparser2` 12.x (no feedsmith, no fast-xml-parser).
+12. *(Added 2026-11-17, DEF-006, ADR 0009 §1.)* Given Atom `content`/`summary` with `type="text"` (plain or CDATA) containing `&lt;script&gt;alert(1)&lt;/script&gt;`, then `contentHtml` is `&lt;script&gt;alert(1)&lt;/script&gt;`. Given an untyped one with the same text, then it is escaped too. Given an untyped one containing `&lt;p&gt;Hi &lt;a href="/x"&gt;x&lt;/a&gt;&lt;/p&gt;`, then it is stored as HTML `<p>Hi <a href="/x">x</a></p>`.
+13. *(Added 2026-11-17, DEF-007, ADR 0009 §3.)* Given an item containing 300,000 nested unclosed elements (about 900 KB), then parsing finishes in ≤ 50 ms in Node and the open-element depth never exceeds 64 (a spy asserts it). Given that nesting after 2 good items, then the result is those 2 items with `truncated: 'too_deep'`. Given it in the first item, then `parse_error`. A real-world fixture nested 40 deep parses normally.
+14. *(Added 2026-11-17, DEF-008, ADR 0009 §4.)* Given an Atom entry with `xml:base="https://b.example.test/dir/"` and `<link href="p1"/>` parsed with `baseUrl: 'https://a.example.test/feed'`, then the link is `https://b.example.test/dir/p1`. Nested `xml:base` on `feed` and `entry` compose, and a non-http(s) result is null.
+15. *(Added 2026-11-17, DEF-009, ADR 0009 §5.)* Given `pubDate`s with every zone in ADR 0009's table, then each parses to the correct UTC instant. Given `IST`, an unknown alphabetic zone, or no zone, then the time is read as UTC. The suite passes with `TZ=Pacific/Auckland` and `TZ=UTC`.
+16. *(Added 2026-11-17, DEF-010, ADR 0009 §2.)* Given titles `5 &lt; 6 and 7 &gt; 3`, `I &lt;3 RSS feeds`, `<![CDATA[Vec<T> in Rust]]>` and `&lt;b&gt;Bold&lt;/b&gt; title`, then the titles are `5 < 6 and 7 > 3`, `I <3 RSS feeds`, `Vec<T> in Rust` and `Bold title`. The `rss2-cdata-entities` snapshot is regenerated to keep `<angle>`. The dedup fallback key uses the corrected title.
+17. *(Added 2026-11-17, ADR 0009 §6.)* Given an item with `itunes:image href` and no media/enclosure image, then `imageUrl` is that URL. Given a source containing U+0000 or a lone surrogate in any field, then the stored string has no U+0000 and is well-formed UTF-16. Given the Worker and the parser, then both import the canonicaliser and `guidHash` from `@tidings/shared`, with no second copy (a unit test or lint rule).
+
+**Engineer's choices ruled (2026-11-17, ADR 0009 §6):** content cap = 102,400 UTF-16 code units (confirmed; spec §6.5 and §9.6 updated); unprefixed Atom namespace only (accepted for MVP); relative links resolve only with `baseUrl` (accepted; TID-012 AC14 always passes it); channel fields after item 50 aren't read (accepted); `itunes:image` added (AC17); NUL and lone surrogates cleaned (AC17); shared-package move confirmed.
+
+**To accept:** AC12-AC17 pass, the five `it.fails` tests flip to passing `it`, DEF-006 to DEF-010 are closed by the tester, and the AC10 bench output is re-pasted (AC13's depth counter must not move the p95).
 
 ---
 
@@ -332,6 +367,10 @@ Owner: product-manager. Last updated 2026-11-16.
     - recorded but not gated: p50, p99, p99.9, cold first refresh, and the body-read + SHA-256 cost at a 1 MiB body and at a 2 MiB body (with the cap temporarily raised in the benchmark only).
     The results table goes in ADR 0006 under "Results (TID-012)". If the gate fails, the engineer stops and the PM applies ADR 0006's ladder. *(manual deployment, PM reviews the table)*
 
+14. *(Added 2026-11-17, ADR 0009.)* Given a feed fetched through one or more redirects, then the parser is called with `baseUrl` = the final URL, and relative item links resolve against it (integration test with a redirecting fixture). A parse result with `truncated: 'too_deep'` is stored as normal and logs one structured warning.
+15. *(Added 2026-11-17, §10.6 rule 8.)* Given an origin whose error responses carry a distinctive body, headers, `statusText` and a redirect `Location`, and a fetch that throws with a distinctive message, then none of those strings appears in `feeds` columns other than `last_status`, nor in any API response. `last_error_code` is from the fixed set and `errorMessage` comes from the fixed table (test greps the responses for the markers).
+16. *(Added 2026-11-17.)* Given `ALLOW_FETCH_HOSTS` set with a non-localhost `APP_ORIGIN`, when the `FeedRefresher` entrypoint is invoked directly, then it makes no fetch and logs the configuration error.
+
 **Out of scope:** adaptive intervals (M2), first-fetch-for-user behaviour (TID-013), raising `MAX_BODY_BYTES` (PM decision after AC13).
 
 ---
@@ -355,6 +394,7 @@ Owner: product-manager. Last updated 2026-11-16.
 7. Given I already have 1,000 subscriptions, then `422 limit_reached`.
 8. Given I choose a folder and custom title while adding, then the subscription is created with them.
 9. Given the first fetch runs, then it runs via the `FeedRefresher` entrypoint (integration test asserts the entrypoint was called, not in-request parsing).
+10. *(Added 2026-11-17, §10.6 rule 8.)* Given a URL whose origin returns an error, a redirect or a non-feed page with distinctive markers in the body, headers and `Location`, then the `POST /api/subscriptions` response (any status) and the UI contain only the error code and the fixed plain-language message, and no marker. The same holds for discovery's `422 no_feed_found`, and for `feed_choice_required` candidates, which show only the URL and title parsed from `<link>` tags.
 
 ---
 
@@ -394,6 +434,7 @@ Owner: product-manager. Last updated 2026-11-16.
 2. Given a failing, dead or gone feed, then the navigation drawer shows a warning marker with an accessible label.
 3. Given I tap "Refresh now", then `POST /api/subscriptions/:id/refresh` fetches it immediately and the UI updates its state and counts.
 4. Given I tap "Refresh now" again within 5 minutes, then `429 rate_limited` and the button shows when it'll be available.
+5. *(Added 2026-11-17, §10.6 rule 8, FR-FH-1.)* Given each `last_error_code`, then Manage and the `refresh` response show only the message from the fixed table (HTTP errors as "The server returned {status} {reason}" with the reason from our own table, never upstream `statusText`). A test asserts that every code in the set has a message and that unknown codes fall back to "Something went wrong fetching this feed".
 
 ---
 
@@ -459,6 +500,7 @@ Owner: product-manager. Last updated 2026-11-16.
 11. Given I last viewed `/folders/:id` on this device, when I open `/`, then I'm redirected to that folder; given nothing is stored, the stored value is malformed, or that folder or feed no longer exists, then I'm redirected to `/all` (spec §11.1).
 12. Given the app is online per `navigator.onLine`, when an API request fails with no response (network error), then the offline banner appears within 1 s; when the next API request succeeds or the `online` event fires, then it disappears (spec FR-PW-3; E2E with request interception).
 13. Given unread-only mode, when I open an unread article and come back with Back, then its row is still in the list, shown as read; it disappears only after I leave the list and return, or pull to refresh (FR-RD-4).
+14. *(Added 2026-11-17, §10.5, ADR 0009.)* Given an entry whose title is `Vec<T> & <b>x</b>` and whose summary is `<script>alert(1)</script><img src=x onerror=alert(2)>` (as stored text), when the list renders, then both show those exact characters as text, no element is created from them, and no dialog fires (E2E).
 
 ---
 
@@ -482,6 +524,7 @@ Owner: product-manager. Last updated 2026-11-16.
 8. Given `dangerouslySetInnerHTML` appears anywhere except `ArticleContent`, then lint fails (from TID-001; regression check).
 9. Given `GET /api/entries/:id` for another user's entry, then `404`.
 10. Given `POST /api/entries/read-state` with 1,001 IDs, then `400 validation_failed`; with IDs including another user's, then only mine change.
+11. *(Added 2026-11-17, §10.5.)* Given an entry whose title, author and summary contain literal `<script>` and `<img onerror>` text, when the article view renders, then they appear as text in the header and meta, and only `contentHtml` goes through `ArticleContent` (E2E with a dialog listener).
 
 ---
 
@@ -501,6 +544,7 @@ Owner: product-manager. Last updated 2026-11-16.
 4. Given ≤ 1,000 entries were affected, then an "Undo" toast appears for 5 s and undo restores exactly those entries to unread; with more than 1,000, no undo is offered.
 5. Given a folder view, then only entries from subscriptions in that folder are affected.
 6. Given 2,000 unread entries, when marked, then the request completes in one call and `rows_written` ≤ 2,000 × 3 (integration test).
+7. *(Added 2026-11-17, from TID-006.)* Given I tap Undo and the undo request fails, then the toast reads exactly "Couldn't undo. Your change was kept.", the entries stay read, and the counts match the server (E2E with request interception).
 
 ---
 
@@ -563,6 +607,7 @@ Owner: product-manager. Last updated 2026-11-16.
 4. Given the manifest, then Lighthouse's installability check passes and icons from UX exist for 192 and 512 px, a maskable icon, a 180 px `apple-touch-icon` and an SVG favicon. The manifest's single `theme_color`/`background_color` use the light surface values, and the `<meta name="theme-color">` matches the resolved theme (light and dark E2E). Known limitation, accepted 2026-11-16: an Android dark-mode launch splash may briefly show light.
 5. Given the production build, then initial JS ≤ 170 KB gzipped and CSS ≤ 30 KB gzipped (CI size check, NFR-3).
 6. Given an iPhone with iOS 17+, when I "Add to Home Screen" and open it, then it launches standalone and I stay signed in *(manual, PM sign-off)*.
+7. *(Added 2026-11-17, ADR 0010.)* Given a persisted cache written for user A, when user B signs in on the same browser, then A's cache is discarded before anything paints and no A data is visible at any point (E2E with two seeded users). Given a `401`, then the cache is kept. Given an explicit Sign out, then it is cleared.
 
 ---
 
@@ -582,12 +627,49 @@ Owner: product-manager. Last updated 2026-11-16.
 4. Given production, then `exceededCpu` outcomes are < 1% of refresh invocations, and any feed affected shows `cpu_limit` or `too_large` in Manage *(manual check of logs)*.
 5. Given the production origin, then the response headers match spec §10.4 including HSTS (custom domain) *(automated header check script run against production)*.
 6. Given 10 cold sign-ins in production (each after a deploy or idle period), then auth-route CPU is recorded; if any shows `exceededCpu`, or 2 or more exceed 10 ms, a follow-up story moves WebAuthn verification behind `ctx.exports` (ADR 0002) *(manual, PM)*.
+7. *(Added 2026-11-17.)* Given a deployed fixture served with `Content-Encoding: gzip` that is 200 KB compressed and 1.5 MiB decoded, then the refresh records `too_large`; given one that is 900 KB decoded, then it parses. This confirms the cap applies to decoded bytes in real workerd (spec §7.3 step 4) *(manual check, results in ADR 0006)*.
 
 **Notes**
 - Cloudflare's per-account `workers.dev` TLS certificate can take about 10 minutes to provision after the first deploy. Allow for it before the first smoke check, and don't treat early TLS errors as a failed deploy.
 - The TID-003 spike Worker `tidings-spike-fanout` was deleted on 2026-11-16 after AC3 was read. Check the account's Workers list holds no `tidings-spike-*` scripts before the production deploy.
 
 **M1 exit criteria:** every M1 story Done; full suite green; real-iPhone manual pass in both themes; budget measured; the owner confirms they can cancel Inoreader.
+
+---
+
+### TID-036: SSRF guard hardening (TID-010 follow-up)
+
+- **Agents:** SE, QA, PM
+- **Depends on:** TID-010
+- **Status:** Ready (small; can run in parallel with TID-011 fixes)
+- **Spec:** §10.6 rules 3 and the `ALLOW_FETCH_HOSTS` paragraph
+
+**User story:** As the owner, I want the fetcher to refuse every reserved or non-public destination, not just the common ones, so that misconfiguration or odd DNS can't turn it into a probe.
+
+**Acceptance criteria**
+
+1. Given hosts `printer.lan`, `nas.localdomain`, `wiki.corp`, `hr.intranet`, `a.test`, `a.invalid`, `a.example`, `router.home` and `x.private` (any case, with or without a trailing dot), when `safeFetch` is called, then `blocked_address` without calling `fetch`.
+2. Given IPv6 literals in `2001::/23` (for example `[2001:2::1]`, `[2001:20::1]`, `[2001:1ff::1]`) and `3fff::/20` (`[3fff::1]`, `[3fff:fff::1]`), then `blocked_address`; `[2001:4860:4860::8888]` is allowed. A table-driven test lists every range from the IANA IPv4 and IPv6 Special-Purpose Address Registries that isn't globally reachable (checked against iana.org on the build date, which is recorded in the test file), with one address inside and one just outside each range.
+3. Given `ALLOW_FETCH_HOSTS` is present but empty or whitespace and `APP_ORIGIN` isn't local, then the guard refuses with `500 config_error` (it is no longer treated as unset).
+4. Given `APP_ORIGIN` values `http://localhost:8787/x`, `http://localhost:8787/?a`, `http://localhost:8787/#f` and `https://localhost:8787`, then `isLocalDevOrigin` is false. `http://localhost:8787` and `http://localhost:8787/` are true.
+
+**Out of scope:** DNS resolution checks (residual risk R5).
+
+---
+
+### TID-037: Design-token drift and contrast check in CI (TID-006 follow-up)
+
+- **Agents:** SE, UX, PM
+- **Depends on:** TID-006
+- **Status:** Ready (small)
+
+**User story:** As the owner, I want contrast to stay readable in both themes as the design evolves, so that night reading never regresses.
+
+**Acceptance criteria**
+
+1. Given the shipped token CSS in `apps/web`, when `npm test` runs, then a test asserts that every `--c-*` token in both themes equals the value documented in `docs/ux/DESIGN_SYSTEM.md`, and fails with the token name on any mismatch.
+2. Given the same run, then the pair list from `docs/ux/check-contrast.mjs` is evaluated against the **shipped** CSS values and every pair meets its WCAG 2.2 AA threshold (4.5:1 body, 3:1 large text and UI).
+3. Given a deliberately lowered token in a test fixture, then both checks fail (mutation check, recorded in the PR).
 
 ---
 
