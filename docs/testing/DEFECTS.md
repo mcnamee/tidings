@@ -24,14 +24,18 @@ Entry template:
 ### DEF-011: Stripping HTML tags from plain-text fields in one pass re-forms a tag
 - Story: TID-011 (ADR 0009 section 2, defence in depth)
 - Severity: S3 (minor). Owner: SE.
-- Status: Fixed (9a0d6f4), awaiting tester closure
+- Status: Reopened (9a0d6f4 fixes the reported payloads; the pass-cap fallback can still leave an element tag, see Retest)
 - Found by: `packages/feed-parser/src/adversarial.test.ts` > "stripping cannot re-form an element tag: <scr<b>ipt> (DEF-011)" (`it.fails`)
 - Steps to reproduce: `<title><![CDATA[<scr<b>ipt>x</scr<b>ipt>]]></title>` (also `<<b>script>alert(1)<</b>/script>` and `<im<i>g src=x>`), and the same text in `<description>`.
 - Expected: no HTML element tag survives in `title`, `author`, feed title or `summary` (ADR 0009 section 2). Stripping `<b>` should not leave `<script>` behind.
 - Actual: title and summary are `<script>x</script>`, `<script>alert(1)</script>` and `<img src=x>`. `HTML_TAG_RE` runs once, so removing the inner tag joins the outer fragments into a new tag. Not exploitable today because every consumer renders these fields as text nodes; it becomes live markup if any future consumer (an email digest, an OPML export, `innerHTML` in a toast) trusts them as already stripped. The comment case (`<!<!-- -->-- -->`) is not affected: no `<!--` survives.
 - Suggested fix: repeat the strip until the string stops changing (bounded, for example 3 passes, then drop remaining `<` that precede an element name), or replace removed tags with a space. Then switch the `it.fails` to `it`.
 - Not blocking acceptance if the PM agrees the text-only rendering contract (spec 10.5) is the defence.
-- Fix: `stripTags` in `packages/feed-parser/src/text.ts` repeats the whole strip (script/style, comments, block tags, element tags) until the text stops changing. Each changing pass shortens the text, so it terminates. A 16-pass cap bounds cost; if hit, every `<` that opens an element tag or `<!--` is deleted (a deletion cannot create a new `<`, so no tag or comment opener can remain). Tests: `adversarial.test.ts` DEF-011 test is now `it` (assertions unchanged), plus 3+ level nesting and a 2 KB timing test.
+- Fix: `stripTags` in `packages/feed-parser/src/text.ts` repeats the whole strip (script/style, comments, block tags, element tags) until the text stops changing. Each changing pass shortens the text, so it terminates. A 16-pass cap bounds cost; if hit, every `<` that opens an element tag or `<!--` is deleted (the fix's claim: a deletion cannot create a new opener; this is wrong, see Retest). Tests: `adversarial.test.ts` DEF-011 test is now `it` (assertions unchanged), plus 3+ level nesting and a 2 KB timing test.
+
+- Retest (tester, tip 5ef2072): the fixed-point loop is sound. At a fixed point every strip regex found nothing, and `HTML_TAG_RE` matches any `</?name` followed by whitespace, `/`, `>` or end, so no element tag or `<!--` can remain, and each changing pass shortens the text. The `adversarial.test.ts` DEF-011 test differs from the earlier version only by `it.fails` to `it` and its comment. All reported payloads and 3 to 1000 levels of split tags pass.
+- Retest, residual hole: the cap fallback `current.replace(TAG_OPENER_RE, '')` is one regex pass, and deleting a `<` can create a new opener. In `<<b>`, the first `<` is followed by `<` so it is kept, the second is an opener and is deleted, and the result is `<b>`. To reach the fallback, the input needs more than 16 passes: `'<' + '<b'.repeat(17) + '>'.repeat(17)` returns `<b>`. With 18 levels it returns `<<bb>>` (no tag); with `'script>x'` appended at 17 it returns `<b>script>x`. Severity stays S3 (text-only rendering, needs a 40-byte crafted title), but the stated guarantee does not hold.
+- Suggested fix: make the fallback final by deleting every `<` in the string (or every `<` followed by `/`, `!` or a letter), not only those that currently open an element tag. Alternatively loop the opener removal to a fixed point. Then switch the `it.fails` test "cap fallback cannot leave an element tag (DEF-011 residual)" in `adversarial.test.ts` to `it`.
 
 ## Closed
 

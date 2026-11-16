@@ -219,6 +219,15 @@ describe('hostile text never becomes more dangerous', () => {
     expect(htmlToText(nested)).toContain('Vec<T> 5 < 6 I <3');
   });
 
+  // DEF-011 residual: the 16-pass cap fallback deletes openers in one regex pass, and deleting a
+  // `<` can expose a new opener (`<<b>` becomes `<b>`). Switch to `it` when the fallback is final.
+  it.fails('cap fallback cannot leave an element tag: 17 nested levels (DEF-011 residual)', () => {
+    for (const depth of [17, 33]) {
+      const hostile = '<' + '<b'.repeat(depth) + '>'.repeat(depth);
+      expect(htmlToText(hostile), `depth ${depth}`).not.toMatch(ELEMENT_TAG);
+    }
+  });
+
   it('non-HTML angle text in the payloads is kept as literal text, not stripped (ADR 0009 s2)', () => {
     const xml = rss(
       `<item><guid>g</guid><title><![CDATA[<circle r=1 /> and Vec<T> and <![CDATA[ x]]]]><![CDATA[>]]></title></item>`,

@@ -179,7 +179,7 @@ workerd suite for HTMLRewriter discovery), `npm run bench -w @tidings/feed-parse
 Run the Node suite under both `TZ=UTC` and `TZ=Pacific/Auckland` (AC15). Files: `src/fixtures.test.ts`,
 `src/parse.test.ts`, `src/ac17.test.ts` (engineer), `src/adversarial.test.ts` (tester), `src/discover.workers.test.ts`.
 Expected output lives in `packages/feed-parser/test/expected/*.json`; regenerate only on a reviewed behaviour change.
-`it.fails` marks an open defect by ID and must become `it` when it is fixed (DEF-011 is the only one left).
+`it.fails` marks an open defect by ID and must become `it` when it is fixed (DEF-011 residual, the pass-cap fallback, is the only one left).
 
 | Criterion | Status | Tests |
 | --- | --- | --- |
@@ -193,7 +193,7 @@ Expected output lives in `packages/feed-parser/test/expected/*.json`; regenerate
 | AC8: discovery via HTMLRewriter | pass | `discover.workers.test.ts` "discoverFeeds (HTMLRewriter, AC8)" (6 tests, workerd) |
 | AC9: cap applied during accumulation | pass | `parse.test.ts` "capped accumulator", "applies the cap across many small text chunks" |
 | AC10: bench prints p50/p95 per fixture | pass | `bench/bench.test.ts`; output pasted in the test report (all fixtures p95 under 2 ms in Node) |
-| AC11: only XML dependency is htmlparser2 12.x | pass | manual check of `packages/feed-parser/package.json` (gap: no automated test) |
+| AC11: only XML dependency is htmlparser2 12.x | pass | `adversarial.test.ts` "AC11 dependency pin" (htmlparser2 exactly 12.0.0, no other XML library) |
 | AC12: Atom text constructs | pass | `parse.test.ts` "Atom text constructs (AC12, ADR 0009 section 1)"; `adversarial.test.ts` DEF-006 tests, including untyped `&lt;script&gt;`/`&lt;iframe&gt;`/`&lt;style&gt;` staying escaped |
 | AC13: nesting bound 64 | pass | `parse.test.ts` "nesting bound (AC13, ADR 0009 section 3)"; `adversarial.test.ts` "bounds work for deeply nested elements (DEF-007)". The spy allows 65 (htmlparser2 pushes before our callback); a second test pins 64 accepted and 65 truncated |
 | AC14: `xml:base` | pass | `parse.test.ts` "xml:base (AC14, ADR 0009 section 4)" (7 tests); `adversarial.test.ts` "xml:base on an Atom entry is honoured" |
@@ -204,7 +204,7 @@ Expected output lives in `packages/feed-parser/test/expected/*.json`; regenerate
 Hostile-text rule (ADR 0009 section 2). The XSS payload tests in `adversarial.test.ts` assert that no HTML element
 tag (the WHATWG list plus obsolete names, `svg`, `math`, kept in the test file independently of the parser's list), no
 comment and no script or style body survives in `title`, `author` or `summary`. Non-HTML angle text (`<circle r=1 />`,
-`Vec<T>`) is deliberately kept and rendered as text. Gap recorded as DEF-011: a single strip pass can re-form a tag.
+`Vec<T>`) is deliberately kept and rendered as text. DEF-011 (a single strip pass re-formed a tag) is fixed by a fixed-point strip, except the 16-pass cap fallback, which can still leave `<b>` (reopened; `it.fails` test "cap fallback cannot leave an element tag"). Also covered: "deep nesting of split tags" and the 2 KB timing test.
 
 ## Security and free-tier checks (applied per story)
 
