@@ -8,7 +8,8 @@
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
     "build": "wrangler deploy --dry-run --outdir .wrangler/dry-run",
-    "db:migrate:local": "wrangler d1 migrations apply tidings --local"
+    "db:migrate:local": "wrangler d1 migrations apply tidings --local",
+    "db:seed:local": "node scripts/seed.mjs"
   },
   "dependencies": {
     "@tidings/shared": "*",
