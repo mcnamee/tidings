@@ -32,6 +32,16 @@ Entry template:
 - Decision needed: either NFR-7 and AC5 allow +1 on continuation pages (then tighten the test comment and keep the <= 103 assertion), or the query must change to hit 102. The test currently asserts <= 103 and references this ID. Impact is one row per page, so free-tier risk is negligible.
 - Related observation (not a defect): folder view reads 211 rows for limit 50 on a 150-entry folder, consistent with spec 8.6 ("reads every matching row in that folder"). It is guarded at <= 2 x folder size.
 
+### DEF-012: `config_error` responses are not `Cache-Control: no-store`
+- Story: TID-007 (spec 8.1: "Responses carry `Cache-Control: no-store`"; AC-adjacent, the story added the header)
+- Severity: S3. Owner: SE.
+- Status: Open
+- Found by: `apps/worker/test/setup-attack.test.ts` > "every response, including the config_error short-circuit, is Cache-Control: no-store (DEF-012)" (`it.fails`)
+- Steps to reproduce: call any `/api/*` route with `ALLOW_FETCH_HOSTS` set and `APP_ORIGIN` not `http://localhost:*`.
+- Expected: `500 config_error` with `Cache-Control: no-store`, like every other API response.
+- Actual: no `Cache-Control` header. The config guard in `apps/worker/src/api/app.ts` is registered before the no-store middleware and returns without calling `next()`, so the second middleware never runs. No secret is in the body (fixed message), so impact is a cacheable 500 at an intermediary, not a leak.
+- Suggested fix: register the no-store middleware first (it sets the header after `await next()`, which also covers short-circuits), then switch the `it.fails` to `it`.
+
 ## Closed
 
 ### DEF-002: A stored theme opposite to the OS flashes the OS tone while the stylesheet loads

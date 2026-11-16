@@ -94,6 +94,13 @@ Locally an already-running app on 8788 is reused; in CI a fresh one is always st
 - **Virtual authenticator** (`e2e/support/virtual-authenticator.ts`): `addVirtualAuthenticator(page)`
   before the page triggers WebAuthn; `credentials()`, `setUserVerified(false)` to fail a biometric,
   `clearCredentials()`, `remove()`.
+- **Auth resting state (from TID-007).** One `wrangler dev` and one throwaway D1 serve all four projects, and
+  first-run setup can succeed only once per database, so the suite's resting state is "an owner exists"
+  (`e2e/support/seed-owner.sql`, applied when the server starts, with `SETUP_TOKEN` passed as a `--var`, never read
+  from `.dev.vars`). Specs that need a fresh instance (the setup specs) call `resetToSetupRequired()` from
+  `e2e/support/auth-state.ts` before each test and `seedOwner()` afterwards. A new spec that needs a signed-in user must
+  not assume an empty database, and a spec that clears auth tables must restore the owner. The suite runs with one worker (`workers: 1`),
+  which this convention relies on: do not enable parallel workers without per-worker databases.
 - **axe** (`e2e/support/axe.ts`): `expectNoSeriousA11yViolations(page)` runs WCAG 2.0/2.1/2.2 A and AA
   rules and fails on serious or critical impacts. Pass `exclude` only with a written reason in the test.
 
@@ -171,6 +178,44 @@ Technique notes. The no-flash check records the frames the compositor produced
 (`Page.startScreencast`), decodes them in a scratch page and classifies the bottom-centre pixel, with the
 stylesheet held back by `page.route`. `test.fail` marks a known defect by ID; remove it when the defect is
 fixed so the test guards the fix (done for DEF-002 to DEF-005; no markers remain in the TID-006 specs). `localStorage` blocking is simulated by a throwing property getter.
+
+## TID-007 traceability (first-run setup)
+
+Commands: `npm test -w @tidings/worker` (workerd + D1, real `@simplewebauthn/server`), `npm test -w @tidings/web`,
+`npm run test:e2e -- specs/tid-007-setup.spec.ts` (all four projects). Files: worker `test/setup.test.ts`,
+`test/webauthn-import.test.ts` (engineer), `test/setup-attack.test.ts` (tester); web `src/auth/Setup.test.tsx`;
+E2E `e2e/specs/tid-007-setup.spec.ts`. Each test was checked by mutation (see below).
+
+| Criterion | Status | Tests |
+| --- | --- | --- |
+| AC1 setupRequired and routing | pass | worker "AC1: ... returns {user:null, setupRequired:true}"; web "AC1: lands on /setup from any route"; E2E "AC1: a fresh instance routes to /setup" |
+| AC2 owner, passkey, cookie flags, 10 codes | pass | worker "AC2: ... returns 201 with the owner and 10 distinct codes", "sets the session cookie with the spec 10.2 attributes"; E2E "creates the owner and a passkey, signs in, and shows 10 distinct codes"; attack "session token is 32 random bytes" |
+| AC3 tick to continue, Copy, Download | pass | web "AC3" tests; E2E "Continue is inert until ...", "Copy puts all 10 codes on the clipboard" |
+| AC4 wrong token 403, nothing created | pass | worker "AC4" (4 tests); E2E "AC4: a wrong setup token is refused" |
+| AC5 409 once a user exists, /setup to /login | pass | worker "AC5" (incl. racing setups); attack "races" (2 and 6 parallel full setups, replay of a successful verify); E2E "AC5" |
+| AC6 11th failed attempt 429 + Retry-After | pass | worker "AC6" (6 tests); attack "rate limit identity: CF-Connecting-IP only" (header spoofing); E2E "AC6" |
+| AC7 only SHA-256 stored | pass | worker "AC7: stores SHA-256 of each normalised code and of the session token" |
+| AC8 challenge expired or used | pass | worker "AC8" (7 tests); attack "challenge handling"; E2E "AC8: challenges are single use" |
+| AC9 dynamic import only | pass | `webauthn-import.test.ts` (4 tests) |
+| AC10 Download .txt in every project, CSP unchanged | pass | E2E "AC10: Download .txt works with the CSP unchanged" (4 projects); web "AC3/AC10: Download builds a text blob" |
+| AC11 passkeyName and auth_method | pass | worker "AC11" (9 cases + emoji + auth_method); attack "injection through names"; E2E "AC11" |
+| AC12 Crockford alphabet, nothing stored | pass | worker "AC12"; web "never puts codes or the setup token in the query cache..."; E2E "AC12: the codes are never stored" |
+
+Mutation checks (worker suites, each reverted): removing the `NOT EXISTS` owner guard, the `anyUserExists` check, the
+token comparison, the `CF-Connecting-IP` source, challenge deletion, the challenge purpose filter, challenge expiry, the
+refund, or changing session `SameSite` each fail at least one test.
+
+E2E runs (tip d3cb57b plus the attack suite): run 1, 534 passed, 80 skipped, 2 failed; run 2, 535 passed, 80 skipped, 1 failed;
+a focused run of `tid-007-setup.spec.ts` on all four projects, 160 passed. The three failures were all Playwright
+fixture or teardown stalls ("Tearing down context exceeded 30000ms", "setting up request" timeout, one 15.7 minute hang)
+in different tests each time (TID-006 DEF-002 pixel test, TID-007 AC8 on desktop-light, TID-006 M2), with load average
+about 8 from a parallel UX review. They did not repeat, and no assertion failed. Treat as environmental flakiness; if it
+recurs on an idle machine, file it.
+
+Known gaps and notes: CSRF (Origin and Content-Type checks, spec 10.3) is TID-008 scope, so the setup endpoints
+currently accept `text/plain` bodies and no `Origin` check (protected only by the setup token). Expired or orphaned
+`webauthn_challenges` rows have no cleanup yet (maintenance job). A valid-token holder can call `setup/options`
+repeatedly without using rate-limit slots (successes are refunded), creating one challenge row each.
 
 ## Security and free-tier checks (applied per story)
 
