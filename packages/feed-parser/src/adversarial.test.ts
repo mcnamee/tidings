@@ -302,7 +302,7 @@ describe('real-world shapes', () => {
     expect(f.siteUrl).toBe('https://a.example.test/');
   });
 
-  it.fails('xml:base on an Atom entry is honoured for relative links (DEF-008)', () => {
+  it('xml:base on an Atom entry is honoured for relative links (DEF-008)', () => {
     const item = firstItem(
       parse(
         atom(

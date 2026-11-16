@@ -483,3 +483,79 @@ describe('nesting bound (AC13, ADR 0009 section 3)', () => {
     expect(r.feed.items[0]!.contentHtml).toContain('hi');
   });
 });
+
+describe('xml:base (AC14, ADR 0009 section 4)', () => {
+  const FEED = 'https://a.example.test/feed';
+  const atom = (feedAttrs: string, entry: string) =>
+    `<feed xmlns="http://www.w3.org/2005/Atom" ${feedAttrs}><title>T</title>${entry}</feed>`;
+  const first = (xml: string, base: string | undefined = FEED) => {
+    const r = parseFeed(xml, { fetchedAt: FETCHED_AT, ...(base ? { baseUrl: base } : {}) });
+    if (!r.ok) throw new Error('parse failed');
+    return r.feed;
+  };
+
+  it('entry xml:base resolves a relative link', () => {
+    const f = first(
+      atom('', '<entry xml:base="https://b.example.test/dir/"><id>1</id><link href="p1"/></entry>'),
+    );
+    expect(f.items[0]!.link).toBe('https://b.example.test/dir/p1');
+  });
+
+  it('feed and entry bases compose; link base composes on top', () => {
+    const f = first(
+      atom(
+        'xml:base="https://b.example.test/root/"',
+        '<entry xml:base="sub/"><id>1</id><link xml:base="deep/" href="p1"/><link rel="enclosure" href="e.mp3"/></entry>',
+      ),
+    );
+    expect(f.items[0]!.link).toBe('https://b.example.test/root/sub/deep/p1');
+  });
+
+  it('feed xml:base alone applies to items and siteUrl', () => {
+    const f = first(
+      atom(
+        'xml:base="https://b.example.test/"',
+        '<link href="home"/><entry><id>1</id><link href="x"/></entry>',
+      ),
+    );
+    expect(f.items[0]!.link).toBe('https://b.example.test/x');
+    expect(f.siteUrl).toBe('https://b.example.test/home');
+  });
+
+  it('applies to imageUrl (media:thumbnail) and RSS item xml:base and link', () => {
+    const xml = `<rss version="2.0" xmlns:media="http://search.yahoo.com/mrss/"><channel><title>T</title>
+      <item xml:base="https://c.example.test/a/"><guid>1</guid><link>post</link><media:thumbnail url="t.jpg"/></item></channel></rss>`;
+    const it0 = first(xml).items[0]!;
+    expect(it0.link).toBe('https://c.example.test/a/post');
+    expect(it0.imageUrl).toBe('https://c.example.test/a/t.jpg');
+  });
+
+  it('an absolute href ignores the base; no baseUrl needed when xml:base is absolute', () => {
+    const f = first(
+      atom(
+        '',
+        '<entry xml:base="https://b.example.test/"><id>1</id><link href="https://z.example.test/q"/></entry><entry xml:base="https://b.example.test/d/"><id>2</id><link href="r"/></entry>',
+      ),
+      undefined,
+    );
+    expect(f.items[0]!.link).toBe('https://z.example.test/q');
+    expect(f.items[1]!.link).toBe('https://b.example.test/d/r');
+  });
+
+  it('a non-http(s) result is null', () => {
+    const f = first(
+      atom('', '<entry xml:base="javascript:alert(1)//"><id>1</id><link href="p1"/></entry>'),
+    );
+    expect(f.items[0]!.link).toBeNull();
+  });
+
+  it('xml:base does not leak from one entry to the next', () => {
+    const f = first(
+      atom(
+        '',
+        '<entry xml:base="https://b.example.test/"><id>1</id><link href="p"/></entry><entry><id>2</id><link href="p"/></entry>',
+      ),
+    );
+    expect(f.items[1]!.link).toBe('https://a.example.test/p');
+  });
+});

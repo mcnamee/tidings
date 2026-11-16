@@ -46,7 +46,11 @@ interface ItemState {
   depth: number;
   fields: Partial<Record<Field, string>>;
   about: string | null;
-  atomLinks: { href: string; rel: string }[];
+  /** Resolved `xml:base` in force for this item (feed base, then the item's own). */
+  base: string | null;
+  /** Resolved base for the RSS `<link>` capture (its own `xml:base`, else `base`). */
+  linkBase: string | null;
+  atomLinks: { href: string; rel: string; base: string | null }[];
   atomAuthorOpenAt: number;
   thumbnail: string | null;
   mediaImage: string | null;
@@ -78,9 +82,11 @@ const ITEM_FIELD_BY_TAG: Readonly<Record<string, Field>> = {
   summary: 'summary',
 };
 
-function newItem(depth: number, about: string | null): ItemState {
+function newItem(depth: number, about: string | null, base: string | null): ItemState {
   return {
     depth,
+    base,
+    linkBase: base,
     fields: {},
     about,
     atomLinks: [],
@@ -160,13 +166,29 @@ function parseFeedUnsafe(input: string, options: ParseOptions): ParseResult {
   let feedAuthor = null as string | null;
   let feedAuthorOpenAt = -1;
 
-  const resolveUrl = (raw: string | null | undefined): string | null => {
+  /** Resolved `xml:base` of the root element; nested bases compose on top of it (ADR 0009). */
+  let feedBase: string | null = baseUrl ?? null;
+
+  /** `xml:base` value resolved against its parent's base; unusable values leave the parent. */
+  const composeBase = (parent: string | null, value: string | undefined): string | null => {
+    if (value === undefined || value.trim() === '' || value.length > 4096) return parent;
+    try {
+      return (parent ? new URL(value.trim(), parent) : new URL(value.trim())).href;
+    } catch {
+      return parent;
+    }
+  };
+
+  const resolveUrl = (
+    raw: string | null | undefined,
+    base: string | null = feedBase,
+  ): string | null => {
     if (!raw) return null;
     let candidate = raw.trim();
     if (candidate === '' || candidate.length > 4096) return null;
-    if (baseUrl) {
+    if (base) {
       try {
-        candidate = new URL(candidate, baseUrl).href;
+        candidate = new URL(candidate, base).href;
       } catch {
         return null;
       }
@@ -203,21 +225,19 @@ function parseFeedUnsafe(input: string, options: ParseOptions): ParseResult {
 
   const finishItem = (it: ItemState): void => {
     const f = it.fields;
-    const rssLink = f.link ? resolveUrl(f.link) : null;
-    let atomHref: string | null = null;
-    for (const l of it.atomLinks) {
-      if (l.rel === '' || l.rel === 'alternate') {
-        atomHref = l.href;
-        break;
-      }
-    }
-    const link = rssLink ?? resolveUrl(atomHref);
+    const rssLink = f.link ? resolveUrl(f.link, it.linkBase) : null;
+    const altLink = it.atomLinks.find((l) => l.rel === '' || l.rel === 'alternate');
+    const link = rssLink ?? (altLink ? resolveUrl(altLink.href, altLink.base) : null);
     let enclosureUrl = it.enclosureUrl;
+    let enclosureBase = it.base;
     if (!enclosureUrl) {
       const enc = it.atomLinks.find((l) => l.rel === 'enclosure');
-      if (enc) enclosureUrl = enc.href;
+      if (enc) {
+        enclosureUrl = enc.href;
+        enclosureBase = enc.base;
+      }
     }
-    const enclosure = resolveUrl(enclosureUrl);
+    const enclosure = resolveUrl(enclosureUrl, enclosureBase);
 
     const guidRaw = (f.guid ?? it.about ?? '').trim();
     const guid = guidRaw === '' ? null : guidRaw;
@@ -238,10 +258,10 @@ function parseFeedUnsafe(input: string, options: ParseOptions): ParseResult {
 
     let imageUrl: string | null = null;
     for (const candidate of [it.thumbnail, it.mediaImage, it.enclosureImage]) {
-      imageUrl = resolveUrl(candidate);
+      imageUrl = resolveUrl(candidate, it.base);
       if (imageUrl) break;
     }
-    if (!imageUrl && contentHtml) imageUrl = resolveUrl(firstImgSrc(contentHtml));
+    if (!imageUrl && contentHtml) imageUrl = resolveUrl(firstImgSrc(contentHtml), it.base);
 
     const authorText = plainField(f.dcCreator ?? f.author ?? '') || feedAuthor || '';
 
@@ -282,6 +302,7 @@ function parseFeedUnsafe(input: string, options: ParseOptions): ParseResult {
             parser.pause();
             return;
           }
+          feedBase = composeBase(feedBase, attribs['xml:base']);
           stack.push(name);
           return;
         }
@@ -303,7 +324,11 @@ function parseFeedUnsafe(input: string, options: ParseOptions): ParseResult {
             (format === 'rdf' && name === 'item' && parent === 'rdf:RDF') ||
             (format === 'atom' && name === 'entry' && parent === 'feed');
           if (isItem) {
-            item = newItem(stack.length, attribs['rdf:about'] ?? null);
+            item = newItem(
+              stack.length,
+              attribs['rdf:about'] ?? null,
+              composeBase(feedBase, attribs['xml:base']),
+            );
             return;
           }
           // Channel/feed level fields.
@@ -313,7 +338,9 @@ function parseFeedUnsafe(input: string, options: ParseOptions): ParseResult {
             else if (name === 'author') feedAuthorOpenAt = stack.length;
             else if (name === 'link' && siteUrl === null) {
               const rel = attribs['rel'] ?? '';
-              if (rel === '' || rel === 'alternate') siteUrl = resolveUrl(attribs['href']);
+              if (rel === '' || rel === 'alternate') {
+                siteUrl = resolveUrl(attribs['href'], composeBase(feedBase, attribs['xml:base']));
+              }
             }
           } else if (format !== 'atom' && parent === 'channel') {
             if (name === 'title') startCapture('title', 'raw', stack.length);
@@ -354,8 +381,15 @@ function parseFeedUnsafe(input: string, options: ParseOptions): ParseResult {
           if (name === 'link') {
             if (format === 'atom') {
               const href = attribs['href'];
-              if (href) it.atomLinks.push({ href, rel: attribs['rel'] ?? '' });
+              if (href) {
+                it.atomLinks.push({
+                  href,
+                  rel: attribs['rel'] ?? '',
+                  base: composeBase(it.base, attribs['xml:base']),
+                });
+              }
             } else {
+              it.linkBase = composeBase(it.base, attribs['xml:base']);
               startCapture('link', 'raw', stack.length);
             }
             return;
