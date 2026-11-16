@@ -3,6 +3,7 @@ import path from 'node:path';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { Parser } from 'htmlparser2';
 import { parseFeed } from './parse';
+import { htmlToText } from './text';
 import { EXPECTED_DIR, FETCHED_AT } from './test-helpers';
 import type { ParsedFeed, ParseResult } from './types';
 
@@ -161,8 +162,8 @@ describe('hostile text never becomes more dangerous', () => {
 
   // DEF-011: one stripping pass lets `<scr<b>ipt>` collapse into the literal text `<script>`.
   // ADR 0009 section 2's intent is that no HTML element tag survives. Rendering is text-only, so
-  // this is defence in depth (S3). Switch to `it` when the strip runs to a fixed point.
-  it.fails('stripping cannot re-form an element tag: <scr<b>ipt> (DEF-011)', () => {
+  // this is defence in depth (S3). Fixed: the strip runs to a fixed point.
+  it('stripping cannot re-form an element tag: <scr<b>ipt> (DEF-011)', () => {
     for (const hostile of [
       '<scr<b>ipt>x</scr<b>ipt>',
       '<<b>script>alert(1)<</b>/script>',
@@ -175,6 +176,47 @@ describe('hostile text never becomes more dangerous', () => {
       expectNoHtmlMarkup(item.title, `title ${hostile}`);
       expectNoHtmlMarkup(item.summary ?? '', `summary ${hostile}`);
     }
+  });
+
+  it('deep nesting of split tags (3+ levels, beyond the pass cap) leaves no tag (DEF-011)', () => {
+    const nest = (name: string, depth: number): string => {
+      let open = name;
+      for (let i = 0; i < depth; i++) open = `<${open.slice(0, 2)}<b>${open.slice(2)}`;
+      return open;
+    };
+    const cases = [
+      '<scr<b>i<i>p<u>t>x</scr<b>i<i>p<u>t>',
+      '<<b><i><u>script>alert(1)<</u></i></b>/script>',
+      '<<<b>b>i>mg src=x>',
+      '<<!<b>--',
+      ...[3, 5, 12, 40, 400].map((d) => `<${'<b>'.repeat(d)}script>x`),
+      ...[3, 20, 300].map((d) => `<${'<b'.repeat(d)}>script>x`),
+      `<${'<b>'.repeat(1000)}!-- x`,
+      nest('script', 5),
+      nest('iframe', 30),
+    ];
+    for (const hostile of cases) {
+      const xml = rss(
+        `<item><guid>g</guid><title><![CDATA[${hostile}]]></title><description><![CDATA[${hostile}]]></description></item>`,
+      );
+      const item = firstItem(parse(xml));
+      expectNoHtmlMarkup(item.title, `title ${hostile.slice(0, 40)}`);
+      expectNoHtmlMarkup(item.summary ?? '', `summary ${hostile.slice(0, 40)}`);
+      expect(htmlToText(hostile), `htmlToText ${hostile.slice(0, 40)}`).not.toMatch(ELEMENT_TAG);
+    }
+  });
+
+  it('a 2 KB adversarial title strips in well under 50 ms and keeps legitimate angle text', () => {
+    const hostile = ('<scr<b>ipt>' + '<im<i>g ' + '<<b>').repeat(2048 / 23).slice(0, 2048);
+    const nested = `Vec<T> 5 < 6 I <3 ${'<<b>'.repeat(500)}script>`.slice(0, 2048);
+    for (const input of [hostile, nested]) {
+      const t0 = performance.now();
+      const out = htmlToText(input, 4096);
+      const ms = performance.now() - t0;
+      expect(ms).toBeLessThan(50);
+      expect(out).not.toMatch(ELEMENT_TAG);
+    }
+    expect(htmlToText(nested)).toContain('Vec<T> 5 < 6 I <3');
   });
 
   it('non-HTML angle text in the payloads is kept as literal text, not stripped (ADR 0009 s2)', () => {
@@ -514,5 +556,17 @@ describe('snapshot hand-checks (independent of the stored JSON)', () => {
         expect((i.summary ?? '').length, n).toBeLessThanOrEqual(300);
       }
     }
+  });
+});
+
+describe('AC11 dependency pin', () => {
+  it('depends on htmlparser2 at exactly 12.0.0 and on no other XML library', () => {
+    const pkg = JSON.parse(readFileSync(path.resolve(__dirname, '../package.json'), 'utf8')) as {
+      dependencies: Record<string, string>;
+    };
+    expect(pkg.dependencies.htmlparser2).toBe('12.0.0');
+    expect(
+      Object.keys(pkg.dependencies).filter((d) => /feedsmith|fast-xml-parser|xml/i.test(d)),
+    ).toEqual([]);
   });
 });

@@ -24,13 +24,14 @@ Entry template:
 ### DEF-011: Stripping HTML tags from plain-text fields in one pass re-forms a tag
 - Story: TID-011 (ADR 0009 section 2, defence in depth)
 - Severity: S3 (minor). Owner: SE.
-- Status: Open
+- Status: Fixed (COMMIT), awaiting tester closure
 - Found by: `packages/feed-parser/src/adversarial.test.ts` > "stripping cannot re-form an element tag: <scr<b>ipt> (DEF-011)" (`it.fails`)
 - Steps to reproduce: `<title><![CDATA[<scr<b>ipt>x</scr<b>ipt>]]></title>` (also `<<b>script>alert(1)<</b>/script>` and `<im<i>g src=x>`), and the same text in `<description>`.
 - Expected: no HTML element tag survives in `title`, `author`, feed title or `summary` (ADR 0009 section 2). Stripping `<b>` should not leave `<script>` behind.
 - Actual: title and summary are `<script>x</script>`, `<script>alert(1)</script>` and `<img src=x>`. `HTML_TAG_RE` runs once, so removing the inner tag joins the outer fragments into a new tag. Not exploitable today because every consumer renders these fields as text nodes; it becomes live markup if any future consumer (an email digest, an OPML export, `innerHTML` in a toast) trusts them as already stripped. The comment case (`<!<!-- -->-- -->`) is not affected: no `<!--` survives.
 - Suggested fix: repeat the strip until the string stops changing (bounded, for example 3 passes, then drop remaining `<` that precede an element name), or replace removed tags with a space. Then switch the `it.fails` to `it`.
 - Not blocking acceptance if the PM agrees the text-only rendering contract (spec 10.5) is the defence.
+- Fix: `stripTags` in `packages/feed-parser/src/text.ts` repeats the whole strip (script/style, comments, block tags, element tags) until the text stops changing. Each changing pass shortens the text, so it terminates. A 16-pass cap bounds cost; if hit, every `<` that opens an element tag or `<!--` is deleted (a deletion cannot create a new `<`, so no tag or comment opener can remain). Tests: `adversarial.test.ts` DEF-011 test is now `it` (assertions unchanged), plus 3+ level nesting and a 2 KB timing test.
 
 ## Closed
 
