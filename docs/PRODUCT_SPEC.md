@@ -2,7 +2,7 @@
 
 | | |
 |---|---|
-| Status | Draft v1.2: M0 spikes decided; decision round 2 (TID-006/010 accepted, TID-011 rulings, auth UX) applied |
+| Status | Draft v1.3: decision round 3 applied (TID-007 and TID-011 accepted; auth hardening rulings, ADR 0011) |
 | Owner | product-manager |
 | Last updated | 2026-11-17 |
 | Cloudflare limits checked | **2026-11-16** against developers.cloudflare.com (see §9.1 for sources); spike measurements TID-002/TID-003 on 2026-11-16 |
@@ -233,7 +233,7 @@ tidings/
 │       │   └── db/           # typed query functions; every user-data function takes userId first
 │       └── test/             # integration tests (vitest-pool-workers)
 ├── packages/
-│   ├── shared/               # API types + zod schemas shared by web and worker; error codes; constants
+│   ├── shared/               # API types, error codes, constants (web + worker); zod schemas in `@tidings/shared/schemas` (worker only, ADR 0011)
 │   └── feed-parser/          # pure TS: parse RSS/Atom/RDF → NormalisedFeed; dedup key; summary/image extraction
 ├── e2e/                      # Playwright (owned by tester), fixture feed server
 │   └── fixtures/feeds/, fixtures/opml/
@@ -248,7 +248,7 @@ tidings/
 |---|---|---|
 | Language | TypeScript, `strict` | Constraint. |
 | Router / middleware | **Hono 4.x** (4.13.18) | Built for Workers, zero dependencies, small, typed routes and middleware. |
-| Validation | **zod 4.x** (4.6.7) + `@hono/zod-validator` | One schema per request body/query in `packages/shared`, reused by the SPA for typing. |
+| Validation | **zod 4.x** (4.6.7) + `@hono/zod-validator` | One schema per request body/query in `@tidings/shared/schemas`, imported by the **Worker only**. The SPA imports types from `@tidings/shared`, never zod: zod's `Function('')` probe breaks the CSP (§10.4), and it would bloat the bundle (ADR 0011). |
 | DB access | **Raw SQL via the D1 binding** (`prepare().bind()`, `batch()`) behind typed functions in `apps/worker/src/db` | Our free-tier budget is measured in rows read/written; explicit SQL keeps every query and index visible and testable (`meta.rows_read`). No ORM. |
 | WebAuthn | **@simplewebauthn/server 14.x** (14.1.0) | Maintained, documents Cloudflare Workers support, uses Web Crypto, no `nodejs_compat` needed. Measured 2026-11-16 (TID-003): warm p99 3 ms, cold up to 10 ms. Loaded only via `await import()` in auth routes (ADR 0002). |
 | Feed parsing | **htmlparser2 12.x** (12.0.0) in `xmlMode`, streaming callbacks, with our own RSS/Atom/RDF mapper | Tolerant of malformed XML; true early stop after 50 items makes parse cost nearly independent of body size. Chosen over feedsmith 3.x after spike TID-002 (2-3x cheaper on typical feeds and on cold starts); ADR 0006. |
@@ -338,7 +338,7 @@ CREATE INDEX passkeys_user ON passkeys(user_id);
 
 CREATE TABLE webauthn_challenges (
   id          TEXT PRIMARY KEY,               -- also stored in a short-lived __Host- cookie
-  user_id     TEXT,                           -- NULL for setup and sign-in
+  user_id     TEXT,                           -- setup: the new user's ID (the WebAuthn user handle), used by verify; login: NULL; add_passkey: the user (ADR 0011)
   purpose     TEXT NOT NULL CHECK (purpose IN ('setup','login','add_passkey')),
   challenge   TEXT NOT NULL,
   expires_at  INTEGER NOT NULL                -- now + 300
@@ -361,7 +361,7 @@ CREATE TABLE sessions (
   expires_at       INTEGER NOT NULL,          -- sliding, see §10.2
   absolute_expires_at INTEGER NOT NULL,
   user_agent       TEXT,
-  auth_method      TEXT NOT NULL DEFAULT 'passkey' -- 'setup' | 'passkey' | 'recovery'; added by migration 0002 (TID-009, ADR 0010)
+  auth_method      TEXT NOT NULL DEFAULT 'passkey' -- 'setup' | 'passkey' | 'recovery'; added by migration 0002 (shipped in TID-007; ADR 0010, ADR 0011)
 );
 CREATE INDEX sessions_user ON sessions(user_id);
 
@@ -598,7 +598,7 @@ type ErrorCode =
   | 'webauthn_failed' | 'invalid_recovery_code' | 'last_passkey' | 'internal' | 'config_error';
 ```
 
-  `validation_failed` → 400 with zod issues in `details`; `rate_limited` → 429 with `Retry-After`; `conflict`/`already_subscribed` → 409; `limit_reached`, `feed_choice_required`, `no_feed_found`, `fetch_failed`, `blocked_address` → 422; `setup_unavailable` → 409; `internal` → 500; `config_error` → 500, returned by every `/api/*` route when the Worker's configuration is unsafe (§10.6, `ALLOW_FETCH_HOSTS` guard), with the fixed message "Server configuration error". The code in `packages/shared` currently says `internal_error`, but the spec's `internal` wins (renamed in TID-008).
+  `validation_failed` → 400 with zod issues in `details`; `rate_limited` → 429 with `Retry-After`; `conflict`/`already_subscribed` → 409; `limit_reached`, `feed_choice_required`, `no_feed_found`, `fetch_failed`, `blocked_address` → 422; `setup_unavailable` → 409; `internal` → 500; `config_error` → 500, returned by every `/api/*` route when the Worker's configuration is unsafe (§10.6, `ALLOW_FETCH_HOSTS` guard), and by the setup endpoints when `SETUP_TOKEN` is missing or shorter than 32 characters (§10.1), with the fixed message "Server configuration error". The code in `packages/shared` currently says `internal_error`, but the spec's `internal` wins (renamed in TID-008).
 
 - **Pagination** (entries only): `limit` (1–100, default 50) and opaque `cursor`. Response `{ items, nextCursor }`; `nextCursor: null` means the end. Other collections are bounded by per-user limits and returned whole.
 
@@ -847,7 +847,7 @@ Options evaluated (full record in ADR 0002):
 
 Parameters: `rpID = RP_ID` (the production hostname), expected origin `APP_ORIGIN`; `residentKey: 'required'`, `userVerification: 'required'`, `attestationType: 'none'`; algorithms ES256 (−7), EdDSA (−8), RS256 (−257). Challenges are single-use, stored in `webauthn_challenges`, bound to a `__Host-tid_chal` cookie (HttpOnly, Secure, SameSite=Strict, Max-Age 300) and deleted on verify. The signature counter is stored and checked when non-zero.
 
-**Bootstrap:** `SETUP_TOKEN` (≥ 32 random characters, set with `wrangler secret put`) is required for setup and compared in constant time. Setup endpoints return `setup_unavailable` once a user exists.
+**Bootstrap:** `SETUP_TOKEN` (≥ 32 random characters, set with `wrangler secret put`) is required for setup and compared in constant time. Setup endpoints return `setup_unavailable` once a user exists (checked first, so the secret can be removed after setup). Before then, a missing or shorter token returns `500 config_error` and is logged; it never accepts any token (ADR 0011). `setup/options` generates the new user's ID as the WebAuthn user handle and keeps it in the challenge row; it deletes expired setup challenges and refuses with `429 rate_limited` when 5 unexpired ones exist.
 
 **Recovery codes:** 10 codes, each 80 random bits rendered as `XXXX-XXXX-XXXX-XXXX` (Crockford base32). Stored as SHA-256 of the normalised code. Normalisation: trim, remove spaces and dashes, upper-case, then map the Crockford confusables `O→0`, `I→1`, `L→1` (ADR 0010). A fast hash is acceptable because the codes are high-entropy random values, not user-chosen passwords; this avoids needing a KDF in a 10 ms budget. Single use.
 
@@ -862,7 +862,7 @@ Parameters: `rpID = RP_ID` (the production hostname), expected origin `APP_ORIGI
 
 ### 10.3 CSRF
 
-The SPA and API share one origin, so no CORS headers are sent at all (cross-origin reads are blocked by default). For every mutating request the Worker requires **both**:
+The SPA and API share one origin, so no CORS headers are sent at all (cross-origin reads are blocked by default). For every mutating request, including the Public auth routes (setup, login, recover), the Worker requires **both**:
 1. `Origin` header equal to `APP_ORIGIN` (if `Origin` is absent, `Sec-Fetch-Site: same-origin` is accepted instead; if both are absent, reject), and
 2. `Content-Type: application/json` (forces a CORS preflight for any cross-site attempt, which we never approve).
 
@@ -906,7 +906,7 @@ For automated tests only, an `ALLOW_FETCH_HOSTS` var can allow the local fixture
 
 ### 10.7 Rate limiting
 
-- **Auth routes** (setup, login, recover): D1 fixed-window counter in `rate_limits` keyed by route family and `CF-Connecting-IP`, plus a global counter for setup and recover (§8.3). Authoritative.
+- **Auth routes** (setup, login, recover): D1 fixed-window counter in `rate_limits` keyed by route family and `CF-Connecting-IP`, plus a global counter for setup and recover (§8.3). Authoritative. A slot is claimed on arrival and handed back on success, so the limits count failures. The exception is `login/options`, which is never refunded: each call uses a slot, and a successful `login/verify` refunds only its own slot. This bounds the challenge rows one IP can create (ADR 0011). The global setup limit can be used to lock setup for up to an hour before the owner exists. That's accepted (risk R12), and the runbook covers clearing it.
 - **Authenticated API:** 600 requests/minute per user via the Workers Rate Limiting binding `API_RL` (verified on Free 2026-11-16; approximate, so it is a backstop only), keyed by user ID, returning `429 rate_limited`. Built in TID-008.
 - **Manual feed refresh:** once per 5 minutes per feed per user (checked against `feeds.last_attempt_at`).
 
@@ -1035,6 +1035,7 @@ On push to `main` after CI passes: `wrangler d1 migrations apply tidings --remot
 | R9 | `@simplewebauthn/server` cold start / CPU too heavy for 10 ms | Low | Low | Measured in TID-003: warm p99 3 ms, cold ≤ 10 ms. Lazy import; trigger in ADR 0002 moves verify behind `ctx.exports`, then a lighter ES256/EdDSA verifier. |
 | R10 | Malformed or hostile feeds (billion-laughs entity expansion, huge attributes) | Medium | Low | htmlparser2 doesn't expand custom DTD entities; body cap; item cap; fuzz fixtures. |
 | R11 | Oldest-first feeds with more than 50 items never show new items (we parse the first 50 in document order) | Low | Low | Accepted for MVP (ADR 0006). Possible later fix: detect ascending dates and parse the tail instead. |
+| R12 | Before the owner exists, 30 failed setup attempts an hour from any IPs lock setup for everyone (griefing) | Low | Low | Exposed only between deploy and setup; the lock lasts ≤ 1 h; the runbook clears `rate_limits` (TID-024 AC8). Accepted (ADR 0011). |
 
 ---
 
