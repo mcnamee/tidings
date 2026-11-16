@@ -5,7 +5,7 @@ export interface HealthResponse {
   version: string;
 }
 
-export type ErrorCode = 'not_found' | 'internal_error';
+export type ErrorCode = 'not_found' | 'internal_error' | 'config_error';
 
 export interface ApiError {
   error: { code: ErrorCode; message: string };
