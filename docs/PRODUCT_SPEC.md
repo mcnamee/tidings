@@ -2,9 +2,9 @@
 
 | | |
 |---|---|
-| Status | Draft v1.1: M0 spikes decided, ready for build of M1 |
+| Status | Draft v1.2: M0 spikes decided; decision round 2 (TID-006/010 accepted, TID-011 rulings, auth UX) applied |
 | Owner | product-manager |
-| Last updated | 2026-11-16 |
+| Last updated | 2026-11-17 |
 | Cloudflare limits checked | **2026-11-16** against developers.cloudflare.com (see §9.1 for sources); spike measurements TID-002/TID-003 on 2026-11-16 |
 
 This document is the single source of truth for what we build. Stories live in `docs/BACKLOG.md`. Decisions live in `docs/decisions/`. If code and this spec disagree, the spec wins until the PM changes it.
@@ -135,7 +135,7 @@ Full design in §7.
 
 ### 3.7 Feed health (FH)
 
-- **FR-FH-1** The Manage screen lists every subscription with its folder, state (`ok`, `pending`, `failing`, `dead`, `gone`), last successful fetch time, and the last error in plain language (for example "The server returned 404 Not Found", "Timed out after 10 s", "Too large (over 1 MB)", "Couldn't parse the feed").
+- **FR-FH-1** The Manage screen lists every subscription with its folder, state (`ok`, `pending`, `failing`, `dead`, `gone`), last successful fetch time, and the last error in plain language (for example "The server returned 404 Not Found", "Timed out after 10 s", "Too large (over 1 MB)", "Couldn't parse the feed"). **The message comes only from a fixed table keyed by `last_error_code`** (UX copy). The only value taken from the origin is the numeric HTTP status, with a reason phrase from our own table. Response bodies, headers, `statusText`, redirect `Location`s and exception messages never reach any API response (blind-SSRF oracle, §10.6 rule 8).
 - **FR-FH-2** A failing feed shows a warning marker in the navigation drawer.
 
 ### 3.8 Settings and theme (ST)
@@ -360,7 +360,8 @@ CREATE TABLE sessions (
   authenticated_at INTEGER NOT NULL,          -- last passkey/recovery auth, for step-up checks
   expires_at       INTEGER NOT NULL,          -- sliding, see §10.2
   absolute_expires_at INTEGER NOT NULL,
-  user_agent       TEXT
+  user_agent       TEXT,
+  auth_method      TEXT NOT NULL DEFAULT 'passkey' -- 'setup' | 'passkey' | 'recovery'; added by migration 0002 (TID-009, ADR 0010)
 );
 CREATE INDEX sessions_user ON sessions(user_id);
 
@@ -485,9 +486,14 @@ Lower-case scheme and host; drop default ports (`:80` for http, `:443` for https
 ### 6.5 Other rules
 
 - `published_at`: from `pubDate` / `published` / `updated` / `dc:date`. Missing or unparseable → `fetched_at`. Later than `fetched_at` → `fetched_at`.
-- `summary`: plain text derived from description or content: strip tags with a bounded regex over the first 4 KB, decode entities, collapse whitespace, truncate to 300 characters at a word boundary.
-- `image_url`: first of `media:thumbnail`, `media:content[medium=image]`, an image `enclosure`, or the first `<img src>` in the first 8 KB of content. Must be http(s).
-- `content_html`: `content:encoded`, Atom `content`, else `description`/`summary`. Truncated to 100 KB (the client sanitiser repairs any broken markup).
+- `summary`: plain text derived from description or content: strip tags with a bounded regex over the first 4 KB, decode entities, collapse whitespace, truncate to 300 characters at a word boundary. A literal `<` or `>` that isn't part of a tag is kept (ADR 0009). After decoding, a summary can contain text such as `<script>`, so it is always rendered as text (§10.5).
+- Plain-text fields (`title`, `author`, feed title): after XML decoding, remove comments and tags whose name is an HTML element name, decode entities once, collapse whitespace. Other `<`/`>` stay literal (`Vec<T> in Rust`). (ADR 0009.)
+- `image_url`: first of `media:thumbnail`, `media:content[medium=image]`, an image `enclosure`, the item's `itunes:image@href`, or the first `<img src>` in the first 8 KB of content. Must be http(s).
+- Links: relative item links and image URLs are resolved against `xml:base` (on `feed`, `entry`/`item`, `link`) and then against `baseUrl`, the final fetched URL after redirects. The parser is always given `baseUrl` (ADR 0009).
+- Dates: RFC 822 / ISO 8601 with the zone table in ADR 0009. Unknown alphabetic zones and zone-less dates are read as UTC.
+- `content_html`: `content:encoded`, Atom `content`, else `description`/`summary`. Atom `type="text"` is HTML-escaped. Untyped Atom is escaped unless it contains a tag from the §10.5 allowlist (plus `div`, `span`), in which case it's HTML (ADR 0009). Truncated during accumulation at **102,400 UTF-16 code units** ("100 KB" elsewhere in this spec means this; at most ≈ 300 KB of UTF-8 for CJK text). The client sanitiser repairs any broken markup.
+- Hostile-input bounds: at most 64 nested XML elements (`MAX_DEPTH`). Past that the parser stops and returns the items closed so far, or `parse_error` if there are none. U+0000 is removed and lone surrogates are replaced with U+FFFD in every stored string (ADR 0009).
+- Atom is recognised only with the unprefixed namespace (`<feed xmlns="http://www.w3.org/2005/Atom">`). A prefixed root is `parse_error` (accepted for MVP).
 - Per-user limits: 1,000 subscriptions, 200 folders.
 
 ---
@@ -528,7 +534,7 @@ When an RPC rejects (exception, CPU limit, timeout), the dispatcher records the 
 1. **Fetch** via `safeFetch` (§10.6): `GET`, `User-Agent: Tidings/1.0 (+<APP_ORIGIN>)`, `Accept: application/rss+xml, application/atom+xml, application/rdf+xml, application/xml;q=0.9, text/xml;q=0.8, */*;q=0.1`, `If-None-Match: etag`, `If-Modified-Since: last_modified`. Timeout 10 s. Redirects followed manually, max 3, each hop re-validated.
 2. **304** → if `error_count > 0` or `state != 'ok'`: write `state='ok', error_count=0, last_success_at=now`. Otherwise **no write**. Done.
 3. **Non-2xx** → handle per §7.4. Done.
-4. **200** → stream the body through `crypto.DigestStream` and into a buffer, aborting at **1 MiB** (`MAX_BODY_BYTES` = 1,048,576; `too_large`). If `SHA-256(body) == body_hash` → same as 304. Done.
+4. **200** → stream the body through `crypto.DigestStream` and into a buffer, aborting at **1 MiB** of **decoded** bytes (after the runtime's transparent `Content-Encoding` decompression; `MAX_BODY_BYTES` = 1,048,576; `too_large`). The cap bounds what we hash and parse, so it is measured after decoding. TID-024 verifies that deployed workerd decompresses before the cap applies. If `SHA-256(body) == body_hash` → same as 304. Done.
 5. **Parse** with `packages/feed-parser` (htmlparser2, ADR 0006), stopping the tokenizer after the first **50 items** in document order (`MAX_ITEMS_PER_FETCH`; first fetch for a new subscription: 10 items are linked to the user, FR-SU-3). Parse errors → `parse_error`.
 6. **Dedup** (§6.3): compute keys, query existing, keep new items only.
 7. **Write** in one `DB.batch()`: multi-row `INSERT … ON CONFLICT DO NOTHING RETURNING id` into `entries` (chunked to stay within 100 bound parameters per statement), then `INSERT INTO user_entries … SELECT` for every subscriber (`subscriptions_feed` index), then `UPDATE feeds SET etag, last_modified, body_hash, title (if changed), site_url, last_success_at, last_new_entry_at, state='ok', error_count=0`. Total statements per refresh ≤ 15 (D1 free limit is 50 queries per invocation).
@@ -589,10 +595,10 @@ type ErrorCode =
   | 'validation_failed' | 'rate_limited' | 'limit_reached' | 'conflict'
   | 'already_subscribed' | 'feed_choice_required' | 'no_feed_found' | 'fetch_failed'
   | 'blocked_address' | 'setup_unavailable' | 'invalid_setup_token'
-  | 'webauthn_failed' | 'invalid_recovery_code' | 'last_passkey' | 'internal';
+  | 'webauthn_failed' | 'invalid_recovery_code' | 'last_passkey' | 'internal' | 'config_error';
 ```
 
-  `validation_failed` → 400 with zod issues in `details`; `rate_limited` → 429 with `Retry-After`; `conflict`/`already_subscribed` → 409; `limit_reached`, `feed_choice_required`, `no_feed_found`, `fetch_failed`, `blocked_address` → 422; `setup_unavailable` → 409.
+  `validation_failed` → 400 with zod issues in `details`; `rate_limited` → 429 with `Retry-After`; `conflict`/`already_subscribed` → 409; `limit_reached`, `feed_choice_required`, `no_feed_found`, `fetch_failed`, `blocked_address` → 422; `setup_unavailable` → 409; `internal` → 500; `config_error` → 500, returned by every `/api/*` route when the Worker's configuration is unsafe (§10.6, `ALLOW_FETCH_HOSTS` guard), with the fixed message "Server configuration error". The code in `packages/shared` currently says `internal_error`, but the spec's `internal` wins (renamed in TID-008).
 
 - **Pagination** (entries only): `limit` (1–100, default 50) and opaque `cursor`. Response `{ items, nextCursor }`; `nextCursor: null` means the end. Other collections are bounded by per-user limits and returned whole.
 
@@ -630,12 +636,12 @@ type Passkey = { id: string; name: string; createdAt: string; lastUsedAt: string
 
 | Method & path | Auth | Request | Response |
 |---|---|---|---|
-| `GET /api/auth/session` | Public | – | `200 { user: User \| null, setupRequired: boolean }` |
+| `GET /api/auth/session` | Public | – | `200 { user: User \| null, setupRequired: boolean, mustAddPasskey: boolean }`. `mustAddPasskey` is true only when this session signed in with a recovery code and the user has no passkey created since the session began (ADR 0010). |
 | `POST /api/auth/setup/options` | Public, rate-limited | `{ setupToken: string, displayName: string (1–64) }` | `200 PublicKeyCredentialCreationOptionsJSON`; sets challenge cookie. `409 setup_unavailable` if a user exists; `403 invalid_setup_token`. |
-| `POST /api/auth/setup/verify` | Public, rate-limited | `{ setupToken, displayName, response: RegistrationResponseJSON, passkeyName?: string }` | `201 { user: User, recoveryCodes: string[10] }`; sets session cookie. |
+| `POST /api/auth/setup/verify` | Public, rate-limited | `{ setupToken, displayName, response: RegistrationResponseJSON, passkeyName?: string }` (`passkeyName` is a best-effort client label. The server trims it, caps it at 64 characters, defaults it to "Passkey", and never rejects setup over it.) | `201 { user: User, recoveryCodes: string[10] }`; sets session cookie. |
 | `POST /api/auth/login/options` | Public, rate-limited | `{}` | `200 PublicKeyCredentialRequestOptionsJSON` (empty `allowCredentials`, `userVerification: 'required'`); sets challenge cookie. |
 | `POST /api/auth/login/verify` | Public, rate-limited | `{ response: AuthenticationResponseJSON }` | `200 { user: User }`; sets session cookie; `401 webauthn_failed`. |
-| `POST /api/auth/recover` | Public, rate-limited | `{ code: string }` | `200 { user: User, mustAddPasskey: true }`; sets session cookie; `401 invalid_recovery_code`. |
+| `POST /api/auth/recover` | Public, rate-limited | `{ code: string }` (as typed; the server normalises it, §10.1) | `200 { user: User, mustAddPasskey: true }`; sets session cookie; `401 invalid_recovery_code`. |
 | `POST /api/auth/logout` | Session | `{}` | `204`; clears cookie. |
 | `POST /api/auth/logout-all` | Session | `{}` | `204`; deletes all the user's sessions. |
 | `GET /api/auth/passkeys` | Session | – | `200 { items: Passkey[] }` |
@@ -799,7 +805,7 @@ Ceiling: one dispatcher leasing a full batch every minute is 1,440 × (1 + 20) =
 
 ### 9.6 Storage
 
-Average stored article ≈ 6 KB (many feeds are summary-only at 1–2 KB; full-content feeds are 10–30 KB; content capped at 100 KB). A: 400 × 6 KB × 30 days ≈ 72 MB content + ~20% indexes + 180 days of tombstones (≈ 7 MB) ≈ **95 MB (19% of 500 MB)**. A full-content-heavy mix at 25 KB average ≈ 360 MB (72%). B with 800/day at 6 KB ≈ 180 MB (36%). Mitigations: 100 KB content cap, 30-day content retention, hourly cleanup, daily size log, warning in Settings above 70% (M2).
+Average stored article ≈ 6 KB (content cap = 102,400 UTF-16 code units: ≈ 100 KB for Latin text, ≈ 300 KB worst case of UTF-8 for CJK text, well under D1's 2 MB row limit; it affects only the tail, not the average; many feeds are summary-only at 1–2 KB; full-content feeds are 10–30 KB; content capped at 100 KB). A: 400 × 6 KB × 30 days ≈ 72 MB content + ~20% indexes + 180 days of tombstones (≈ 7 MB) ≈ **95 MB (19% of 500 MB)**. A full-content-heavy mix at 25 KB average ≈ 360 MB (72%). B with 800/day at 6 KB ≈ 180 MB (36%). Mitigations: 100 KB content cap, 30-day content retention, hourly cleanup, daily size log, warning in Settings above 70% (M2).
 
 ### 9.7 CPU per invocation
 
@@ -843,9 +849,9 @@ Parameters: `rpID = RP_ID` (the production hostname), expected origin `APP_ORIGI
 
 **Bootstrap:** `SETUP_TOKEN` (≥ 32 random characters, set with `wrangler secret put`) is required for setup and compared in constant time. Setup endpoints return `setup_unavailable` once a user exists.
 
-**Recovery codes:** 10 codes, each 80 random bits rendered as `XXXX-XXXX-XXXX-XXXX` (Crockford base32). Stored as SHA-256 of the normalised code (upper-case, no dashes). A fast hash is acceptable because the codes are high-entropy random values, not user-chosen passwords; this avoids needing a KDF in a 10 ms budget. Single use.
+**Recovery codes:** 10 codes, each 80 random bits rendered as `XXXX-XXXX-XXXX-XXXX` (Crockford base32). Stored as SHA-256 of the normalised code. Normalisation: trim, remove spaces and dashes, upper-case, then map the Crockford confusables `O→0`, `I→1`, `L→1` (ADR 0010). A fast hash is acceptable because the codes are high-entropy random values, not user-chosen passwords; this avoids needing a KDF in a 10 ms budget. Single use.
 
-**Break-glass:** if the owner loses every passkey and code, they run a documented `wrangler d1 execute` command (README) that deletes their passkeys; setup is then *not* re-opened (a user exists), so the runbook instead inserts a one-time recovery code hash generated locally. Documented in TID-021.
+**Break-glass:** if the owner loses every passkey and code, they run a documented `wrangler d1 execute` command (README) that deletes their passkeys; setup is then *not* re-opened (a user exists), so the runbook instead inserts a one-time recovery code hash generated locally. Documented in the README (TID-024 AC2). The sign-in screens don't link to it (ADR 0010).
 
 ### 10.2 Sessions
 
@@ -870,11 +876,12 @@ Plus `SameSite=Lax` on the session cookie. Failing requests get `403 csrf_failed
   - `X-Content-Type-Options: nosniff`, `Permissions-Policy: camera=(), microphone=(), geolocation=()`, `Cross-Origin-Opener-Policy: same-origin`
   - `Strict-Transport-Security: max-age=31536000` (custom domain only)
 - The flash-free theme script is an external file (`/theme-init.js`, loaded blocking in `<head>`) so no `'unsafe-inline'` is needed. If Tailwind/React need inline styles, the engineer raises it with the PM rather than loosening CSP.
+- The recovery-codes "Download .txt" uses a `Blob` and `<a download>`. CSP fetch directives don't govern it, so no CSP change is needed. If a browser blocks it, use Copy only on that browser, never a weaker CSP (ADR 0010).
 - API responses (set in Worker middleware, since `_headers` doesn't apply to them): `Cache-Control: no-store`, `X-Content-Type-Options: nosniff`, `Cross-Origin-Resource-Policy: same-origin`.
 
 ### 10.5 Untrusted feed content (XSS)
 
-- Feed titles, authors and summaries are rendered as **text** (React escaping). Never as HTML.
+- Feed titles, authors and summaries are rendered as **text** (React escaping). Never as HTML. A summary or title can legitimately contain `<script>` as text after decoding, and it must show as those characters.
 - `content_html` is stored raw and sanitised **only in the browser**, in one module (`apps/web/src/lib/sanitize.ts`) using DOMPurify, then inserted with `dangerouslySetInnerHTML` in exactly one component (`ArticleContent`). An ESLint `no-restricted-syntax` rule bans `dangerouslySetInnerHTML` everywhere else.
 - DOMPurify config: allowlist of text/structure/media tags (`p, br, a, strong, em, b, i, u, s, blockquote, q, cite, code, pre, kbd, ul, ol, li, dl, dt, dd, h1–h6, hr, img, picture, source, figure, figcaption, table, thead, tbody, tfoot, tr, th, td, caption, sup, sub, small, abbr, time, mark, del, ins, details, summary, video, audio`); forbid `style`, `class`, `id`, all `on*` attributes, `iframe`, `form`, `input`, `svg`, `math`, `object`, `embed`; only `http:`, `https:`, `mailto:` URLs (relative URLs are resolved against the entry URL first). Hook: every `<a>` gets `target="_blank" rel="noopener noreferrer nofollow"`; every `<img>` gets `loading="lazy" decoding="async" referrerpolicy="no-referrer"`; `<video>`/`<audio>` get `controls` and `preload="none"`. Iframes are replaced by a link "Open embedded content".
 - Entry `url` and `image_url` are accepted only if `http(s)`; anything else is stored as NULL, so a `javascript:` link can't reach an `href`.
@@ -886,14 +893,16 @@ All server-side fetches of user-supplied URLs (subscribe, discovery, refresh, re
 
 1. Scheme must be `http` or `https`; port must be default or 80/443/8080/8443.
 2. Reject credentials in URL (`user:pass@`).
-3. Reject hosts that are: `localhost`, single-label names, `*.local`, `*.localhost`, `*.internal`, `*.home.arpa`, the app's own hostname, and IP literals (v4, v6, decimal/octal/hex forms after `new URL()` normalisation) in loopback, private (10/8, 172.16/12, 192.168/16), CGNAT (100.64/10), link-local (169.254/16, fe80::/10), unique-local (fc00::/7), multicast, `0.0.0.0/8`, `::`, `::1`, IPv4-mapped IPv6 of any of these, and cloud metadata (`169.254.169.254`, `fd00:ec2::254`).
+3. Reject hosts that are: `localhost`, single-label names, `*.local`, `*.localhost`, `*.internal`, `*.home.arpa`, the reserved and private-use names `*.test`, `*.invalid`, `*.example`, `*.lan`, `*.localdomain`, `*.home`, `*.corp`, `*.intranet`, `*.private` (TID-036), the app's own hostname, and IP literals (v4, v6, decimal/octal/hex forms after `new URL()` normalisation) in loopback, private (10/8, 172.16/12, 192.168/16), CGNAT (100.64/10), link-local (169.254/16, fe80::/10), unique-local (fc00::/7), multicast, `0.0.0.0/8`, `::`, `::1`, IPv4-mapped IPv6 of any of these, cloud metadata (`169.254.169.254`, `fd00:ec2::254`), and **every range in the IANA IPv4 and IPv6 Special-Purpose Address Registries that isn't globally reachable**, including all of `2001::/23` and `3fff::/20` (TID-036). 6to4 and NAT64 addresses are judged by their embedded IPv4 address.
 4. `redirect: 'manual'`; follow at most 3 redirects, re-applying 1–3 to each `Location`. Never forward cookies or auth headers.
-5. 10 s total timeout (`AbortSignal.timeout`), 1 MiB body cap (`MAX_BODY_BYTES`; stream and abort).
+5. 10 s total timeout (`AbortSignal.timeout`), 1 MiB body cap on decoded bytes (`MAX_BODY_BYTES`; stream and abort; §7.3 step 4).
 6. Only `GET`. No user-controlled headers.
+7. `safeFetch` covers server-side fetches only. The `ALLOW_FETCH_HOSTS` guard runs on `/api/*`, on `scheduled`, and on the `FeedRefresher` entrypoint, which are every code path that can fetch. Static assets are served without the Worker (`run_worker_first` is `/api/*` only) and never fetch, so they don't need the guard (confirmed 2026-11-17).
+8. **No oracle.** `safeFetch` returns raw status, headers, body and `err.message` to its callers. Those are for the refresher and discovery only. Users see only the error code and the fixed plain-language message (FR-FH-1). Subscribe, refresh-now and Manage responses never include upstream bodies, headers, `statusText`, redirect targets or exception text (TID-012 AC15, TID-013 AC10, TID-015 AC5).
 
 Residual risk: DNS names that resolve to private addresses (rebinding). Workers run on Cloudflare's edge with no access to a private network of ours, which limits impact; we accept this for MVP and record it in risks (R5). Tests: the tester's SSRF suite (`127.0.0.1`, `[::1]`, `169.254.169.254`, `0x7f000001`, `2130706433`, `localhost.`, redirects to these).
 
-For automated tests only, an `ALLOW_FETCH_HOSTS` var can allow the local fixture server. The Worker refuses to start a request if that var is set and `APP_ORIGIN` is not `http://localhost:*` (so it can't be enabled in production by accident), and a unit test covers that guard.
+For automated tests only, an `ALLOW_FETCH_HOSTS` var can allow the local fixture server. If that var is **present** (even empty, from TID-036) and `APP_ORIGIN` is not exactly `http://localhost[:port]` with no path, query or fragment, the Worker refuses: every `/api/*` request returns `500 config_error`, the error is logged, and `scheduled` and the `FeedRefresher` entrypoint return without fetching. So it can't be enabled in production by accident. Unit tests cover the guard.
 
 ### 10.7 Rate limiting
 
