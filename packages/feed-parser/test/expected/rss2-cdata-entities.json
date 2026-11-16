@@ -1,0 +1,44 @@
+{
+  "ok": true,
+  "feed": {
+    "format": "rss",
+    "title": "Café & Crème: CDATA, entities and namespaces",
+    "siteUrl": "https://rich.example.test/",
+    "items": [
+      {
+        "guidKey": "rich-a",
+        "guid": "rich-a",
+        "title": "CDATA title with <angle> brackets & ampersand",
+        "link": "https://rich.example.test/a",
+        "author": "Zoë O'Brien",
+        "publishedAt": 1794298500,
+        "contentHtml": "<p>Full body.</p><p><img src=\"https://rich.example.test/img/a.jpg\" alt=\"inline\"> Smart quotes &ldquo;like this&rdquo;, an em dash &mdash; and a snowman &#9731;.</p>",
+        "summary": "Summary with a link.",
+        "imageUrl": "https://rich.example.test/thumbs/a.jpg"
+      },
+      {
+        "guidKey": "rich-b",
+        "guid": "rich-b",
+        "title": "Escaped markup in title & double escape",
+        "link": "https://rich.example.test/b",
+        "author": null,
+        "publishedAt": 1794230100,
+        "contentHtml": "<p>Entity-escaped HTML description with &nbsp; and ’apostrophe’.</p>",
+        "summary": "Entity-escaped HTML description with and ’apostrophe’.",
+        "imageUrl": "https://rich.example.test/media/b.jpg"
+      },
+      {
+        "guidKey": "rich-c",
+        "guid": "rich-c",
+        "title": "Emoji and CJK: 🎉 日本語 العربية",
+        "link": "https://rich.example.test/c",
+        "author": null,
+        "publishedAt": 1794125700,
+        "contentHtml": "Unicode body.",
+        "summary": "Unicode body.",
+        "imageUrl": null
+      }
+    ],
+    "stoppedEarly": false
+  }
+}

@@ -21,18 +21,90 @@ Entry template:
 
 ## Open
 
+## Closed
+
+### DEF-011: Stripping HTML tags from plain-text fields in one pass re-forms a tag
+- Story: TID-011 (ADR 0009 section 2, defence in depth)
+- Severity: S3 (minor). Owner: SE.
+- Status: Closed (tester, tip ec14a5c)
+- Found by: `packages/feed-parser/src/adversarial.test.ts` > "stripping cannot re-form an element tag: <scr<b>ipt> (DEF-011)" (`it.fails`)
+- Steps to reproduce: `<title><![CDATA[<scr<b>ipt>x</scr<b>ipt>]]></title>` (also `<<b>script>alert(1)<</b>/script>` and `<im<i>g src=x>`), and the same text in `<description>`.
+- Expected: no HTML element tag survives in `title`, `author`, feed title or `summary` (ADR 0009 section 2). Stripping `<b>` should not leave `<script>` behind.
+- Actual: title and summary are `<script>x</script>`, `<script>alert(1)</script>` and `<img src=x>`. `HTML_TAG_RE` runs once, so removing the inner tag joins the outer fragments into a new tag. Not exploitable today because every consumer renders these fields as text nodes; it becomes live markup if any future consumer (an email digest, an OPML export, `innerHTML` in a toast) trusts them as already stripped. The comment case (`<!<!-- -->-- -->`) is not affected: no `<!--` survives.
+- Suggested fix: repeat the strip until the string stops changing (bounded, for example 3 passes, then drop remaining `<` that precede an element name), or replace removed tags with a space. Then switch the `it.fails` to `it`.
+- Not blocking acceptance if the PM agrees the text-only rendering contract (spec 10.5) is the defence.
+- Fix: `stripTags` in `packages/feed-parser/src/text.ts` repeats the whole strip (script/style, comments, block tags, element tags) until the text stops changing. Each changing pass shortens the text, so it terminates. A 16-pass cap bounds cost; if hit, every `<` that opens an element tag or `<!--` is deleted (the fix's claim: a deletion cannot create a new opener; this is wrong, see Retest). Tests: `adversarial.test.ts` DEF-011 test is now `it` (assertions unchanged), plus 3+ level nesting and a 2 KB timing test.
+
+- Retest (tester, tip 5ef2072): the fixed-point loop is sound. At a fixed point every strip regex found nothing, and `HTML_TAG_RE` matches any `</?name` followed by whitespace, `/`, `>` or end, so no element tag or `<!--` can remain, and each changing pass shortens the text. The `adversarial.test.ts` DEF-011 test differs from the earlier version only by `it.fails` to `it` and its comment. All reported payloads and 3 to 1000 levels of split tags pass.
+- Retest, residual hole: the cap fallback `current.replace(TAG_OPENER_RE, '')` is one regex pass, and deleting a `<` can create a new opener. In `<<b>`, the first `<` is followed by `<` so it is kept, the second is an opener and is deleted, and the result is `<b>`. To reach the fallback, the input needs more than 16 passes: `'<' + '<b'.repeat(17) + '>'.repeat(17)` returns `<b>`. With 18 levels it returns `<<bb>>` (no tag); with `'script>x'` appended at 17 it returns `<b>script>x`. Severity stays S3 (text-only rendering, needs a 40-byte crafted title), but the stated guarantee does not hold.
+- Suggested fix: make the fallback final by deleting every `<` in the string (or every `<` followed by `/`, `!` or a letter), not only those that currently open an element tag. Alternatively loop the opener removal to a fixed point. Then switch the `it.fails` test "cap fallback cannot leave an element tag (DEF-011 residual)" in `adversarial.test.ts` to `it`.
+- Fix 2: the cap fallback is now `dropOpeners` in `text.ts`: it deletes every run of `<` that is followed by `/`, `!` or an ASCII letter (a superset of all tag and comment openers; the run goes together so `<<b` cannot become `<b`) and repeats until nothing changes. The output has no `<` before those characters, so it is final. Chosen over deleting every `<` because literal `<` before a space, digit or end of text (`5 < 6`) is still kept. `adversarial.test.ts`: the `it.fails` is now `it` (assertions unchanged), plus 17, 18, 40 and 1000 level variants and the same with a `script>x` suffix.
+- Closure (tester, ec14a5c): the residual test differs from the earlier `it.fails` only by `it.fails` to `it` and its comment; the new 17/18/40/1000-level and `script>x` tests are additions. `dropOpeners` is final: its loop exits only when `/<+(?=[/!A-Za-z])/` finds nothing, so the output has no `<` before `/`, `!` or a letter, and every element tag (`</?name`) and comment (`<!--`) opener needs one. Each round shortens the text, so it terminates. `npm test -w @tidings/feed-parser`: 181 tests pass (4 files), plus 6 in the second workspace run, no failures, no `it.fails` left for DEF-011.
+
+### DEF-006: Atom `type="text"` (and untyped) content is stored unescaped
+- Story: TID-011 (hostile input requirement, spec 6.5, ADR 0006)
+- Severity: S2 (major). Owner: SE.
+- Status: Verified, closed (fix d5b27dc)
+- Found by: `packages/feed-parser/src/adversarial.test.ts` > "Atom summary/content type=\"text\" is escaped, not live markup (DEF-006)" and two siblings (marked `it.fails`)
+- Steps to reproduce: `parseFeed('<feed xmlns="http://www.w3.org/2005/Atom"><title>T</title><entry><id>1</id><title>x</title><content type="text">&lt;script&gt;alert(1)&lt;/script&gt;</content></entry></feed>', ...)`. Same for an untyped `<summary>` and for `type="text"` in CDATA.
+- Expected: plain text is escaped when stored as HTML: `contentHtml === '&lt;script&gt;alert(1)&lt;/script&gt;'`, so the reader shows the characters. The code's own comment and the engineer's note say `type="text"` is escaped.
+- Actual: `contentHtml === '<script>alert(1)</script>'`. `modeForAtomType` returns `'escape'` but `ontext` in `parse.ts` only escapes when `mode === 'xhtml'`; `'escape'` is never acted on. The parser turns text into live markup before DOMPurify, and the article renders wrong (markup shown as formatting or stripped). DOMPurify should still neutralise scripts, so this is defence-in-depth plus a correctness bug, not a known exploit.
+- Note for the fix: untyped Atom text is, in practice, often HTML in the wild. The PM should rule on whether untyped `summary`/`content` stays "text" per RFC 4287 (then escape) or is treated as HTML (then document it). The snapshot for `atom-basic` item 1 ("Plain text summary.") is unaffected.
+- Verification: `parse.test.ts` "Atom text constructs (AC12, ADR 0009 section 1)" (6 tests) and `adversarial.test.ts` "Atom summary/content type=\"text\" is escaped" and "type=\"text\" in CDATA is escaped" now pass as plain `it` (`it.fails` removed, assertions unchanged). The untyped test was re-pointed per ADR 0009 section 1: untyped `&lt;script&gt;`, `&lt;iframe&gt;` and `&lt;style&gt;` stay escaped (new input, same intent); untyped text with an allowlisted tag such as `&lt;b&gt;` is HTML (AC12, `parse.test.ts` "untyped text with an allowlisted tag is stored as HTML").
+
+### DEF-007: Deeply nested elements make parse time quadratic (CPU budget)
+- Story: TID-011 (AC4/AC6 robustness, spec 7.3, ADR 0006 CPU gate)
+- Severity: S2 (major). Owner: SE.
+- Status: Verified, closed (fix f65515a)
+- Found by: `adversarial.test.ts` > "bounds work for deeply nested elements (DEF-007)" (`it.fails`); the engineer's "nested elements" test only asserts `typeof result.ok` and does not measure work.
+- Steps to reproduce: parse an item containing N unclosed `<x>` elements. Node 25, M-series: 10k tags (30 KB) 11 ms, 20k 53 ms, 40k (120 KB) 434 ms, 200k (600 KB) 10.4 s, 300k (900 KB, inside the 1 MiB body cap) 16.6 s. Bare htmlparser2 with no callbacks shows the same curve, so the cost is inside the library's open-element stack.
+- Expected: bounded work for any body within `MAX_BODY_BYTES`. Real feeds nest under 30 levels deep.
+- Actual: a 100 KB hostile feed uses far more than the 10 ms Free-plan CPU budget; a 1 MiB one runs for tens of seconds in Node. On Workers it would be killed (`cpu_limit`) and backed off, but it could be repeated every refresh.
+- Suggested fix: track depth in `onopentag` and stop (as the early stop does, via `parser.pause()`) past a limit such as 64, returning what was parsed so far.
+- Verification: `adversarial.test.ts` "bounds work for deeply nested elements (DEF-007)" is a plain `it`. `parse.test.ts` "nesting bound (AC13)": 300k nested tags (about 890 KB) parse in <= 50 ms (best of 5), 2 good items then nesting gives those items with `truncated: too_deep`, nesting in the first item gives `parse_error`, exactly 64 levels parse and 65 truncate, a 40-deep xhtml content parses. The depth spy asserts <= 65 rather than 64 because htmlparser2 pushes the 65th tag onto its own stack before our `onopentag` runs; the pinned 64-accepted / 65-truncated test proves the accepted depth is 64 and no later open is processed. Judged acceptable.
+
+### DEF-008: `xml:base` is ignored when resolving relative links
+- Story: TID-011 (real-world shapes)
+- Severity: S3 (minor). Owner: PM ruling, then SE.
+- Status: Verified, closed (fix 042fb8f)
+- Found by: `adversarial.test.ts` > "xml:base on an Atom entry is honoured for relative links (DEF-008)" (`it.fails`)
+- Steps to reproduce: Atom entry with `xml:base="https://b.example.test/dir/"` and `<link href="p1"/>`, parsed with `baseUrl: 'https://a.example.test/feed'`.
+- Expected: `https://b.example.test/dir/p1` (RFC 4287 s2).
+- Actual: `https://a.example.test/p1`, a wrong URL that opens a 404 on the wrong host. Without `baseUrl` the link is null. The spec does not mention `xml:base`; if the PM rules it out of MVP, close as Won't fix and keep the test as documentation.
+- Verification: `adversarial.test.ts` "xml:base on an Atom entry is honoured" is a plain `it`; `parse.test.ts` "xml:base (AC14)" (7 tests: entry, feed+entry+link composition, feed alone, imageUrl and RSS items, absolute href, non-http(s) is null, no leak between entries). The engineer honours `xml:base` on the root of any format, a small superset of ADR 0009 section 4; harmless, and still resolved only against `baseUrl` or an absolute base.
+
+### DEF-009: RFC 822 dates with non-US zone names fall back to the fetch time
+- Story: TID-011 (AC5, spec 6.5)
+- Severity: S3 (minor). Owner: SE.
+- Status: Verified, closed (fix 55a9811)
+- Found by: `adversarial.test.ts` > "non-US named zones (CEST, BST, IST) are not silently replaced by the fetch time (DEF-009)" (`it.fails`)
+- Steps to reproduce: `<pubDate>Mon, 09 Nov 2026 08:15:00 CEST</pubDate>`. `BST` behaves the same.
+- Expected: a date near 2026-11-09T06:15Z (or at least a documented table of zones).
+- Actual: `Date.parse` returns NaN, so `published_at = fetched_at`. Articles from European and Australian feeds that use zone names sort as "just fetched". The dedup key is unaffected (it uses the parsed ISO date or empty). `EST`, `EDT`, `CST`, `PST`, `GMT+1` and numeric offsets are correct (tested). Also note: a date with no zone (`2026-11-09 08:15:00`) is read in the host's local zone; Workers run in UTC so production is fine, but Node test runs depend on `TZ`.
+- Verification: `parse.test.ts` "dates and zones (AC15)": all 31 zones in the ADR table (`it.each`), IST/unknown/lower-case as UTC, zone-less RFC 822 and ISO as UTC, and a test that flips `process.env.TZ`. `adversarial.test.ts` "non-US named zones" is a plain `it`. The whole parser suite passes under `TZ=UTC` and `TZ=Pacific/Auckland`. Unparseable or impossible dates fall back to the fetch time, consistent with AC5 and ADR 0009 section 5 (which only turns alphabetic zones into UTC).
+
+### DEF-010: Plain-text fields lose text around literal `<` and `>`
+- Story: TID-011 (AC1: title match)
+- Severity: S3 (minor). Owner: SE.
+- Status: Verified, closed (fix 049e81a)
+- Found by: `adversarial.test.ts` > "plain-text fields keep literal angle brackets (DEF-010)" (three `it.fails` tests)
+- Steps to reproduce: `<title>5 &lt; 6 and 7 &gt; 3</title>`; `<title>I &lt;3 RSS feeds</title>`; `<title><![CDATA[Vec<T> in Rust]]></title>`.
+- Expected: titles `5 < 6 and 7 > 3`, `I <3 RSS feeds`, `Vec<T> in Rust`.
+- Actual: `5 3`, `I`, `Vec in Rust`. `plainField` runs the tag-stripping regex over decoded text, and an unterminated `<` swallows everything to the end. The fixture snapshot `rss2-cdata-entities.json` freezes this: "CDATA title with <angle> brackets & ampersand" is stored as "CDATA title with brackets & ampersand". Suggested fix: strip only recognisable tags (`<` followed by a letter, `/` or `!` and a closing `>` within a short window), and decode entities after stripping.
+- Verification: `parse.test.ts` "literal angle brackets in plain text (AC16)" and the three `adversarial.test.ts` tests are plain `it`. The `rss2-cdata-entities` snapshot now keeps `<angle>`. `hostile-html.json` item summary `<scr ipt> <script>alert('double')</script>` was checked by hand: the real `<script>...</script>` span (which starts inside `<scr<script>ipt>` and ends at `</scr</script>`) is dropped and leaves a space, `<scr` and `ipt>` remain as literal text (not element names), and the entity-escaped `&lt;script&gt;` is decoded once, after stripping, to literal text. That matches ADR 0009 section 2 and is rendered as text (summary is a text node in the SPA, spec 10.5). The adversarial XSS assertions were rewritten to the ADR (see DEF-011 for the one remaining gap).
+
 ### DEF-001: All-unread page 2 reads 103 rows, one over the NFR-7 budget of 102
 - Story: TID-004 (AC5, NFR-7)
 - Severity: S3 (minor). Owner: PM (ruling needed), then SE if the query must change.
-- Status: Open
+- Status: Won't fix (budget relaxed, ADR 0008)
 - Found by: `apps/worker/test/entries-list.test.ts` > "AC5: All-unread page 2 reads <= 103 rows (cursor continuation; see DEF-001)"
 - Steps to reproduce: seed the DB (`buildSeedSql()`), call `listEntries(db, 'seed-user', { view: 'all', unreadOnly: true, limit: 50 })`, then again with `cursor` set to the returned `nextCursor`. Read `meta.rows_read` of the second call.
 - Expected: NFR-7 says each All/Feed list query reads <= (limit + 1) x 2 = 102 rows.
 - Actual: page 1 reads 102, page 2 reads 103. The engineer attributes the extra row to the cursor row being re-read on seek (not independently confirmed). Page 1 and the feed view are within budget.
 - Decision needed: either NFR-7 and AC5 allow +1 on continuation pages (then tighten the test comment and keep the <= 103 assertion), or the query must change to hit 102. The test currently asserts <= 103 and references this ID. Impact is one row per page, so free-tier risk is negligible.
 - Related observation (not a defect): folder view reads 211 rows for limit 50 on a 150-entry folder, consistent with spec 8.6 ("reads every matching row in that folder"). It is guarded at <= 2 x folder size.
+- Resolution: PM ruling 2026-11-16, ADR 0008. NFR-7 on continuation pages is (limit + 1) x 2 + T, T being the user's rows in the view that share the cursor's `published_at` (T = 1 on the seed data, so <= 103). The test `apps/worker/test/entries-list.test.ts` > "AC5: All-unread page 2 reads <= 103 rows (cursor continuation; ADR 0008)" keeps the <= 103 assertion and its comment now cites ADR 0008. The tied-timestamp case belongs to TID-018 AC5.
 
-## Closed
 
 ### DEF-012: `config_error` responses are not `Cache-Control: no-store`
 - Story: TID-007 (spec 8.1: "Responses carry `Cache-Control: no-store`"; AC-adjacent, the story added the header)

@@ -1,0 +1,33 @@
+{
+  "ok": true,
+  "feed": {
+    "format": "rss",
+    "title": "Sloppy Markup & Unescaped Ampersands",
+    "siteUrl": "https://sloppy.example.test/",
+    "items": [
+      {
+        "guidKey": "sloppy-1",
+        "guid": "sloppy-1",
+        "title": "Mismatched tags",
+        "link": "https://sloppy.example.test/1?a=1&b=2",
+        "author": null,
+        "publishedAt": 1794301200,
+        "contentHtml": "Control char here: and an undefined entity &nbsp; &bogus; end.",
+        "summary": "Control char here: and an undefined entity &bogus; end.",
+        "imageUrl": null
+      },
+      {
+        "guidKey": "sloppy-2",
+        "guid": "sloppy-2",
+        "title": "Second item still parseable",
+        "link": "https://sloppy.example.test/2",
+        "author": null,
+        "publishedAt": 1794214800,
+        "contentHtml": null,
+        "summary": null,
+        "imageUrl": null
+      }
+    ],
+    "stoppedEarly": false
+  }
+}

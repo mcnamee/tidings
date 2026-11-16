@@ -1,0 +1,44 @@
+{
+  "ok": true,
+  "feed": {
+    "format": "rss",
+    "title": "RSS 2.0 Basic Example",
+    "siteUrl": "https://rss.example.test/",
+    "items": [
+      {
+        "guidKey": "https://rss.example.test/posts/3",
+        "guid": "https://rss.example.test/posts/3",
+        "title": "Item three",
+        "link": "https://rss.example.test/posts/3",
+        "author": "Ada Example",
+        "publishedAt": 1794301200,
+        "contentHtml": "Description of item three.",
+        "summary": "Description of item three.",
+        "imageUrl": null
+      },
+      {
+        "guidKey": "rss-example-2",
+        "guid": "rss-example-2",
+        "title": "Item two",
+        "link": "https://rss.example.test/posts/2",
+        "author": null,
+        "publishedAt": 1794229200,
+        "contentHtml": "Description of item two.",
+        "summary": "Description of item two.",
+        "imageUrl": null
+      },
+      {
+        "guidKey": "rss-example-1",
+        "guid": "rss-example-1",
+        "title": "Item one",
+        "link": "https://rss.example.test/posts/1?utm_source=feed&ref=rss",
+        "author": null,
+        "publishedAt": 1794096000,
+        "contentHtml": "Description of item one.",
+        "summary": "Description of item one.",
+        "imageUrl": null
+      }
+    ],
+    "stoppedEarly": false
+  }
+}

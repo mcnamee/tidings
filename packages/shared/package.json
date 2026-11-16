@@ -5,7 +5,9 @@
   "type": "module",
   "exports": {
     ".": "./src/index.ts",
-    "./schemas": "./src/schemas.ts"
+    "./schemas": "./src/schemas.ts",
+    "./url": "./src/url.ts",
+    "./dedup": "./src/dedup.ts"
   },
   "scripts": {
     "typecheck": "tsc --noEmit",

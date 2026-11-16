@@ -1,0 +1,22 @@
+{
+  "ok": true,
+  "feed": {
+    "format": "rss",
+    "title": "&lol9;",
+    "siteUrl": "https://lolz.example.test/",
+    "items": [
+      {
+        "guidKey": "lolz-1",
+        "guid": "lolz-1",
+        "title": "&lol9;",
+        "link": "https://lolz.example.test/1",
+        "author": null,
+        "publishedAt": 1794312000,
+        "contentHtml": "&lol9; &xxe;",
+        "summary": "&lol9; &xxe;",
+        "imageUrl": null
+      }
+    ],
+    "stoppedEarly": false
+  }
+}

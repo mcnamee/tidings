@@ -1,0 +1,55 @@
+{
+  "ok": true,
+  "feed": {
+    "format": "rss",
+    "title": "Feed Without Dates",
+    "siteUrl": "https://nodates.example.test/",
+    "items": [
+      {
+        "guidKey": "nodates-1",
+        "guid": "nodates-1",
+        "title": "Undated one",
+        "link": "https://nodates.example.test/1",
+        "author": null,
+        "publishedAt": 1794312000,
+        "contentHtml": "No date.",
+        "summary": "No date.",
+        "imageUrl": null
+      },
+      {
+        "guidKey": "nodates-2",
+        "guid": "nodates-2",
+        "title": "Undated two",
+        "link": "https://nodates.example.test/2",
+        "author": null,
+        "publishedAt": 1794312000,
+        "contentHtml": "No date either.",
+        "summary": "No date either.",
+        "imageUrl": null
+      },
+      {
+        "guidKey": "nodates-3",
+        "guid": "nodates-3",
+        "title": "Garbage date",
+        "link": "https://nodates.example.test/3",
+        "author": null,
+        "publishedAt": 1794312000,
+        "contentHtml": "Unparseable date.",
+        "summary": "Unparseable date.",
+        "imageUrl": null
+      },
+      {
+        "guidKey": "nodates-4",
+        "guid": "nodates-4",
+        "title": "Far-future date",
+        "link": "https://nodates.example.test/4",
+        "author": null,
+        "publishedAt": 1794312000,
+        "contentHtml": "Date far in the future; must not pin to top forever.",
+        "summary": "Date far in the future; must not pin to top forever.",
+        "imageUrl": null
+      }
+    ],
+    "stoppedEarly": false
+  }
+}
