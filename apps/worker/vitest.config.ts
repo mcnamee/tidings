@@ -2,6 +2,8 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { defineConfig } from 'vitest/config';
 import { cloudflareTest, readD1Migrations } from '@cloudflare/vitest-plugin';
+// @ts-expect-error plain .mjs script without type declarations
+import { buildSeedSql } from './scripts/seed.mjs';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 
@@ -14,7 +16,9 @@ export default defineConfig(async () => {
     plugins: [
       cloudflareTest({
         wrangler: { configPath: './wrangler.jsonc' },
-        miniflare: { bindings: { TEST_MIGRATIONS: migrations } },
+        miniflare: {
+          bindings: { TEST_MIGRATIONS: migrations, SEED_SQL: (buildSeedSql as () => string)() },
+        },
       }),
     ],
     test: {
