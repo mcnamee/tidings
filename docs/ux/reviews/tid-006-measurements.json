@@ -1,0 +1,446 @@
+{
+  "m-light": {
+    "404": {
+      "h1": 1,
+      "overflowX": false,
+      "small": [],
+      "headerH": 57,
+      "titleTruncated": false,
+      "titleH": 28,
+      "docTitle": "Page not found - Tidings"
+    },
+    "all": {
+      "h1": 1,
+      "overflowX": false,
+      "small": [],
+      "headerH": 57,
+      "titleTruncated": false,
+      "titleH": 28,
+      "docTitle": "All articles - Tidings"
+    },
+    "settings": {
+      "h1": 1,
+      "overflowX": false,
+      "small": [],
+      "headerH": 57,
+      "titleTruncated": false,
+      "titleH": 28,
+      "docTitle": "Settings - Tidings"
+    },
+    "manage": {
+      "h1": 1,
+      "overflowX": false,
+      "small": [],
+      "headerH": 57,
+      "titleTruncated": false,
+      "titleH": 28,
+      "docTitle": "Manage feeds - Tidings"
+    },
+    "manage-add": {
+      "h1": 1,
+      "overflowX": false,
+      "small": [],
+      "headerH": 57,
+      "titleTruncated": false,
+      "titleH": 28,
+      "docTitle": "Add a feed - Tidings"
+    },
+    "article": {
+      "h1": 1,
+      "overflowX": false,
+      "small": [],
+      "headerH": 57,
+      "titleTruncated": false,
+      "titleH": 28,
+      "docTitle": "Feed - Tidings"
+    },
+    "feed": {
+      "h1": 1,
+      "overflowX": false,
+      "small": [],
+      "headerH": 57,
+      "titleTruncated": false,
+      "titleH": 28,
+      "docTitle": "Feed - Tidings"
+    },
+    "login": {
+      "h1": 1,
+      "overflowX": false,
+      "small": [],
+      "headerH": null,
+      "titleTruncated": false,
+      "titleH": 28,
+      "docTitle": "Sign in - Tidings"
+    },
+    "drawer": {
+      "width": 320,
+      "focus": "Close navigation",
+      "items": [
+        "Close navigation 44x44",
+        "All articles 319x44",
+        "Add a feed 287x44",
+        "Import from Inoreader 287x44",
+        "Add feed 295x44",
+        "Manage 144x44",
+        "Settings 144x44"
+      ],
+      "tab": [
+        "All articles",
+        "Add a feed",
+        "Import from Inoreader",
+        "Add feed",
+        "Manage",
+        "Settings",
+        "Close navigation",
+        "All articles"
+      ],
+      "focusAfterEscape": "Open navigation",
+      "urlAfterEscape": "http://localhost:8798/all",
+      "focusAfterNav": "Settings",
+      "afterBackFromSettings": "http://localhost:8798/all"
+    },
+    "offline": {
+      "text": "You're offline. Showing saved articles.",
+      "h": 40
+    }
+  },
+  "m-dark": {
+    "404": {
+      "h1": 1,
+      "overflowX": false,
+      "small": [],
+      "headerH": 57,
+      "titleTruncated": false,
+      "titleH": 28,
+      "docTitle": "Page not found - Tidings"
+    },
+    "all": {
+      "h1": 1,
+      "overflowX": false,
+      "small": [],
+      "headerH": 57,
+      "titleTruncated": false,
+      "titleH": 28,
+      "docTitle": "All articles - Tidings"
+    },
+    "settings": {
+      "h1": 1,
+      "overflowX": false,
+      "small": [],
+      "headerH": 57,
+      "titleTruncated": false,
+      "titleH": 28,
+      "docTitle": "Settings - Tidings"
+    },
+    "manage": {
+      "h1": 1,
+      "overflowX": false,
+      "small": [],
+      "headerH": 57,
+      "titleTruncated": false,
+      "titleH": 28,
+      "docTitle": "Manage feeds - Tidings"
+    },
+    "manage-add": {
+      "h1": 1,
+      "overflowX": false,
+      "small": [],
+      "headerH": 57,
+      "titleTruncated": false,
+      "titleH": 28,
+      "docTitle": "Add a feed - Tidings"
+    },
+    "article": {
+      "h1": 1,
+      "overflowX": false,
+      "small": [],
+      "headerH": 57,
+      "titleTruncated": false,
+      "titleH": 28,
+      "docTitle": "Feed - Tidings"
+    },
+    "feed": {
+      "h1": 1,
+      "overflowX": false,
+      "small": [],
+      "headerH": 57,
+      "titleTruncated": false,
+      "titleH": 28,
+      "docTitle": "Feed - Tidings"
+    },
+    "login": {
+      "h1": 1,
+      "overflowX": false,
+      "small": [],
+      "headerH": null,
+      "titleTruncated": false,
+      "titleH": 28,
+      "docTitle": "Sign in - Tidings"
+    },
+    "drawer": {
+      "width": 320,
+      "focus": "Close navigation",
+      "items": [
+        "Close navigation 44x44",
+        "All articles 319x44",
+        "Add a feed 287x44",
+        "Import from Inoreader 287x44",
+        "Add feed 295x44",
+        "Manage 144x44",
+        "Settings 144x44"
+      ],
+      "tab": [
+        "All articles",
+        "Add a feed",
+        "Import from Inoreader",
+        "Add feed",
+        "Manage",
+        "Settings",
+        "Close navigation",
+        "All articles"
+      ],
+      "focusAfterEscape": "Open navigation",
+      "urlAfterEscape": "http://localhost:8798/all",
+      "focusAfterNav": "Settings",
+      "afterBackFromSettings": "http://localhost:8798/all"
+    },
+    "offline": {
+      "text": "You're offline. Showing saved articles.",
+      "h": 40
+    }
+  },
+  "d-light": {
+    "404": {
+      "h1": 1,
+      "overflowX": false,
+      "small": [],
+      "headerH": 57,
+      "titleTruncated": false,
+      "titleH": 28,
+      "docTitle": "Page not found - Tidings"
+    },
+    "all": {
+      "h1": 1,
+      "overflowX": false,
+      "small": [],
+      "headerH": 57,
+      "titleTruncated": false,
+      "titleH": 28,
+      "docTitle": "All articles - Tidings"
+    },
+    "settings": {
+      "h1": 1,
+      "overflowX": false,
+      "small": [],
+      "headerH": 57,
+      "titleTruncated": false,
+      "titleH": 28,
+      "docTitle": "Settings - Tidings"
+    },
+    "manage": {
+      "h1": 1,
+      "overflowX": false,
+      "small": [],
+      "headerH": 57,
+      "titleTruncated": false,
+      "titleH": 28,
+      "docTitle": "Manage feeds - Tidings"
+    },
+    "manage-add": {
+      "h1": 1,
+      "overflowX": false,
+      "small": [],
+      "headerH": 57,
+      "titleTruncated": false,
+      "titleH": 28,
+      "docTitle": "Add a feed - Tidings"
+    },
+    "article": {
+      "h1": 1,
+      "overflowX": false,
+      "small": [],
+      "headerH": 57,
+      "titleTruncated": false,
+      "titleH": 28,
+      "docTitle": "Feed - Tidings"
+    },
+    "feed": {
+      "h1": 1,
+      "overflowX": false,
+      "small": [],
+      "headerH": 57,
+      "titleTruncated": false,
+      "titleH": 28,
+      "docTitle": "Feed - Tidings"
+    },
+    "login": {
+      "h1": 1,
+      "overflowX": false,
+      "small": [],
+      "headerH": null,
+      "titleTruncated": false,
+      "titleH": 28,
+      "docTitle": "Sign in - Tidings"
+    },
+    "sidebar": {
+      "width": 288,
+      "menu": false,
+      "firstTab": "Skip to content",
+      "afterSkip": "main"
+    },
+    "offline": {
+      "text": "You're offline. Showing saved articles.",
+      "h": 40
+    }
+  },
+  "d-dark": {
+    "404": {
+      "h1": 1,
+      "overflowX": false,
+      "small": [],
+      "headerH": 57,
+      "titleTruncated": false,
+      "titleH": 28,
+      "docTitle": "Page not found - Tidings"
+    },
+    "all": {
+      "h1": 1,
+      "overflowX": false,
+      "small": [],
+      "headerH": 57,
+      "titleTruncated": false,
+      "titleH": 28,
+      "docTitle": "All articles - Tidings"
+    },
+    "settings": {
+      "h1": 1,
+      "overflowX": false,
+      "small": [],
+      "headerH": 57,
+      "titleTruncated": false,
+      "titleH": 28,
+      "docTitle": "Settings - Tidings"
+    },
+    "manage": {
+      "h1": 1,
+      "overflowX": false,
+      "small": [],
+      "headerH": 57,
+      "titleTruncated": false,
+      "titleH": 28,
+      "docTitle": "Manage feeds - Tidings"
+    },
+    "manage-add": {
+      "h1": 1,
+      "overflowX": false,
+      "small": [],
+      "headerH": 57,
+      "titleTruncated": false,
+      "titleH": 28,
+      "docTitle": "Add a feed - Tidings"
+    },
+    "article": {
+      "h1": 1,
+      "overflowX": false,
+      "small": [],
+      "headerH": 57,
+      "titleTruncated": false,
+      "titleH": 28,
+      "docTitle": "Feed - Tidings"
+    },
+    "feed": {
+      "h1": 1,
+      "overflowX": false,
+      "small": [],
+      "headerH": 57,
+      "titleTruncated": false,
+      "titleH": 28,
+      "docTitle": "Feed - Tidings"
+    },
+    "login": {
+      "h1": 1,
+      "overflowX": false,
+      "small": [],
+      "headerH": null,
+      "titleTruncated": false,
+      "titleH": 28,
+      "docTitle": "Sign in - Tidings"
+    },
+    "sidebar": {
+      "width": 288,
+      "menu": false,
+      "firstTab": "Skip to content",
+      "afterSkip": "main"
+    },
+    "offline": {
+      "text": "You're offline. Showing saved articles.",
+      "h": 40
+    }
+  },
+  "large-light": {
+    "subpage": {
+      "h1": 1,
+      "overflowX": false,
+      "small": [],
+      "headerH": 113,
+      "titleTruncated": true,
+      "titleH": 56,
+      "docTitle": "Import from OPML - Tidings"
+    },
+    "drawer": {
+      "settingsBottom": 788,
+      "vh": 812,
+      "panelOverflow": false
+    }
+  },
+  "large-dark": {
+    "subpage": {
+      "h1": 1,
+      "overflowX": false,
+      "small": [],
+      "headerH": 113,
+      "titleTruncated": true,
+      "titleH": 56,
+      "docTitle": "Import from OPML - Tidings"
+    },
+    "drawer": {
+      "settingsBottom": 788,
+      "vh": 812,
+      "panelOverflow": false
+    }
+  },
+  "reduced": {
+    "panel": "drawer-in 1e-05s",
+    "scrim": "fade-in 1e-05s"
+  },
+  "toast-light": {
+    "undo": {
+      "gap": 11,
+      "toastH": 54
+    },
+    "errorInAlert": "You're offline. That change wasn't saved.",
+    "undoAt4_5s": true,
+    "undoAt5_5s": false,
+    "zoom": {
+      "gap": 23,
+      "barH": 113
+    }
+  },
+  "toast-dark": {
+    "undo": {
+      "gap": 11,
+      "toastH": 54
+    },
+    "errorInAlert": "You're offline. That change wasn't saved.",
+    "undoAt4_5s": true,
+    "undoAt5_5s": false,
+    "zoom": {
+      "gap": 23,
+      "barH": 113
+    }
+  },
+  "back": {
+    "directArticle": "/feeds/s1",
+    "addBack": "/manage"
+  }
+}

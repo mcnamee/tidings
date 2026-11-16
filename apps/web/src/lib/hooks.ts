@@ -1,0 +1,31 @@
+import { useSyncExternalStore } from 'react';
+
+export const DESKTOP_QUERY = '(min-width: 1024px)';
+
+export function useMediaQuery(query: string): boolean {
+  return useSyncExternalStore(
+    (notify) => {
+      if (typeof window.matchMedia !== 'function') return () => {};
+      const mq = window.matchMedia(query);
+      mq.addEventListener('change', notify);
+      return () => mq.removeEventListener('change', notify);
+    },
+    () => (typeof window.matchMedia === 'function' ? window.matchMedia(query).matches : false),
+    () => false,
+  );
+}
+
+export function useOnline(): boolean {
+  return useSyncExternalStore(
+    (notify) => {
+      window.addEventListener('online', notify);
+      window.addEventListener('offline', notify);
+      return () => {
+        window.removeEventListener('online', notify);
+        window.removeEventListener('offline', notify);
+      };
+    },
+    () => navigator.onLine,
+    () => true,
+  );
+}

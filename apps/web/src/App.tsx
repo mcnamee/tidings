@@ -1,25 +1,47 @@
-import { useQuery } from '@tanstack/react-query';
-import { Route, Routes } from 'react-router';
-import { fetchHealth } from './api';
+import { Link, Navigate, Route, Routes } from 'react-router';
+import { readLastList } from './lib/lastList';
+import { AppShell } from './shell/AppShell';
+import { AuthLayout } from './shell/AuthLayout';
+import { Toasts } from './shell/Toasts';
+import { ROUTES } from './routes/table';
 
-function Home() {
-  const health = useQuery({ queryKey: ['health'], queryFn: () => fetchHealth() });
+// Not release copy: removed as each screen story lands.
+function Placeholder() {
+  return <p className="text-base text-fg">This screen isn&apos;t built yet.</p>;
+}
+
+function NotFound() {
   return (
-    <main className="min-h-screen bg-white p-4 text-neutral-900 dark:bg-neutral-950 dark:text-neutral-100">
-      <h1 className="text-2xl font-semibold">Tidings</h1>
-      <p data-testid="api-status" className="mt-2">
-        {health.isPending && 'Checking API...'}
-        {health.isError && 'API unreachable'}
-        {health.data && `API ok (v${health.data.version})`}
-      </p>
-    </main>
+    <div>
+      <p className="text-base text-fg">We couldn&apos;t find that page.</p>
+      <Link to="/all" className="mt-2 inline-flex min-h-11 items-center text-accent underline">
+        Go to All articles
+      </Link>
+    </div>
   );
 }
 
+const authRoutes = ROUTES.filter((r) => r.kind === 'auth');
+const shellRoutes = ROUTES.filter((r) => r.kind !== 'auth');
+
 export function App() {
   return (
-    <Routes>
-      <Route path="*" element={<Home />} />
-    </Routes>
+    <>
+      <Routes>
+        <Route path="/" element={<Navigate to={readLastList()} replace />} />
+        <Route element={<AuthLayout />}>
+          {authRoutes.map((r) => (
+            <Route key={r.path} path={r.path} element={<Placeholder />} />
+          ))}
+        </Route>
+        <Route element={<AppShell />}>
+          {shellRoutes.map((r) => (
+            <Route key={r.path} path={r.path} element={<Placeholder />} />
+          ))}
+          <Route path="*" element={<NotFound />} />
+        </Route>
+      </Routes>
+      <Toasts />
+    </>
   );
 }
