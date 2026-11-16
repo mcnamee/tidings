@@ -2,7 +2,16 @@ import { Parser } from 'htmlparser2';
 import { canonicalizeHttpUrl } from '@tidings/shared/url';
 import { itemKey } from './key';
 import { MAX_CONTENT_CHARS, MAX_ITEMS_PER_FETCH, MAX_SHORT_FIELD_CHARS } from './limits';
-import { CappedText, escapeAttr, escapeHtml, firstImgSrc, plainField, summarise } from './text';
+import {
+  CappedText,
+  escapeAttr,
+  escapeHtml,
+  escapeText,
+  firstImgSrc,
+  plainField,
+  sniffedHtml,
+  summarise,
+} from './text';
 import type { FeedFormat, ParsedFeed, ParsedItem, ParseOptions, ParseResult } from './types';
 
 type Field =
@@ -18,8 +27,11 @@ type Field =
   | 'content'
   | 'summary';
 
-/** How captured text is stored: verbatim, escaped to HTML (Atom type=text), or re-serialised. */
-type Mode = 'raw' | 'escape' | 'xhtml';
+/**
+ * How captured text is stored: verbatim, escaped to HTML (Atom type=text), escaped unless it
+ * looks like HTML (untyped Atom, ADR 0009 section 1), or re-serialised (xhtml).
+ */
+type Mode = 'raw' | 'escape' | 'sniff' | 'xhtml';
 
 interface Capture {
   field: Field;
@@ -88,10 +100,16 @@ function parseDate(raw: string | undefined): number | null {
   return Number.isNaN(ms) ? null : ms;
 }
 
-function modeForAtomType(type: string | undefined): Mode {
-  const t = (type ?? 'text').toLowerCase();
-  if (t === 'html' || t === 'text/html') return 'raw';
+/**
+ * Atom text constructs (ADR 0009 section 1). Titles are plain-text fields and are flattened by
+ * `plainField`, so they are never escaped here. `content` and `summary` are stored as HTML.
+ */
+function modeForAtomType(type: string | undefined, field: Field): Mode {
+  const t = (type ?? '').trim().toLowerCase();
   if (t === 'xhtml' || t === 'application/xhtml+xml') return 'xhtml';
+  if (field === 'title') return 'raw';
+  if (t === 'html' || t === 'text/html') return 'raw';
+  if (t === '') return 'sniff';
   return 'escape';
 }
 
@@ -167,7 +185,8 @@ function parseFeedUnsafe(input: string, options: ParseOptions): ParseResult {
 
   const finishCapture = (): void => {
     if (!capture) return;
-    const value = capture.text.toString();
+    let value = capture.text.toString();
+    if (capture.mode === 'sniff') value = sniffedHtml(value, capture.text.cap);
     if (item) {
       // First occurrence wins.
       if (item.fields[capture.field] === undefined) item.fields[capture.field] = value;
@@ -282,7 +301,7 @@ function parseFeedUnsafe(input: string, options: ParseOptions): ParseResult {
           // Channel/feed level fields.
           if (format === 'atom' && parent === 'feed') {
             if (name === 'title')
-              startCapture('title', modeForAtomType(attribs['type']), stack.length);
+              startCapture('title', modeForAtomType(attribs['type'], 'title'), stack.length);
             else if (name === 'author') feedAuthorOpenAt = stack.length;
             else if (name === 'link' && siteUrl === null) {
               const rel = attribs['rel'] ?? '';
@@ -346,7 +365,7 @@ function parseFeedUnsafe(input: string, options: ParseOptions): ParseResult {
             format === 'atom' &&
             (field === 'content' || field === 'summary' || field === 'title')
           ) {
-            startCapture(field, modeForAtomType(attribs['type']), stack.length);
+            startCapture(field, modeForAtomType(attribs['type'], field), stack.length);
           } else if (field === 'content' && format !== 'atom') {
             return;
           } else {
@@ -366,7 +385,13 @@ function parseFeedUnsafe(input: string, options: ParseOptions): ParseResult {
 
       ontext(data) {
         if (stopped || capture === null) return;
-        capture.text.append(capture.mode === 'xhtml' ? escapeHtml(data) : data);
+        capture.text.append(
+          capture.mode === 'xhtml'
+            ? escapeHtml(data)
+            : capture.mode === 'escape'
+              ? escapeText(data)
+              : data,
+        );
       },
 
       onclosetag(name) {

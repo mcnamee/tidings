@@ -362,3 +362,52 @@ describe('capped accumulator', () => {
     expect(t.truncated).toBe(true);
   });
 });
+
+describe('Atom text constructs (AC12, ADR 0009 section 1)', () => {
+  const feed = (inner: string) =>
+    `<feed xmlns="http://www.w3.org/2005/Atom"><title>T</title><entry><id>1</id><title>x</title>${inner}</entry></feed>`;
+  const html = (inner: string): string | null => {
+    const r = parseFeed(feed(inner), { fetchedAt: 1_700_000_000 });
+    if (!r.ok) throw new Error('parse failed');
+    return r.feed.items[0]!.contentHtml;
+  };
+  const script = '&lt;script&gt;alert(1)&lt;/script&gt;';
+
+  it('type="text" is escaped, plain and CDATA, for content and summary', () => {
+    expect(html(`<content type="text">${script}</content>`)).toBe(script);
+    expect(html(`<summary type="text">${script}</summary>`)).toBe(script);
+    expect(html(`<content type="text"><![CDATA[<script>alert(1)</script>]]></content>`)).toBe(
+      script,
+    );
+  });
+
+  it('type="text" is escaped even when it contains allowlisted tags', () => {
+    expect(html(`<content type="text">&lt;p&gt;hi&lt;/p&gt;</content>`)).toBe(
+      '&lt;p&gt;hi&lt;/p&gt;',
+    );
+  });
+
+  it('untyped script-only text is escaped', () => {
+    expect(html(`<content>${script}</content>`)).toBe(script);
+    expect(html(`<summary>${script}</summary>`)).toBe(script);
+  });
+
+  it('untyped text with an allowlisted tag is stored as HTML', () => {
+    expect(html(`<content>&lt;p&gt;Hi &lt;a href="/x"&gt;x&lt;/a&gt;&lt;/p&gt;</content>`)).toBe(
+      '<p>Hi <a href="/x">x</a></p>',
+    );
+    expect(html(`<content>a &lt;div&gt;b&lt;/div&gt;</content>`)).toBe('a <div>b</div>');
+  });
+
+  it('untyped plain text with a quote and ampersand is escaped', () => {
+    expect(html(`<content>Tom &amp; "Jerry" 1 &lt; 2</content>`)).toBe(
+      'Tom &amp; &quot;Jerry&quot; 1 &lt; 2',
+    );
+  });
+
+  it('escaping never pushes content past the cap', () => {
+    const r = html(`<content>${'&amp;'.repeat(60_000)}</content>`);
+    expect(r!.length).toBeLessThanOrEqual(102_400);
+    expect(r!.endsWith(';')).toBe(true);
+  });
+});

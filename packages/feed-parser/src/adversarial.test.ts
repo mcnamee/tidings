@@ -35,7 +35,7 @@ const payloads = JSON.parse(
 ) as { payloads: { id: string; html: string }[]; urlPayloads: string[] };
 
 describe('hostile text never becomes more dangerous', () => {
-  it.fails('Atom summary/content type="text" is escaped, not live markup (DEF-006)', () => {
+  it('Atom summary/content type="text" is escaped, not live markup (DEF-006)', () => {
     // Atom 1.0 s4.1.3.1: type="text" content is plain text; "&lt;script&gt;" means the literal
     // characters <script>. Stored as HTML it must therefore be &lt;script&gt;.
     const xml = atom(
@@ -44,13 +44,16 @@ describe('hostile text never becomes more dangerous', () => {
     expect(firstItem(parse(xml)).contentHtml).toBe('&lt;script&gt;alert(1)&lt;/script&gt;');
   });
 
-  it.fails('Atom content type="text" in CDATA is escaped (DEF-006)', () => {
+  it('Atom content type="text" in CDATA is escaped (DEF-006)', () => {
     const xml = atom(
       `<entry><id>1</id><title>x</title><content type="text"><![CDATA[<img src=x onerror=1>]]></content></entry>`,
     );
     expect(firstItem(parse(xml)).contentHtml).not.toContain('<img');
   });
 
+  // NOTE (TID-011 engineer): this tester assertion contradicts ADR 0009 section 1 and AC12, because
+  // `<b>` is on the section 10.5 allowlist, so an untyped summary containing it is HTML. Left as
+  // `it.fails` and unchanged pending a PM ruling; AC12 is covered in parse.test.ts instead.
   it.fails('Atom summary with no type attribute defaults to text and is escaped (DEF-006)', () => {
     const xml = atom(
       `<entry><id>1</id><title>x</title><summary>&lt;b&gt;bold&lt;/b&gt;</summary></entry>`,

@@ -137,3 +137,37 @@ export function escapeHtml(text: string): string {
 export function escapeAttr(text: string): string {
   return escapeHtml(text).replace(/"/g, '&quot;');
 }
+
+/** Escapes text for storage as HTML: `&`, `<`, `>` and `"` (Atom `type="text"`, ADR 0009). */
+export function escapeText(text: string): string {
+  return escapeAttr(text);
+}
+
+/**
+ * Tags that make untyped Atom text count as HTML: the spec 10.5 sanitiser allowlist plus `div`
+ * and `span` (ADR 0009 section 1). `script`, `iframe` and `style` are deliberately absent.
+ */
+const SNIFF_TAGS =
+  'p|br|a|strong|em|b|i|u|s|blockquote|q|cite|code|pre|kbd|ul|ol|li|dl|dt|dd|h[1-6]|hr|img|' +
+  'picture|source|figure|figcaption|table|thead|tbody|tfoot|tr|th|td|caption|sup|sub|small|' +
+  'abbr|time|mark|del|ins|details|summary|video|audio|div|span';
+const SNIFF_RE = new RegExp(`</?(?:${SNIFF_TAGS})(?=[\\s/>])`, 'i');
+const SNIFF_CHARS = 4096;
+
+/**
+ * Value of an Atom `content`/`summary` with no `type`: HTML if the first 4 KB contains an
+ * allowlisted tag, otherwise plain text, so it is escaped (RFC 4287 default). The escaped form is
+ * cut back to `cap` without leaving half an entity or a split surrogate pair.
+ */
+export function sniffedHtml(decoded: string, cap: number): string {
+  if (SNIFF_RE.test(decoded.length > SNIFF_CHARS ? decoded.slice(0, SNIFF_CHARS) : decoded)) {
+    return decoded;
+  }
+  const escaped = escapeText(decoded);
+  if (escaped.length <= cap) return escaped;
+  let cut = escaped.slice(0, cap);
+  const amp = cut.lastIndexOf('&');
+  if (amp > cap - 8 && cut.indexOf(';', amp) === -1) cut = cut.slice(0, amp);
+  if (cut.length > 0 && isHighSurrogate(cut.charCodeAt(cut.length - 1))) cut = cut.slice(0, -1);
+  return cut;
+}
