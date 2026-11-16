@@ -331,12 +331,9 @@ describe('real-world shapes', () => {
       expect(iso(at(raw))).toBe(expected);
     });
 
-    it.fails(
-      'non-US named zones (CEST, BST, IST) are not silently replaced by the fetch time (DEF-009)',
-      () => {
-        expect(iso(at('Mon, 09 Nov 2026 08:15:00 CEST'))).toBe('2026-11-09T06:15:00.000Z');
-      },
-    );
+    it('non-US named zones (CEST, BST, IST) are not silently replaced by the fetch time (DEF-009)', () => {
+      expect(iso(at('Mon, 09 Nov 2026 08:15:00 CEST'))).toBe('2026-11-09T06:15:00.000Z');
+    });
   });
 
   it('podcast item: enclosure is the dedup fallback and itunes:image is currently not used for imageUrl', () => {

@@ -1,5 +1,6 @@
 import { Parser } from 'htmlparser2';
 import { canonicalizeHttpUrl } from '@tidings/shared/url';
+import { parseFeedDate } from './dates';
 import { itemKey } from './key';
 import { MAX_CONTENT_CHARS, MAX_DEPTH, MAX_ITEMS_PER_FETCH, MAX_SHORT_FIELD_CHARS } from './limits';
 import {
@@ -96,14 +97,6 @@ function newItem(depth: number, about: string | null, base: string | null): Item
     enclosureImage: null,
     enclosureUrl: null,
   };
-}
-
-function parseDate(raw: string | undefined): number | null {
-  if (!raw) return null;
-  const s = raw.trim();
-  if (s === '' || s.length > 64) return null;
-  const ms = Date.parse(s);
-  return Number.isNaN(ms) ? null : ms;
 }
 
 /**
@@ -243,7 +236,7 @@ function parseFeedUnsafe(input: string, options: ParseOptions): ParseResult {
     const guid = guidRaw === '' ? null : guidRaw;
     const rawTitle = plainField(f.title ?? '');
 
-    const publishedMs = parseDate(f.published) ?? parseDate(f.updated);
+    const publishedMs = parseFeedDate(f.published) ?? parseFeedDate(f.updated);
     const publishedIso = publishedMs === null ? null : new Date(publishedMs).toISOString();
     const publishedSec = publishedMs === null ? null : Math.floor(publishedMs / 1000);
     const publishedAt =

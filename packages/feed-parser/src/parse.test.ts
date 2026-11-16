@@ -559,3 +559,86 @@ describe('xml:base (AC14, ADR 0009 section 4)', () => {
     expect(f.items[1]!.link).toBe('https://a.example.test/p');
   });
 });
+
+describe('dates and zones (AC15, ADR 0009 section 5)', () => {
+  const at = (d: string): string => {
+    const r = parseFeed(
+      `<rss version="2.0"><channel><title>T</title><item><guid>g</guid><pubDate>${d}</pubDate></item></channel></rss>`,
+      { fetchedAt: FETCHED_AT },
+    );
+    if (!r.ok) throw new Error('parse failed');
+    return new Date(r.feed.items[0]!.publishedAt * 1000).toISOString();
+  };
+  // 08:15 local on 2026-11-09, so UTC = 08:15 minus the offset.
+  const table: [string, string][] = [
+    ['UT', '08:15'],
+    ['UTC', '08:15'],
+    ['GMT', '08:15'],
+    ['Z', '08:15'],
+    ['WET', '08:15'],
+    ['CET', '07:15'],
+    ['CEST', '06:15'],
+    ['WEST', '07:15'],
+    ['BST', '07:15'],
+    ['EET', '06:15'],
+    ['EEST', '05:15'],
+    ['MSK', '05:15'],
+    ['JST', '23:15'],
+    ['KST', '23:15'],
+    ['HKT', '00:15'],
+    ['SGT', '00:15'],
+    ['AWST', '00:15'],
+    ['AEST', '22:15'],
+    ['AEDT', '21:15'],
+    ['ACST', '22:45'],
+    ['ACDT', '21:45'],
+    ['NZST', '20:15'],
+    ['NZDT', '19:15'],
+    ['EST', '13:15'],
+    ['EDT', '12:15'],
+    ['CST', '14:15'],
+    ['CDT', '13:15'],
+    ['MST', '15:15'],
+    ['MDT', '14:15'],
+    ['PST', '16:15'],
+    ['PDT', '15:15'],
+  ];
+  const prevDay = new Set(['JST', 'KST', 'AEST', 'AEDT', 'ACST', 'ACDT', 'NZST', 'NZDT']);
+
+  it.each(table)('zone %s', (zone, utc) => {
+    const day = prevDay.has(zone) ? '08' : '09';
+    const expected = `2026-11-${day}T${utc}:00.000Z`;
+    expect(at(`Mon, 09 Nov 2026 08:15:00 ${zone}`)).toBe(expected);
+  });
+
+  it('reads IST, unknown zones and lower-case zones per the table', () => {
+    expect(at('Mon, 09 Nov 2026 08:15:00 IST')).toBe('2026-11-09T08:15:00.000Z');
+    expect(at('Mon, 09 Nov 2026 08:15:00 XYZ')).toBe('2026-11-09T08:15:00.000Z');
+    expect(at('Mon, 09 Nov 2026 08:15:00 cest')).toBe('2026-11-09T06:15:00.000Z');
+  });
+
+  it('reads zone-less RFC 822 and ISO dates as UTC', () => {
+    expect(at('Mon, 09 Nov 2026 08:15:00')).toBe('2026-11-09T08:15:00.000Z');
+    expect(at('2026-11-09T08:15:00')).toBe('2026-11-09T08:15:00.000Z');
+    expect(at('2026-11-09')).toBe('2026-11-09T00:00:00.000Z');
+    expect(at('2026-11-09T08:15:00+10:00')).toBe('2026-11-08T22:15:00.000Z');
+  });
+
+  it('gives the same answers under different host time zones', () => {
+    const saved = process.env['TZ'];
+    try {
+      const results = ['Pacific/Auckland', 'UTC', 'America/Los_Angeles'].map((tz) => {
+        process.env['TZ'] = tz;
+        return [at('2026-11-09T08:15:00'), at('Mon, 09 Nov 2026 08:15:00')];
+      });
+      expect(new Set(results.map((r) => r.join())).size).toBe(1);
+    } finally {
+      if (saved === undefined) delete process.env['TZ'];
+      else process.env['TZ'] = saved;
+    }
+  });
+
+  it('rejects impossible dates (falls back to fetch time)', () => {
+    expect(at('Mon, 31 Feb 2026 08:15:00 GMT')).toBe(new Date(FETCHED_AT * 1000).toISOString());
+  });
+});
