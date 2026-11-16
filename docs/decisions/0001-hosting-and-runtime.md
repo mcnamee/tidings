@@ -28,5 +28,5 @@ Same origin for SPA and API means no CORS, simple cookie auth and one deploy.
 
 - One `wrangler deploy` ships everything; one place for bindings and secrets.
 - `_headers` doesn't apply to Worker responses, so API security headers are set in middleware.
-- If TID-003 shows a loopback call doesn't get its own CPU budget, we split the refresher into a second Worker (option 3) without changing the code structure.
+- If TID-003 shows a loopback call doesn't get its own CPU budget, we split the refresher into a second Worker (option 3) without changing the code structure. (Update 2026-11-16: TID-003 confirmed that loopback callees get their own budget, so this contingency isn't needed. See ADR 0004.)
 - Workers Paid ($5/month) remains the escape hatch, but only with the user's approval (spec Q6).
