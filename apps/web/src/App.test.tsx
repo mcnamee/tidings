@@ -106,7 +106,19 @@ describe('routing placeholders (spec 11.1)', () => {
     expect(path()).toBe('/feeds/s1');
   });
 
-  it('Back on Add a feed goes to Manage', async () => {
+  it('Back on Add a feed and Import goes one entry back when the app has history', async () => {
+    renderApp(['/all', '/manage/add'], 1);
+    await userEvent.click(screen.getByRole('button', { name: 'Back' }));
+    expect(path()).toBe('/all');
+  });
+
+  it('Back on Import opened directly goes to Manage', async () => {
+    renderApp(['/manage/import']);
+    await userEvent.click(screen.getByRole('button', { name: 'Back' }));
+    expect(path()).toBe('/manage');
+  });
+
+  it('Back on Add a feed opened directly goes to Manage', async () => {
     renderApp(['/manage/add']);
     await userEvent.click(screen.getByRole('button', { name: 'Back' }));
     expect(path()).toBe('/manage');

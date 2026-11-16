@@ -93,10 +93,12 @@ export function AppShell() {
   }, [open, location.pathname, navType]);
 
   const showBack = route.kind === 'article' || route.kind === 'sub';
+  // 'default' is the key of the first entry in a tab: nothing of the app's own to go back to.
+  const hasAppHistory = location.key !== 'default';
   function goBack() {
-    // Articles return to the list they were opened from when history has it.
-    if (route.kind === 'article' && location.key !== 'default') navigate(-1);
-    else navigate(route.parent ?? '/all');
+    // Articles and the Add/Import sub-pages go one entry back when the app has history (spec 11.2).
+    if (hasAppHistory) navigate(-1);
+    else navigate(route.parent ?? '/all', { replace: route.kind === 'sub' });
   }
 
   return (

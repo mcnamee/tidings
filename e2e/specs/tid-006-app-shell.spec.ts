@@ -1,3 +1,4 @@
+import type { Page } from '@playwright/test';
 import { expectNoSeriousA11yViolations } from '../support/axe.ts';
 import { expect, test } from '../support/test.ts';
 
@@ -210,5 +211,75 @@ test.describe('TID-006 routes, accessibility and headers', () => {
     await expect(page.getByText("You're offline. Showing saved articles.")).toBeVisible();
     await context.setOffline(false);
     await expect(page.getByText("You're offline. Showing saved articles.")).toBeHidden();
+  });
+});
+
+test.describe('TID-006 header Back (spec 11.2)', () => {
+  // Opens the feed navigation (the drawer on mobile, the sidebar on desktop) and follows a link.
+  async function followNavLink(page: Page, project: string, name: string) {
+    if (project.startsWith('mobile')) {
+      await page.getByRole('button', { name: 'Open navigation' }).click();
+      await page.getByRole('dialog').getByRole('link', { name, exact: true }).first().click();
+    } else {
+      await page
+        .getByRole('navigation', { name: 'Feeds and folders' })
+        .getByRole('link', { name, exact: true })
+        .first()
+        .click();
+    }
+  }
+
+  // Article links do not exist yet (lists are placeholders), so enter the article the way the router
+  // does: a history entry that carries a router key, which is what marks "opened inside the app".
+  async function pushInAppEntry(page: Page, to: string) {
+    await page.evaluate((url) => {
+      history.pushState({ usr: null, key: 'e2e-in-app', idx: history.length }, '', url);
+      dispatchEvent(new PopStateEvent('popstate', { state: history.state }));
+    }, to);
+  }
+
+  for (const [sub, link] of [
+    ['/manage/add', 'Add a feed'],
+    ['/manage/import', 'Import from Inoreader'],
+  ] as const) {
+    test(`AC8: ${sub} opened from inside the app goes one entry back`, async ({
+      page,
+    }, testInfo) => {
+      await page.goto('/all');
+      await followNavLink(page, testInfo.project.name, link);
+      await expect(page).toHaveURL(new RegExp(`${sub}$`));
+      await page.getByRole('button', { name: 'Back' }).click();
+      await expect(page).toHaveURL(/\/all$/);
+    });
+
+    test(`AC8: ${sub} opened directly goes to /manage with replace`, async ({ page }) => {
+      await page.goto(sub);
+      const before = await page.evaluate(() => history.length);
+      await page.getByRole('button', { name: 'Back' }).click();
+      await expect(page).toHaveURL(/\/manage$/);
+      // replace: the entry count is unchanged (a push would add one).
+      expect(await page.evaluate(() => history.length)).toBe(before);
+    });
+  }
+
+  for (const [list, article] of [
+    ['/all', '/all/a/e1'],
+    ['/folders/f1', '/folders/f1/a/e1'],
+    ['/feeds/s1', '/feeds/s1/a/e1'],
+  ] as const) {
+    test(`AC9: ${article} opened directly goes to ${list}`, async ({ page }) => {
+      await page.goto(article);
+      await page.getByRole('button', { name: 'Back' }).click();
+      await expect(page).toHaveURL(new RegExp(`${list}$`));
+    });
+  }
+
+  test('AC9: an article opened from inside the app goes one entry back', async ({ page }) => {
+    await page.goto('/feeds/s1');
+    await pushInAppEntry(page, '/all');
+    await pushInAppEntry(page, '/all/a/e1');
+    await expect(page).toHaveURL(/\/all\/a\/e1$/);
+    await page.getByRole('button', { name: 'Back' }).click();
+    await expect(page).toHaveURL(/\/all$/);
   });
 });
