@@ -1,0 +1,34 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<rss version="2.0">
+  <channel>
+    <title>Feed Without Dates</title>
+    <link>https://nodates.example.test/</link>
+    <description>No pubDate or lastBuildDate anywhere; also one item with an unparseable date</description>
+    <item>
+      <title>Undated one</title>
+      <link>https://nodates.example.test/1</link>
+      <guid>nodates-1</guid>
+      <description>No date.</description>
+    </item>
+    <item>
+      <title>Undated two</title>
+      <link>https://nodates.example.test/2</link>
+      <guid>nodates-2</guid>
+      <description>No date either.</description>
+    </item>
+    <item>
+      <title>Garbage date</title>
+      <link>https://nodates.example.test/3</link>
+      <guid>nodates-3</guid>
+      <pubDate>sometime last week, probably</pubDate>
+      <description>Unparseable date.</description>
+    </item>
+    <item>
+      <title>Far-future date</title>
+      <link>https://nodates.example.test/4</link>
+      <guid>nodates-4</guid>
+      <pubDate>Fri, 01 Jan 2100 00:00:00 GMT</pubDate>
+      <description>Date far in the future; must not pin to top forever.</description>
+    </item>
+  </channel>
+</rss>

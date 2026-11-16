@@ -18,7 +18,14 @@ export const sqlTemplateLiteralRule = {
 
 export default tseslint.config(
   {
-    ignores: ['**/dist/**', '**/.wrangler/**', '**/node_modules/**', 'coverage/**', 'docs/**'],
+    ignores: [
+      '**/dist/**',
+      '**/.wrangler/**',
+      '**/node_modules/**',
+      'coverage/**',
+      'docs/**',
+      '.claude/**',
+    ],
   },
   js.configs.recommended,
   ...tseslint.configs.recommended,

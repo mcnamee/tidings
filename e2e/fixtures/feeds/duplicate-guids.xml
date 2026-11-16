@@ -1,0 +1,48 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<rss version="2.0">
+  <channel>
+    <title>Duplicate GUIDs</title>
+    <link>https://dupes.example.test/</link>
+    <description>Same GUID reused for different links, same link under different GUIDs, and no GUID at all</description>
+    <item>
+      <title>Same GUID, link A</title>
+      <link>https://dupes.example.test/a</link>
+      <guid isPermaLink="false">dup-1</guid>
+      <pubDate>Tue, 10 Nov 2026 09:00:00 GMT</pubDate>
+    </item>
+    <item>
+      <title>Same GUID, link B</title>
+      <link>https://dupes.example.test/b</link>
+      <guid isPermaLink="false">dup-1</guid>
+      <pubDate>Tue, 10 Nov 2026 08:00:00 GMT</pubDate>
+    </item>
+    <item>
+      <title>Same link, different GUID (1)</title>
+      <link>https://dupes.example.test/same?utm_source=x</link>
+      <guid isPermaLink="false">dup-2a</guid>
+      <pubDate>Tue, 10 Nov 2026 07:00:00 GMT</pubDate>
+    </item>
+    <item>
+      <title>Same link, different GUID (2)</title>
+      <link>https://dupes.example.test/same</link>
+      <guid isPermaLink="false">dup-2b</guid>
+      <pubDate>Tue, 10 Nov 2026 06:00:00 GMT</pubDate>
+    </item>
+    <item>
+      <title>No GUID, with link</title>
+      <link>https://dupes.example.test/noguid</link>
+      <pubDate>Tue, 10 Nov 2026 05:00:00 GMT</pubDate>
+    </item>
+    <item>
+      <title>No GUID, no link</title>
+      <pubDate>Tue, 10 Nov 2026 04:00:00 GMT</pubDate>
+      <description>Identity must come from title and date.</description>
+    </item>
+    <item>
+      <title>Empty GUID</title>
+      <link>https://dupes.example.test/emptyguid</link>
+      <guid></guid>
+      <pubDate>Tue, 10 Nov 2026 03:00:00 GMT</pubDate>
+    </item>
+  </channel>
+</rss>
