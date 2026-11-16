@@ -2,10 +2,10 @@
 
 | | |
 |---|---|
-| Status | Draft v1, ready for build of M0 |
+| Status | Draft v1.1: M0 spikes decided, ready for build of M1 |
 | Owner | product-manager |
 | Last updated | 2026-11-16 |
-| Cloudflare limits checked | **2026-11-16** against developers.cloudflare.com (see §9.1 for sources) |
+| Cloudflare limits checked | **2026-11-16** against developers.cloudflare.com (see §9.1 for sources); spike measurements TID-002/TID-003 on 2026-11-16 |
 
 This document is the single source of truth for what we build. Stories live in `docs/BACKLOG.md`. Decisions live in `docs/decisions/`. If code and this spec disagree, the spec wins until the PM changes it.
 
@@ -121,9 +121,9 @@ Full design in §7.
 ### 3.6 Reading experience (RD)
 
 - **FR-RD-1 Views.** Three list views: **All** (every subscription), **Folder** (subscriptions in one folder, merged), **Feed** (one subscription).
-- **FR-RD-2 Navigation.** A drawer (or sidebar at ≥ 1024 px) lists All, then folders (expandable to their feeds), then feeds without a folder, each with its unread count. Folders and feeds with zero unread are shown dimmed in unread-only mode and hidden if "Hide read feeds" is on (default off).
+- **FR-RD-2 Navigation.** A drawer (or sidebar at ≥ 1024 px; list and article are always separate screens, no split view in MVP) lists All, then folders (expandable to their feeds), then feeds without a folder, each with its unread count. Folders and feeds with zero unread are shown dimmed in unread-only mode and hidden if "Hide read feeds" is on (default off).
 - **FR-RD-3 Sort.** Newest first by `published_at` (clamped to never be later than the time we fetched it). Oldest first is M2.
-- **FR-RD-4 Filter.** "Unread only" (default) or "All articles", per the user's setting, toggleable from the list header.
+- **FR-RD-4 Filter.** "Unread only" (default) or "All articles", per the user's setting, toggleable from the list header. In unread-only mode, an article read while the list is loaded stays in the list (shown as read) until the user leaves the list and comes back, or pulls to refresh, so rows never jump away under the thumb.
 - **FR-RD-5 List item.** Feed title, article title (max 3 lines, ellipsis), relative time, up to 2 lines of summary text, thumbnail if `imageUrl` exists, and a read/unread visual state. Exact layout: UX.
 - **FR-RD-6 Pagination.** Infinite scroll in pages of 50 using an opaque cursor. New articles that arrive while scrolling never cause duplicates or skips (keyset pagination, §8.6).
 - **FR-RD-7 Article view.** Title, feed title, author, date, sanitised content (§10.5), "Open original" (new tab, `noopener noreferrer`), next/previous article within the current list, back to the list at the same scroll position.
@@ -135,21 +135,21 @@ Full design in §7.
 
 ### 3.7 Feed health (FH)
 
-- **FR-FH-1** The Manage screen lists every subscription with its folder, state (`ok`, `pending`, `failing`, `dead`, `gone`), last successful fetch time, and the last error in plain language (for example "The server returned 404 Not Found", "Timed out after 10 s", "Too large (over 2 MB)", "Couldn't parse the feed").
+- **FR-FH-1** The Manage screen lists every subscription with its folder, state (`ok`, `pending`, `failing`, `dead`, `gone`), last successful fetch time, and the last error in plain language (for example "The server returned 404 Not Found", "Timed out after 10 s", "Too large (over 1 MB)", "Couldn't parse the feed").
 - **FR-FH-2** A failing feed shows a warning marker in the navigation drawer.
 
 ### 3.8 Settings and theme (ST)
 
 - **FR-ST-1 Theme.** System (default), Light, Dark. Applies without a flash of the wrong theme on load. Stored on the server (follows the user across devices) and mirrored in `localStorage` for first paint.
-- **FR-ST-2 Reading.** "Show unread only by default" (on), "Mark as read when opened" (on), "Hide feeds with no unread" (off), article text size (S / M / L, default M).
+- **FR-ST-2 Reading.** "Show unread only by default" (on), "Mark as read when opened" (on), "Hide feeds with no unread" (off), article text size (S / M / L, default M). Text size is mirrored in `localStorage['tidings.textSize']` and applied before first paint like the theme (§11.2).
 - **FR-ST-3 Account.** Display name; passkeys (FR-AU-6); regenerate recovery codes (FR-AU-7); sign out; sign out everywhere.
 - **FR-ST-4 Data.** Import OPML; export OPML; storage note ("Articles are kept for 30 days after you read them").
 
 ### 3.9 PWA and client cache (PW)
 
-- **FR-PW-1** Web app manifest (name "Tidings", icons, `display: standalone`, theme colours for light and dark) so the app installs to the home screen on iOS and Android.
+- **FR-PW-1** Web app manifest (name "Tidings", icons, `display: standalone`) so the app installs to the home screen on iOS and Android. The manifest can hold only one `theme_color`/`background_color`, so it uses the light values; the in-app `<meta name="theme-color">` follows the resolved theme. A dark-mode launch splash on Android may show light briefly: accepted known limitation (2026-11-16). Icons and wordmark are designed in TID-023.
 - **FR-PW-2** A service worker precaches the app shell (HTML, JS, CSS, icons) so the app opens with no network.
-- **FR-PW-3** The TanStack Query cache (lists, counts, folders, subscriptions, the last 50 opened articles) is persisted to IndexedDB and restored on launch, then revalidated in the background. When offline, the app shows cached data with an "Offline" indicator and queues nothing (mutations fail with a toast; offline mutation queue is M3).
+- **FR-PW-3** The TanStack Query cache (lists, counts, folders, subscriptions, the last 50 opened articles) is persisted to IndexedDB and restored on launch, then revalidated in the background. When offline, the app shows cached data with an "Offline" indicator (shown on the browser `offline` event **or** on an API request that fails with no response; cleared on `online` or the next successful response) and queues nothing (mutations fail with a toast; offline mutation queue is M3).
 
 ---
 
@@ -190,9 +190,9 @@ Full design in §7.
 | **Workers** (Free) | JSON API, cron handlers, per-feed refresh entrypoint | Required runtime. One Worker keeps deploys and bindings simple. |
 | **Workers Static Assets** | Serving the SPA build | Asset requests don't invoke the Worker when they match a file or are navigations with `not_found_handling = "single-page-application"`; only `/api/*` runs the Worker (`run_worker_first: ["/api/*"]`). `_headers` sets CSP on SPA responses. |
 | **D1** (Free) | All persistent data: users, auth, feeds, articles, read state | Relational queries (counts, keyset pagination, joins) and the highest free write allowance of the storage options. |
-| **Cron Triggers** | Two triggers: refresh dispatcher every minute; hourly maintenance | Free plan allows 5 per account. We use 2 and can add up to 3 more dispatchers if needed. |
-| **Service binding via `ctx.exports`** | Loopback RPC from the dispatcher (and the subscribe API) to `FeedRefresher`, one call per feed | Gives each feed its own invocation so one big feed can't blow the whole tick's 10 ms CPU budget. **To be confirmed by spike TID-003.** Fallback ladder in ADR 0004. |
-| **Rate Limiting binding** | Coarse per-user API limit | Only if TID-003 confirms it works on the Free plan. Auth endpoints use a D1 counter regardless. |
+| **Cron Triggers** | Two triggers: refresh dispatcher every minute; hourly maintenance | Free plan allows 5 per account. We use 2. Up to 3 more dispatchers are possible, but each can add up to 30,240 requests/day (§9.3), so adding one needs an ADR. |
+| **Service binding via `ctx.exports`** | Loopback RPC from the dispatcher (and the subscribe API) to `FeedRefresher`, one call per feed | Gives each feed its own invocation so one big feed can't blow the whole tick's 10 ms CPU budget. **Verified 2026-11-16 (TID-003):** own CPU and subrequest budget per callee; the RPC call itself doesn't use the dispatcher's 50 subrequests; each callee counts as one request toward 100k/day. ADR 0004. |
+| **Rate Limiting binding** | Coarse per-user API limit (600/min backstop) | Verified on Free 2026-11-16 (TID-003): deploys and enforces, approximately. Never used for auth limits; auth endpoints use the D1 counter. |
 
 **Deliberately not used in MVP**
 
@@ -250,8 +250,8 @@ tidings/
 | Router / middleware | **Hono 4.x** (4.13.18) | Built for Workers, zero dependencies, small, typed routes and middleware. |
 | Validation | **zod 4.x** (4.6.7) + `@hono/zod-validator` | One schema per request body/query in `packages/shared`, reused by the SPA for typing. |
 | DB access | **Raw SQL via the D1 binding** (`prepare().bind()`, `batch()`) behind typed functions in `apps/worker/src/db` | Our free-tier budget is measured in rows read/written; explicit SQL keeps every query and index visible and testable (`meta.rows_read`). No ORM. |
-| WebAuthn | **@simplewebauthn/server 14.x** (14.1.0) | Maintained, documents Cloudflare Workers support, uses Web Crypto. Cold-start and CPU cost measured in TID-003. |
-| Feed parsing | **htmlparser2 12.x** (12.0.0) in `xmlMode`, streaming callbacks, with our own RSS/Atom/RDF mapper (provisional) | Streaming and tolerant of malformed XML; lets us stop after N items and skip elements we don't store, which bounds CPU. Alternative under test: **feedsmith 3.x** (3.0.1, built on fast-xml-parser). Spike TID-002 decides; ADR 0006. |
+| WebAuthn | **@simplewebauthn/server 14.x** (14.1.0) | Maintained, documents Cloudflare Workers support, uses Web Crypto, no `nodejs_compat` needed. Measured 2026-11-16 (TID-003): warm p99 3 ms, cold up to 10 ms. Loaded only via `await import()` in auth routes (ADR 0002). |
+| Feed parsing | **htmlparser2 12.x** (12.0.0) in `xmlMode`, streaming callbacks, with our own RSS/Atom/RDF mapper | Tolerant of malformed XML; true early stop after 50 items makes parse cost nearly independent of body size. Chosen over feedsmith 3.x after spike TID-002 (2-3x cheaper on typical feeds and on cold starts); ADR 0006. |
 | HTML discovery | Workers **HTMLRewriter** (native) | Finds `<link rel="alternate">` in website HTML without JS parsing cost. |
 | Hashing | Web Crypto `SHA-256`, Workers `crypto.DigestStream` for the body hash while streaming | Native, cheap. |
 
@@ -279,7 +279,7 @@ No other runtime libraries without PM approval (state management, UI kits, date 
   "name": "tidings",
   "main": "src/index.ts",
   "compatibility_date": "<date of scaffolding>",
-  "compatibility_flags": ["enable_ctx_exports"], // loopback RPC; confirmed or replaced by TID-003
+  "compatibility_flags": ["enable_ctx_exports"], // loopback RPC; verified by TID-003
   "assets": {
     "directory": "../web/dist",
     "not_found_handling": "single-page-application",
@@ -287,6 +287,7 @@ No other runtime libraries without PM approval (state management, UI kits, date 
   },
   "d1_databases": [{ "binding": "DB", "database_name": "tidings", "database_id": "<id>", "migrations_dir": "migrations" }],
   "triggers": { "crons": ["* * * * *", "17 * * * *"] },
+  "ratelimits": [{ "name": "API_RL", "namespace_id": "1001", "simple": { "limit": 600, "period": 60 } }],
   "routes": [{ "pattern": "tidings.mcn.am", "custom_domain": true }],
   "vars": { "APP_ORIGIN": "https://tidings.mcn.am", "RP_ID": "tidings.mcn.am", "RP_NAME": "Tidings" }
   // secrets: SETUP_TOKEN (wrangler secret put)
@@ -512,27 +513,27 @@ Lower-case scheme and host; drop default ports (`:80` for http, `:443` for https
 
   Because the lease moves `next_fetch_at` forward atomically, overlapping ticks (or a second dispatcher cron) never fetch the same feed twice. If a refresh crashes, the feed is simply retried at its next interval.
 
-- **Batch size `B = 20`** feeds per tick (constant `REFRESH_BATCH_SIZE`). It's bounded by: the 50 external subrequests per invocation (if the callees' fetches count against the dispatcher, 20 feeds + up to 1 redirect each = 40, leaving headroom) and the 32-invocation cap per request for service-binding calls. TID-003 may raise it to 25.
-- **Capacity:** 1,440 ticks × 20 = **28,800 feed fetches/day**. At 30-minute intervals that's 600 feeds. Each extra dispatcher cron adds the same again (max 3 more; 5 cron triggers per account).
+- **Batch size `B = 20`** feeds per tick (constant `REFRESH_BATCH_SIZE`, confirmed by TID-003). Subrequests don't bound it (callee fetches and `ctx.exports` calls don't count against the dispatcher). It is sized for headroom over the ≈ 8 feeds per tick needed at baseline, and capped so that one full dispatcher stays at ≤ 30,240 requests/day (1,440 × (1 + 20); callees count as requests, §9.3).
+- **Capacity:** 1,440 ticks × 20 = **28,800 feed fetches/day**. At 30-minute intervals that's 600 feeds. Each extra dispatcher cron adds the same again (max 3 more; 5 cron triggers per account), but also up to 30,240 requests/day, so adding one needs an ADR 0004 update and a re-run of §9.3.
 - **Jitter.** New feeds get `next_fetch_at = now + random(0, 60)` s; imports stagger over `ceil(n / B)` minutes so they don't all land in one tick.
 
 ### 7.2 Fan-out
 
-For each leased feed the dispatcher calls `ctx.exports.FeedRefresher.refresh(job)` (RPC to a `WorkerEntrypoint` in the same Worker) and awaits all with `Promise.allSettled`. Each RPC is a separate invocation, so **each feed gets its own 10 ms CPU budget** and a crash or CPU-limit kill affects only that feed. *This isolation is the central assumption of the design and is unverified; TID-003 proves it.* If it's false, ADR 0004's fallback ladder applies.
+For each leased feed the dispatcher calls `ctx.exports.FeedRefresher.refresh(job)` (RPC to a `WorkerEntrypoint` in the same Worker) and awaits all with `Promise.allSettled`. Each RPC is a separate invocation, so **each feed gets its own 10 ms CPU budget** and a crash or CPU-limit kill affects only that feed. This isolation was verified on the Free plan on 2026-11-16 (TID-003, ADR 0004).
 
-When an RPC rejects (exception, CPU limit, timeout), the dispatcher records the failure itself (`error_count + 1`, `last_error_code = 'cpu_limit' | 'internal'`, backoff), because the killed callee can't.
+When an RPC rejects (exception, CPU limit, timeout), the dispatcher records the failure itself (`error_count + 1`, backoff), because the killed callee can't: `last_error_code = 'cpu_limit'` when the rejection message is `Worker exceeded CPU time limit.`, otherwise `'internal'`.
 
 ### 7.3 Refreshing one feed (`refreshFeed(job)`)
 
 1. **Fetch** via `safeFetch` (§10.6): `GET`, `User-Agent: Tidings/1.0 (+<APP_ORIGIN>)`, `Accept: application/rss+xml, application/atom+xml, application/rdf+xml, application/xml;q=0.9, text/xml;q=0.8, */*;q=0.1`, `If-None-Match: etag`, `If-Modified-Since: last_modified`. Timeout 10 s. Redirects followed manually, max 3, each hop re-validated.
 2. **304** → if `error_count > 0` or `state != 'ok'`: write `state='ok', error_count=0, last_success_at=now`. Otherwise **no write**. Done.
 3. **Non-2xx** → handle per §7.4. Done.
-4. **200** → stream the body through `crypto.DigestStream` and into a buffer, aborting at **2 MB** (`too_large`). If `SHA-256(body) == body_hash` → same as 304. Done.
-5. **Parse** with `packages/feed-parser`, stopping after the first **50 items** in document order (`MAX_ITEMS_PER_FETCH`; first fetch for a new subscription: 10 items are linked to the user, FR-SU-3). Parse errors → `parse_error`.
+4. **200** → stream the body through `crypto.DigestStream` and into a buffer, aborting at **1 MiB** (`MAX_BODY_BYTES` = 1,048,576; `too_large`). If `SHA-256(body) == body_hash` → same as 304. Done.
+5. **Parse** with `packages/feed-parser` (htmlparser2, ADR 0006), stopping the tokenizer after the first **50 items** in document order (`MAX_ITEMS_PER_FETCH`; first fetch for a new subscription: 10 items are linked to the user, FR-SU-3). Parse errors → `parse_error`.
 6. **Dedup** (§6.3): compute keys, query existing, keep new items only.
 7. **Write** in one `DB.batch()`: multi-row `INSERT … ON CONFLICT DO NOTHING RETURNING id` into `entries` (chunked to stay within 100 bound parameters per statement), then `INSERT INTO user_entries … SELECT` for every subscriber (`subscriptions_feed` index), then `UPDATE feeds SET etag, last_modified, body_hash, title (if changed), site_url, last_success_at, last_new_entry_at, state='ok', error_count=0`. Total statements per refresh ≤ 15 (D1 free limit is 50 queries per invocation).
 
-**CPU budget for one refresh invocation:** target p95 ≤ 5 ms, p99 ≤ 8 ms (limit 10 ms). The spike (TID-002) sets the real caps (`MAX_BODY_BYTES`, `MAX_ITEMS_PER_FETCH`) to meet this. Heavy work we deliberately keep out of the Worker: HTML sanitisation (client), OPML parsing (client), thumbnails (none generated).
+**CPU budget for one refresh invocation (ADR 0006, restated 2026-11-16):** for a changed feed ≤ 1 MiB, **zero `exceededCpu`** over ≥ 200 deployed invocations per fixture and **p95 ≤ 8 ms** for the whole invocation; parse alone p95 ≤ 6 ms. p99 (≈ 10-13 ms, GC/JIT tail) and cold first refresh (≈ 13-23 ms) are recorded, not gated; they rely on the isolate flexibility Cloudflare documents for infrequent overruns. We still design to the 10 ms limit. TID-012 proves this on the deployed Free plan; if it fails, ADR 0006's ladder applies (25 items, then a 50 KB content cap, then the Q6 rule). Caps: `MAX_BODY_BYTES` 1 MiB, `MAX_ITEMS_PER_FETCH` 50, content 100 KB per item. Heavy work we deliberately keep out of the Worker: HTML sanitisation (client), OPML parsing (client), thumbnails (none generated).
 
 ### 7.4 Errors and backoff
 
@@ -690,7 +691,9 @@ SELECT ue.entry_id, ue.feed_id, ue.published_at, ue.is_read, ue.is_starred,
  LIMIT ?4 + 1;
 ```
 
-Feed views add `AND ue.feed_id = ?`. Folder views use `ue.feed_id IN (SELECT feed_id FROM subscriptions WHERE user_id = ?1 AND folder_id = ?)`; SQLite can't use the index order across an `IN` list, so a folder page reads every matching row in that folder (≈ folder size, bounded by retention). This is accounted for in §9.4; if it becomes a problem we denormalise `folder_id` into `user_entries` (M2+). `feedTitle` and `subscriptionId` are joined in from a per-request map of the user's subscriptions, not per row.
+Feed views add `AND ue.feed_id = ?`. Folder views use `ue.feed_id IN (SELECT feed_id FROM subscriptions WHERE user_id = ?1 AND folder_id = ?)`; SQLite can't use the index order across an `IN` list, so a folder page reads every matching row in that folder (≈ folder size, bounded by retention). **Decision (ADR 0008, 2026-11-16): `folder_id` is not denormalised.** It would add writes (our scarcest quota) and can't represent M3 tags. The folder view has a stated ceiling (NFR-7) and a revisit trigger in ADR 0008.
+
+Continuation pages read the boundary rows that share the cursor's `published_at` (at least the cursor row) in addition to the page, so NFR-7 allows `+ T` for them (ADR 0008). `feedTitle` and `subscriptionId` are joined in from a per-request map of the user's subscriptions, not per row.
 
 ### 8.7 Import/export
 
@@ -715,15 +718,15 @@ Sources: [Workers limits](https://developers.cloudflare.com/workers/platform/lim
 | Limit (Workers Free) | Value | Status |
 |---|---|---|
 | Worker requests | 100,000 / day (resets 00:00 UTC) | Verified |
-| CPU time per invocation (HTTP and Cron) | **10 ms** (I/O wait not counted) | Verified |
+| CPU time per invocation (HTTP and Cron) | **10 ms** (I/O wait not counted); docs allow "some built-in flexibility" per isolate for infrequent overruns | Verified. Observed 2026-11-16 (TID-002/003): enforcement is soft, `ok` outcomes up to ≈ 76 ms on typical work and kills from ≈ 100 ms. **We design to 10 ms regardless.** |
 | Wall time, Cron / Queue consumer | 15 min | Verified |
 | Subrequests per invocation | **50 external**, 1,000 to Cloudflare services; each redirect hop counts | Verified |
 | Simultaneous outbound connections | 6 per invocation | Verified |
 | Memory | 128 MB per isolate | Verified |
 | Cron Triggers | 5 per account | Verified |
-| Service-binding invocations per request | 32 | Verified |
-| Does a service-binding/`ctx.exports` callee get its own CPU and subrequest budget? | Not stated | **Unverified → TID-003** |
-| Do service-binding callee invocations count toward the 100k requests/day? | Not stated for Free | **Unverified → TID-003** (budget assumes they do) |
+| Service-binding invocations per request | 32 (older docs; not on the limits page as of 2026-11-16) | Not observed 2026-11-16: 33 calls succeeded in both modes, 100 via `ctx.exports`. Design doesn't depend on it. |
+| Does a service-binding/`ctx.exports` callee get its own CPU and subrequest budget? | Yes, both mechanisms | **Verified 2026-11-16** (TID-003). Service-binding RPC calls count toward the caller's 50 subrequests; `ctx.exports` calls don't. |
+| Do `ctx.exports` callee invocations count toward the 100k requests/day? | Yes, one request each | **Verified 2026-11-16** (TID-003 AC3: GraphQL `sum.requests`, 21 per tick = 1 cron + 20 callees). Service-binding case not measured (not used). |
 | Do static-asset requests count toward 100k/day? | "Requests are only billable if a Worker script is invoked" | Assumed no (budget doesn't need it) |
 | Static assets | 20,000 files / version, 25 MiB / file | Verified |
 | D1 rows read | **5,000,000 / day** | Verified |
@@ -735,7 +738,7 @@ Sources: [Workers limits](https://developers.cloudflare.com/workers/platform/lim
 | D1 on exceeding daily limit | Queries fail until 00:00 UTC | Verified |
 | KV | 100,000 reads, 1,000 writes / day, 1 GB | Verified (not used) |
 | Queues | 10,000 operations / day; ≈ 3 ops per message; 24 h retention | Verified (not used) |
-| Rate Limiting binding on Free | Not stated | **Unverified → TID-003** |
+| Rate Limiting binding on Free | Available; `period` 10 or 60 s | **Verified 2026-11-16** (TID-003): deploys and enforces; approximate (can allow about one over within a burst; per location) |
 | `_headers` | 100 rules, 2,000 chars/line; not applied to Worker responses | Verified |
 | PBKDF2 iterations in Workers | 100,000 max (workerd issue #1346, 2023) | Unverified for 2026 production; relevant only to the rejected password option |
 
@@ -759,10 +762,12 @@ Sources: [Workers limits](https://developers.cloudflare.com/workers/platform/lim
 | Source | A | B |
 |---|---|---|
 | Dispatcher cron (1/min) + maintenance (1/h) | 1,464 | 1,464 |
-| Refresh invocations (one per fetch: 250 × 48; 300 × 72) | 12,000 | 21,600 |
+| Refresh invocations (one per fetch: 250 × 48; 300 × 72; callees count, verified 2026-11-16) | 12,000 | 21,600 |
 | SPA API calls | 2,500 | 7,500 |
 | Static assets | 0 (no Worker) | 0 |
 | **Total** | **≈ 16,000 (16%)** | **≈ 30,600 (31%)** |
+
+Ceiling: one dispatcher leasing a full batch every minute is 1,440 × (1 + 20) = **30,240 requests/day** for refresh alone (≈ 37,800 with heavy API use, 38%). Each additional dispatcher cron can add up to 30,240 more, so four full dispatchers (≈ 121,000) would exceed the quota. Extra crons need an ADR (ADR 0004).
 
 ### 9.4 D1 rows written per day
 
@@ -787,7 +792,7 @@ Sources: [Workers limits](https://developers.cloudflare.com/workers/platform/lim
 | Dispatcher scan (feeds × 1,440) | 360,000 | 432,000 |
 | Refresh dedup lookups (≤ 50 per changed fetch) + subscriber lookups | 92,000 | 166,000 |
 | Unread counts (200 calls × 1,000 unread rows per user) | 200,000 | 600,000 |
-| List pages (150 × ~150 rows) + folder pages (50 × ~3,000 rows) per user | 172,500 | 517,500 |
+| List pages (150 × ~150 rows) + folder pages (50 × ~3,000 rows) per user (folder ceiling and worst case 12,100 rows/page: ADR 0008) | 172,500 | 517,500 |
 | Session lookups, misc | 5,000 | 15,000 |
 | Cleanup (indexed) | 10,000 | 30,000 |
 | **Total** | **≈ 840,000 (17%)** | **≈ 1,760,000 (35%)** |
@@ -800,19 +805,22 @@ Average stored article ≈ 6 KB (many feeds are summary-only at 1–2 KB; full-c
 
 | Invocation | Expected work | Target |
 |---|---|---|
-| API request | Hono routing, 1 session lookup, 1–3 queries, JSON of ≤ 50 items | p99 ≤ 5 ms |
-| WebAuthn verify | CBOR decode + ECDSA verify (native) | p99 ≤ 8 ms **unverified → TID-003** |
-| Dispatcher | 1 query + 20 RPC calls (I/O wait isn't CPU) | p99 ≤ 3 ms |
-| Refresh, 304/unchanged | header handling, native hash | p99 ≤ 2 ms |
-| Refresh, changed, typical feed (≤ 300 KB, ≤ 50 items) | streaming XML parse + mapping + 2–3 queries | p95 ≤ 5 ms, p99 ≤ 8 ms **unverified → TID-002** |
-| Refresh, large feed (1–2 MB) | parse dominates | **Likely to exceed 10 ms → TID-002 sets caps** |
-| Maintenance | ≤ 10 bounded statements | p99 ≤ 3 ms |
+| API request | Hono routing, 1 session lookup, 1–3 queries, JSON of ≤ 50 items | p95 ≤ 5 ms |
+| WebAuthn verify | CBOR decode + ECDSA verify (native), library loaded lazily | **Measured 2026-11-16 (TID-003): warm p99 3 ms, cold up to 10 ms** (median 5). Mitigation trigger in ADR 0002. |
+| Dispatcher | 1 query + 20 RPC calls (I/O wait isn't CPU) | p95 ≤ 3 ms (spike: 1-3 ms) |
+| Refresh, 304/unchanged | header handling, native hash | p95 ≤ 2 ms |
+| Refresh, changed, feed ≤ 1 MiB (≤ 50 items parsed) | body read + hash, streaming parse with early stop, dedup, 2–3 queries | **Zero `exceededCpu`, p95 ≤ 8 ms** (whole invocation); parse alone p95 ≤ 6 ms (spike: 4.4–6.9). p99 ≈ 10–13 and cold ≈ 13–23 recorded, not gated. Proven in TID-012. |
+| Refresh, feed > 1 MiB | rejected as `too_large` while streaming, never parsed | p95 ≤ 2 ms |
+| Maintenance | ≤ 10 bounded statements | p95 ≤ 3 ms |
+
+All rows: the gate is **zero `exceededCpu`** plus the p95 shown; p99 is recorded for information. The spikes showed a GC/JIT tail of ≈ 10–13 ms even on tiny workloads, so a p99 ≤ 8 ms target can't be met by capping work (ADR 0006).
 
 ### 9.8 Headline: first limit we'll hit
 
-1. **First limit overall: 10 ms CPU per invocation, on large or verbose feeds.** It's per invocation, not daily, so a few big feeds will fail individually long before any daily quota is stressed. Mitigations, in order: per-feed fan-out (one feed per invocation); conditional GET and body-hash skip (most fetches never parse); streaming parse that stops after 50 items and ignores unused elements; 2 MB body cap; recording `cpu_limit` and backing off so a pathological feed costs one failed invocation per backoff period; showing the error in Manage. TID-002 measures real numbers and sets the caps before M1 refresh work starts.
+1. **First limit overall: 10 ms CPU per invocation, on large or verbose feeds.** It's per invocation, not daily, so a few big feeds will fail individually long before any daily quota is stressed. Mitigations, in order: per-feed fan-out (one feed per invocation); conditional GET and body-hash skip (most fetches never parse); streaming parse that stops after 50 items and ignores unused elements; 1 MiB body cap; recording `cpu_limit` and backing off so a pathological feed costs one failed invocation per backoff period; showing the error in Manage. TID-002 measured it (2026-11-16): typical feeds parse at p95 4.4–6.9 ms with a GC/JIT tail at p99 of 10–13 ms and cold first parses of 13–23 ms. These finished `ok` because enforcement tolerates infrequent overruns. If Cloudflare enforced 10 ms strictly, roughly 1–2% of changed-feed refreshes would fail and retry after backoff. TID-012 re-measures the full refresh.
 2. **First daily quota: D1 rows written.** 25% at baseline (4× headroom), 67% in the heavy multi-user case (1.5×). Mitigations: no index on `next_fetch_at`; no write on unchanged fetches; first-fetch cap of 10 items per new subscription; adaptive refresh intervals for quiet feeds (M2; halves lease writes for typical feed mixes); denormalisation only where it saves reads without adding writes. **An OPML import of 250 feeds costs about 20,000 extra writes** (250 × 10 items × 8 rows), so import day in scenario A peaks near 45%.
-3. Everything else is under 40% in both scenarios. KV and Queues are unused.
+3. **Requests/day** (callee invocations count, verified 2026-11-16): 16% at baseline, 31% heavy; capped at ≈ 38% per dispatcher cron. Only adding dispatcher crons could exhaust it (§9.3).
+4. Everything else is under 40% in both scenarios. KV and Queues are unused.
 
 **Monitoring:** the maintenance job logs daily counts; the README (TID-021) documents where to see D1 and Workers usage in the dashboard. If writes exceed 70% on 3 days in a week, the PM opens an ADR (options: longer interval, adaptive scheduling, Workers Paid at $5/month: Q6).
 
@@ -880,7 +888,7 @@ All server-side fetches of user-supplied URLs (subscribe, discovery, refresh, re
 2. Reject credentials in URL (`user:pass@`).
 3. Reject hosts that are: `localhost`, single-label names, `*.local`, `*.localhost`, `*.internal`, `*.home.arpa`, the app's own hostname, and IP literals (v4, v6, decimal/octal/hex forms after `new URL()` normalisation) in loopback, private (10/8, 172.16/12, 192.168/16), CGNAT (100.64/10), link-local (169.254/16, fe80::/10), unique-local (fc00::/7), multicast, `0.0.0.0/8`, `::`, `::1`, IPv4-mapped IPv6 of any of these, and cloud metadata (`169.254.169.254`, `fd00:ec2::254`).
 4. `redirect: 'manual'`; follow at most 3 redirects, re-applying 1–3 to each `Location`. Never forward cookies or auth headers.
-5. 10 s total timeout (`AbortSignal.timeout`), 2 MB body cap (stream and abort).
+5. 10 s total timeout (`AbortSignal.timeout`), 1 MiB body cap (`MAX_BODY_BYTES`; stream and abort).
 6. Only `GET`. No user-controlled headers.
 
 Residual risk: DNS names that resolve to private addresses (rebinding). Workers run on Cloudflare's edge with no access to a private network of ours, which limits impact; we accept this for MVP and record it in risks (R5). Tests: the tester's SSRF suite (`127.0.0.1`, `[::1]`, `169.254.169.254`, `0x7f000001`, `2130706433`, `localhost.`, redirects to these).
@@ -890,7 +898,7 @@ For automated tests only, an `ALLOW_FETCH_HOSTS` var can allow the local fixture
 ### 10.7 Rate limiting
 
 - **Auth routes** (setup, login, recover): D1 fixed-window counter in `rate_limits` keyed by route family and `CF-Connecting-IP`, plus a global counter for setup and recover (§8.3). Authoritative.
-- **Authenticated API:** 600 requests/minute per user via the Workers Rate Limiting binding if TID-003 confirms availability on Free; otherwise none in MVP (single owner; the daily request cap is the backstop).
+- **Authenticated API:** 600 requests/minute per user via the Workers Rate Limiting binding `API_RL` (verified on Free 2026-11-16; approximate, so it is a backstop only), keyed by user ID, returning `429 rate_limited`. Built in TID-008.
 - **Manual feed refresh:** once per 5 minutes per feed per user (checked against `feeds.last_attempt_at`).
 
 ### 10.8 Per-user isolation
@@ -915,7 +923,7 @@ For automated tests only, an `ALLOW_FETCH_HOSTS` var can allow the local fixture
 |---|---|
 | `/setup` | First-run setup (only when `setupRequired`) |
 | `/login`, `/recover` | Sign in; recovery code |
-| `/` | Redirect to `/all` |
+| `/` | Redirect to the last list route viewed on this device (`localStorage['tidings.lastList']`, one of the three list patterns below), falling back to `/all` if none is stored, it's malformed, or the folder/feed no longer exists |
 | `/all`, `/folders/:folderId`, `/feeds/:subscriptionId` | Article lists |
 | `/all/a/:entryId`, `/folders/:folderId/a/:entryId`, `/feeds/:subscriptionId/a/:entryId` | Article view, keeping list context for next/previous and back |
 | `/manage` | Subscriptions and folders (with health) |
@@ -925,9 +933,23 @@ For automated tests only, an `ALLOW_FETCH_HOSTS` var can allow the local fixture
 
 Unauthenticated users are redirected to `/login` (or `/setup`). The UX engineer owns layout, gestures and copy in `docs/ux/`.
 
+"Default view" (FR-AU-3, after sign-in) means the same target as `/`. After first-run setup the user lands on `/all`.
+
+**Navigation rules (ratified 2026-11-16, details in `docs/ux/FLOWS.md`):**
+
+- **Header Back on an article:** one history entry back if the app has history, otherwise the list in the article's own route (`/all`, `/folders/:id` or `/feeds/:id`). Next/previous inside an article use `replace`, so history stays `[list, article]`.
+- **Header Back on Add a feed and Import:** one history entry back if the app has history, otherwise `/manage`.
+- **Drawer:** pushes one history entry while open, so system Back closes it. No edge-swipe to open (it collides with iOS Safari's back gesture). No swipe-to-close in MVP (TID-035, Later).
+- **Header:** sticky, never hides on scroll in MVP.
+- **Bottom bar:** in normal page flow, `position: sticky; bottom: 0` (not fixed).
+- **No split view** at any width in MVP. Lists and the article are separate screens; ≥ 1024 px adds only the sidebar.
+- **Header titles while loading:** folder, feed and article routes show a skeleton in the header until the name loads, never the word "Folder" or "Feed". Those words are used only as the `document.title` fallback while loading. Auth titles: "Set up Tidings", "Sign in", "Use a recovery code".
+
 ### 11.2 Theme
 
-`<html data-theme="light|dark">` is set before first paint by `/theme-init.js` from `localStorage['tidings.theme']` (default `system` → `matchMedia('(prefers-color-scheme: dark)')`), and updated live on system change while the setting is `system`. Tailwind's dark variant keys on `[data-theme=dark]`. `<meta name="theme-color">` is set for both schemes.
+`<html data-theme="light|dark">` and `<html data-text-size="s|m|l">` are set before first paint by `/theme-init.js`. Text size comes from `localStorage['tidings.textSize']` (default `m`). Theme comes from `localStorage['tidings.theme']` (default `system` → `matchMedia('(prefers-color-scheme: dark)')`), and updated live on system change while the setting is `system`. Tailwind's dark variant keys on `[data-theme=dark]`. `<meta name="theme-color">` is set by the script to the resolved theme's header surface colour.
+
+Typography (ratified 2026-11-16): UI and titles are sans; the article body is serif (system serif stacks only, no web fonts). No favicons in MVP (TID-030, M2).
 
 ### 11.3 Query keys and caching
 
@@ -944,8 +966,8 @@ Unauthenticated users are redirected to `/login` (or `/setup`). The UX engineer 
 | NFR-3 | Bundle size | Initial JS ≤ **170 KB** gzipped; CSS ≤ 30 KB gzipped | Build-time size check in CI |
 | NFR-4 | API latency | p95 server time ≤ **200 ms** for `GET /api/entries` and `GET /api/counts` at baseline data size | Integration test timing on seeded local D1; Workers analytics in production |
 | NFR-5 | Optimistic UI | Read-state change visible ≤ **100 ms** after tap | Playwright |
-| NFR-6 | Worker CPU | p99 CPU per invocation ≤ 8 ms for every handler (§9.7); zero `exceededCpu` outcomes for feeds under the caps | Workers dashboard / logs, weekly check |
-| NFR-7 | Query cost | Each list query reads ≤ (limit + 1) × 2 rows for All/Feed views; counts read ≤ unread rows + subscriptions | Integration tests assert D1 `meta.rows_read` |
+| NFR-6 | Worker CPU | Zero `exceededCpu` outcomes in deployed benchmarks and p95 within the §9.7 target for every handler; p99 recorded, not gated. In production, `exceededCpu` < 1% of refresh invocations and zero on API routes | Cloudflare GraphQL Analytics / `wrangler tail` (never `performance.now()`); weekly check |
+| NFR-7 | Query cost | All/Feed views: rows_read ≤ (limit + 1) × 2 + T, where T = rows in the view sharing the cursor's `published_at` (0 on page 1; ≥ 1 on later pages). Folder view: rows_read ≤ M + (limit + 1) + S + 10 (M = matching rows in the folder at or below the cursor, S = subscriptions in the folder). Counts read ≤ unread rows + subscriptions. ADR 0008 | Integration tests assert D1 `meta.rows_read` |
 | NFR-8 | Freshness | ≥ 95% of `ok` feeds have `last_attempt_at` within 35 min | Maintenance log |
 | NFR-9 | Accessibility | WCAG 2.2 AA; **zero serious/critical** axe-core violations on every screen in both themes; tap targets ≥ 44 × 44 px; full keyboard use on desktop; respects `prefers-reduced-motion` and text zoom to 200% without horizontal scroll at 375 px | Playwright + `@axe-core/playwright`; UX review |
 | NFR-10 | Dark mode | Every screen in light and dark; follows system by default; no flash of the wrong theme on load | E2E screenshot pairs; FOUC test checks `data-theme` before first paint |
@@ -993,16 +1015,17 @@ On push to `main` after CI passes: `wrangler d1 migrations apply tidings --remot
 
 | # | Risk | Likelihood | Impact | Mitigation |
 |---|---|---|---|---|
-| R1 | Feed parsing exceeds 10 ms CPU for typical feeds, not just large ones | Medium | High | Spike TID-002 before refresh work; streaming parser with early stop; caps; fallback to Workers Paid ($5/mo, Q6). |
-| R2 | `ctx.exports`/service-binding callees share the caller's CPU or subrequest budget | Medium | High | Spike TID-003; ADR 0004 fallback ladder (two Workers; DO alarms; Queues with batched messages; lower batch size). |
+| R1 | Feed parsing exceeds 10 ms CPU for typical feeds, not just large ones | Medium (p99 already ≈ 10–13 ms; tolerated today) | Medium | Measured in TID-002: p95 within budget, tail tolerated. htmlparser2 with early stop at 50; 1 MiB body cap; `cpu_limit` backoff; TID-012 gate; ladder in ADR 0006 (25 items, 50 KB content, Q6). If Cloudflare enforces 10 ms strictly, ≈ 1–2% of changed refreshes fail and retry. |
+| R2 | `ctx.exports`/service-binding callees share the caller's CPU or subrequest budget | Retired 2026-11-16 | – | TID-003 verified isolation. Remaining cost: callees count as requests (§9.3). |
 | R3 | D1 write quota exhausted (e.g. multiple users, aggressive intervals, import day) | Low (A) / Medium (B) | High (DB read-only until 00:00 UTC) | Budget in §9; no unchanged-fetch writes; first-fetch cap; adaptive intervals (M2); daily usage log. |
 | R4 | Some origins block Cloudflare Worker fetches (bot protection, `CF-Worker` header, 403/429) | Medium | Medium | Clear error in Manage; honest User-Agent; backoff. No proxying in MVP. |
 | R5 | DNS-rebinding SSRF (hostname resolving to a private IP) | Low | Low–Medium | Workers have no private-network access; host/IP guards; documented residual risk. |
 | R6 | Passkey lock-out (lost device, changed domain) | Low | High | Recovery codes; multiple passkeys; break-glass runbook; decide the domain before setup (Q2). |
 | R7 | D1 storage grows past 500 MB with full-content feeds | Low | Medium | 100 KB cap, 30-day content retention, tombstones only, daily size log, Settings warning (M2). |
 | R8 | Free-plan limits change | Low | Medium | Limits table dated; re-check each milestone; ADR if they change. |
-| R9 | `@simplewebauthn/server` cold start / CPU too heavy for 10 ms | Low–Medium | Medium | Measured in TID-003; fallback: lighter verifier using Web Crypto directly for ES256/EdDSA only. |
+| R9 | `@simplewebauthn/server` cold start / CPU too heavy for 10 ms | Low | Low | Measured in TID-003: warm p99 3 ms, cold ≤ 10 ms. Lazy import; trigger in ADR 0002 moves verify behind `ctx.exports`, then a lighter ES256/EdDSA verifier. |
 | R10 | Malformed or hostile feeds (billion-laughs entity expansion, huge attributes) | Medium | Low | htmlparser2 doesn't expand custom DTD entities; body cap; item cap; fuzz fixtures. |
+| R11 | Oldest-first feeds with more than 50 items never show new items (we parse the first 50 in document order) | Low | Low | Accepted for MVP (ADR 0006). Possible later fix: detect ascending dates and parse the tail instead. |
 
 ---
 
