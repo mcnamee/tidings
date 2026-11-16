@@ -106,7 +106,7 @@ describe('TID-004 AC5: list queries stay within the NFR-7 read budget', () => {
     expect(p1.meta.rows_read).toBeLessThanOrEqual(BUDGET);
   });
 
-  it('AC5: All-unread page 2 reads <= 103 rows (cursor continuation; see DEF-001)', async () => {
+  it('AC5: All-unread page 2 reads <= 103 rows (cursor continuation; ADR 0008)', async () => {
     const p1 = await listEntries(db, A, { view: 'all', unreadOnly: true, limit: LIMIT });
     const p2 = await listEntries(db, A, {
       view: 'all',
@@ -117,9 +117,9 @@ describe('TID-004 AC5: list queries stay within the NFR-7 read budget', () => {
     expect(p2.items).toHaveLength(LIMIT);
     // No overlap with page 1: keyset pagination, no duplicates or skips.
     expect(ids(p2).filter((i) => ids(p1).includes(i))).toEqual([]);
-    // DEF-001: page 2 currently reads 103, one over the NFR-7 budget of 102. Pending a PM
-    // ruling on whether continuation pages may cost +1, this asserts 103. When DEF-001 is
-    // resolved, tighten to BUDGET (or document the +1 in NFR-7) and remove this comment.
+    // ADR 0008 (DEF-001, won't fix): NFR-7 is (limit + 1) * 2 + T on continuation pages, where T
+    // is the number of the user's rows in the view sharing the cursor's published_at. On the seed
+    // data T = 1 (the cursor row itself), so the ceiling is BUDGET + 1 = 103.
     expect(p2.meta.rows_read).toBeLessThanOrEqual(BUDGET + 1);
   });
 

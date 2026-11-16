@@ -172,6 +172,40 @@ Technique notes. The no-flash check records the frames the compositor produced
 stylesheet held back by `page.route`. `test.fail` marks a known defect by ID; remove it when the defect is
 fixed so the test guards the fix (done for DEF-002 to DEF-005; no markers remain in the TID-006 specs). `localStorage` blocking is simulated by a throwing property getter.
 
+## TID-011 traceability (feed parser)
+
+Package: `packages/feed-parser`. Commands: `npm test -w @tidings/feed-parser` (Node suite, then the
+workerd suite for HTMLRewriter discovery), `npm run bench -w @tidings/feed-parser` (AC10, informational).
+Run the Node suite under both `TZ=UTC` and `TZ=Pacific/Auckland` (AC15). Files: `src/fixtures.test.ts`,
+`src/parse.test.ts`, `src/ac17.test.ts` (engineer), `src/adversarial.test.ts` (tester), `src/discover.workers.test.ts`.
+Expected output lives in `packages/feed-parser/test/expected/*.json`; regenerate only on a reviewed behaviour change.
+`it.fails` marks an open defect by ID and must become `it` when it is fixed (DEF-011 is the only one left).
+
+| Criterion | Status | Tests |
+| --- | --- | --- |
+| AC1: fixture corpus matches snapshots | pass | `fixtures.test.ts` "fixture corpus matches the expected JSON (AC1)" (one per fixture); `adversarial.test.ts` "every snapshot item has a non-empty guidKey and summary of at most 300 characters" |
+| AC2: key fallback and stable `guid_hash` | pass | `fixtures.test.ts` "guid_hash (AC2)": stable across parses, fallback order, enclosure in last-resort key, no identity skipped |
+| AC3: first 50 items, true early stop | pass | `parse.test.ts` "item cap as a true early stop (AC3)": exactly 50 of 200, (a) garbage after item 50, (b) no callbacks after the 50th item |
+| AC4: malformed XML never throws | pass | `parse.test.ts` "malformed and truncated input (AC4)" (every truncation point, byte soup); `adversarial.test.ts` "robustness: never throw, bounded work" |
+| AC5: future/missing dates and `javascript:`/`data:` URLs | pass | `parse.test.ts` "dates and URLs (AC5)"; `adversarial.test.ts` "URL payloads in link, enclosure and image fields never yield a non-http(s) URL" |
+| AC6: billion laughs, 5 MB attribute | pass | `parse.test.ts` "hostile and oversized input (AC6, AC7, AC9)" |
+| AC7: content over 100 KB truncated | pass | same describe: "truncates content_html at 100 KB while accumulating" (cap is 102,400 code units, ADR 0009 section 6) |
+| AC8: discovery via HTMLRewriter | pass | `discover.workers.test.ts` "discoverFeeds (HTMLRewriter, AC8)" (6 tests, workerd) |
+| AC9: cap applied during accumulation | pass | `parse.test.ts` "capped accumulator", "applies the cap across many small text chunks" |
+| AC10: bench prints p50/p95 per fixture | pass | `bench/bench.test.ts`; output pasted in the test report (all fixtures p95 under 2 ms in Node) |
+| AC11: only XML dependency is htmlparser2 12.x | pass | manual check of `packages/feed-parser/package.json` (gap: no automated test) |
+| AC12: Atom text constructs | pass | `parse.test.ts` "Atom text constructs (AC12, ADR 0009 section 1)"; `adversarial.test.ts` DEF-006 tests, including untyped `&lt;script&gt;`/`&lt;iframe&gt;`/`&lt;style&gt;` staying escaped |
+| AC13: nesting bound 64 | pass | `parse.test.ts` "nesting bound (AC13, ADR 0009 section 3)"; `adversarial.test.ts` "bounds work for deeply nested elements (DEF-007)". The spy allows 65 (htmlparser2 pushes before our callback); a second test pins 64 accepted and 65 truncated |
+| AC14: `xml:base` | pass | `parse.test.ts` "xml:base (AC14, ADR 0009 section 4)" (7 tests); `adversarial.test.ts` "xml:base on an Atom entry is honoured" |
+| AC15: zone table, UTC for unknown/zone-less, TZ independent | pass | `parse.test.ts` "dates and zones (AC15, ADR 0009 section 5)" (31 zones, IST, unknown, zone-less, TZ flip); whole suite under both TZ values |
+| AC16: literal angle brackets in plain text | pass | `parse.test.ts` "literal angle brackets in plain text (AC16)"; `adversarial.test.ts` "plain-text fields keep literal angle brackets (DEF-010)"; `rss2-cdata-entities` snapshot |
+| AC17: itunes:image, NUL and surrogates, shared canonicaliser | pass | `ac17.test.ts` "itunes:image", "NUL and lone surrogates", "one shared canonicaliser and guidHash" |
+
+Hostile-text rule (ADR 0009 section 2). The XSS payload tests in `adversarial.test.ts` assert that no HTML element
+tag (the WHATWG list plus obsolete names, `svg`, `math`, kept in the test file independently of the parser's list), no
+comment and no script or style body survives in `title`, `author` or `summary`. Non-HTML angle text (`<circle r=1 />`,
+`Vec<T>`) is deliberately kept and rendered as text. Gap recorded as DEF-011: a single strip pass can re-form a tag.
+
 ## Security and free-tier checks (applied per story)
 
 - Unauthenticated access to every route; user A against user B's data; CSRF; session expiry and logout.

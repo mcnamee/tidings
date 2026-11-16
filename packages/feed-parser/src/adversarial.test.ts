@@ -30,6 +30,29 @@ const rssItem = (inner: string) => `<item><guid>g</guid><title>t</title>${inner}
 const firstItem = (r: ParseResult) => ok(r).items[0]!;
 const iso = (sec: number) => new Date(sec * 1000).toISOString();
 
+// WHATWG HTML element names (HTML Standard section 4 index), kept here independently of the
+// parser's own list so a gap in the parser's list is caught. ADR 0009 section 2 also strips the
+// common obsolete names, `svg` and `math`. SVG/MathML children (`circle`, `animate`...) are not
+// HTML elements: they are kept as literal text and rendered as text (spec 10.5).
+const WHATWG_ELEMENTS =
+  'html|base|head|link|meta|style|title|body|address|article|aside|footer|header|h1|h2|h3|h4|h5|h6|' +
+  'hgroup|main|nav|section|search|blockquote|dd|div|dl|dt|figcaption|figure|hr|li|menu|ol|p|pre|ul|' +
+  'a|abbr|b|bdi|bdo|br|cite|code|data|dfn|em|i|kbd|mark|q|rp|rt|ruby|s|samp|small|span|strong|sub|' +
+  'sup|time|u|var|wbr|area|audio|img|map|track|video|embed|iframe|object|picture|source|portal|svg|' +
+  'math|canvas|noscript|script|del|ins|caption|col|colgroup|table|tbody|td|tfoot|th|thead|tr|' +
+  'button|datalist|fieldset|form|input|label|legend|meter|optgroup|option|output|progress|select|' +
+  'textarea|details|dialog|summary|slot|template|' +
+  'acronym|applet|basefont|bgsound|big|blink|center|dir|font|frame|frameset|isindex|keygen|' +
+  'listing|marquee|menuitem|multicol|nextid|nobr|noembed|noframes|param|plaintext|rb|rtc|spacer|' +
+  'strike|tt|xmp';
+const ELEMENT_TAG = new RegExp(`</?(?:${WHATWG_ELEMENTS})(?=[\\s/>]|$)`, 'i');
+
+/** What ADR 0009 section 2 forbids in a plain-text field: an HTML element tag or a comment. */
+function expectNoHtmlMarkup(text: string, label: string): void {
+  expect(text, `${label}: element tag`).not.toMatch(ELEMENT_TAG);
+  expect(text, `${label}: comment`).not.toContain('<!--');
+}
+
 const payloads = JSON.parse(
   readFileSync(path.resolve(EXPECTED_DIR, '../../../../e2e/fixtures/xss/payloads.json'), 'utf8'),
 ) as { payloads: { id: string; html: string }[]; urlPayloads: string[] };
@@ -51,14 +74,21 @@ describe('hostile text never becomes more dangerous', () => {
     expect(firstItem(parse(xml)).contentHtml).not.toContain('<img');
   });
 
-  // NOTE (TID-011 engineer): this tester assertion contradicts ADR 0009 section 1 and AC12, because
-  // `<b>` is on the section 10.5 allowlist, so an untyped summary containing it is HTML. Left as
-  // `it.fails` and unchanged pending a PM ruling; AC12 is covered in parse.test.ts instead.
-  it.fails('Atom summary with no type attribute defaults to text and is escaped (DEF-006)', () => {
-    const xml = atom(
-      `<entry><id>1</id><title>x</title><summary>&lt;b&gt;bold&lt;/b&gt;</summary></entry>`,
-    );
-    expect(firstItem(parse(xml)).contentHtml).toBe('&lt;b&gt;bold&lt;/b&gt;');
+  // ADR 0009 section 1: untyped text is escaped unless it contains a section 10.5 allowlisted tag
+  // (plus div/span). `<b>` is allowlisted, so untyped `&lt;b&gt;` is HTML (covered by AC12 in
+  // parse.test.ts); `<script>`, `<iframe>` and non-allowlisted tags stay escaped text.
+  it('Atom summary with no type attribute and no allowlisted tag is escaped (DEF-006)', () => {
+    for (const [src, escaped] of [
+      ['&lt;script&gt;alert(1)&lt;/script&gt;', '&lt;script&gt;alert(1)&lt;/script&gt;'],
+      ['&lt;iframe src="x"&gt;&lt;/iframe&gt;', '&lt;iframe src=&quot;x&quot;&gt;&lt;/iframe&gt;'],
+      [
+        '&lt;style&gt;a{}&lt;/style&gt; 1 &amp;lt; 2',
+        '&lt;style&gt;a{}&lt;/style&gt; 1 &amp;lt; 2',
+      ],
+    ] as const) {
+      const xml = atom(`<entry><id>1</id><title>x</title><summary>${src}</summary></entry>`);
+      expect(firstItem(parse(xml)).contentHtml, src).toBe(escaped);
+    }
   });
 
   it('Atom type="html" is decoded exactly once (escaped markup becomes markup, not double-decoded)', () => {
@@ -88,25 +118,71 @@ describe('hostile text never becomes more dangerous', () => {
     expect(html).toBe('<div>&lt;/div&gt;&lt;script&gt;alert(1)&lt;/script&gt;</div>');
   });
 
-  it('titles and authors from every XSS payload are free of angle-bracket markup', () => {
+  it('titles and authors from every XSS payload contain no HTML element tag or comment (ADR 0009 s2)', () => {
     for (const p of payloads.payloads) {
       const xml = rss(
         `<item><guid>g</guid><title><![CDATA[${p.html}]]></title><dc:creator><![CDATA[${p.html}]]></dc:creator></item>`,
         'xmlns:dc="http://purl.org/dc/elements/1.1/"',
       );
       const item = firstItem(parse(xml));
-      expect(item.title, p.id).not.toMatch(/<[a-zA-Z!/]/);
-      expect(item.author ?? '', p.id).not.toMatch(/<[a-zA-Z!/]/);
-      expect(item.summary ?? '', p.id).not.toMatch(/<(script|img|svg|iframe)/i);
+      expectNoHtmlMarkup(item.title, `${p.id} title`);
+      expectNoHtmlMarkup(item.author ?? '', `${p.id} author`);
+      expectNoHtmlMarkup(item.summary ?? '', `${p.id} summary`);
     }
   });
 
-  it('summaries from every XSS payload contain no tags (entity-escaped payloads excepted)', () => {
+  it('summaries from every XSS payload contain no HTML element tag or comment (ADR 0009 s2)', () => {
     for (const p of payloads.payloads) {
       const xml = rss(rssItem(`<description><![CDATA[${p.html}]]></description>`));
       const item = firstItem(parse(xml));
-      expect(item.summary ?? '', p.id).not.toMatch(/<[a-zA-Z!/]/);
+      expectNoHtmlMarkup(item.summary ?? '', p.id);
     }
+  });
+
+  it('script and style element bodies are removed from titles and summaries, not just their tags', () => {
+    for (const p of payloads.payloads.filter((x) => /^(script|svg-script|style-tag)/.test(x.id))) {
+      const xml = rss(
+        `<item><guid>g</guid><title><![CDATA[${p.html}]]></title><description><![CDATA[${p.html}]]></description></item>`,
+      );
+      const item = firstItem(parse(xml));
+      expect(item.title, p.id).not.toMatch(/__pwned|display:\s*none/);
+      expect(item.summary ?? '', p.id).not.toMatch(/__pwned|display:\s*none/);
+    }
+  });
+
+  it('a comment cannot be re-formed by stripping (nested comment openers)', () => {
+    const xml = rss(
+      `<item><guid>g</guid><title><![CDATA[<!<!-- -->-- <b> -->x]]></title><description><![CDATA[<!<!-- -->-- <b> -->x]]></description></item>`,
+    );
+    const item = firstItem(parse(xml));
+    expectNoHtmlMarkup(item.title, 'title');
+    expectNoHtmlMarkup(item.summary ?? '', 'summary');
+  });
+
+  // DEF-011: one stripping pass lets `<scr<b>ipt>` collapse into the literal text `<script>`.
+  // ADR 0009 section 2's intent is that no HTML element tag survives. Rendering is text-only, so
+  // this is defence in depth (S3). Switch to `it` when the strip runs to a fixed point.
+  it.fails('stripping cannot re-form an element tag: <scr<b>ipt> (DEF-011)', () => {
+    for (const hostile of [
+      '<scr<b>ipt>x</scr<b>ipt>',
+      '<<b>script>alert(1)<</b>/script>',
+      '<im<i>g src=x>',
+    ]) {
+      const xml = rss(
+        `<item><guid>g</guid><title><![CDATA[${hostile}]]></title><description><![CDATA[${hostile}]]></description></item>`,
+      );
+      const item = firstItem(parse(xml));
+      expectNoHtmlMarkup(item.title, `title ${hostile}`);
+      expectNoHtmlMarkup(item.summary ?? '', `summary ${hostile}`);
+    }
+  });
+
+  it('non-HTML angle text in the payloads is kept as literal text, not stripped (ADR 0009 s2)', () => {
+    const xml = rss(
+      `<item><guid>g</guid><title><![CDATA[<circle r=1 /> and Vec<T> and <![CDATA[ x]]]]><![CDATA[>]]></title></item>`,
+    );
+    expect(firstItem(parse(xml)).title).toContain('<circle r=1 />');
+    expect(firstItem(parse(xml)).title).toContain('Vec<T>');
   });
 
   it('URL payloads in link, enclosure and image fields never yield a non-http(s) URL', () => {
