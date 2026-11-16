@@ -428,7 +428,6 @@ test.describe('TID-006 drawer stress (mobile)', () => {
   test('AC4: a double tap on the scrim closes the drawer once and stays on the screen (DEF-005)', async ({
     page,
   }) => {
-    test.fail(true, 'DEF-005: each close input calls navigate(-1), a second one leaves the screen');
     await page.goto('/settings');
     await page.goto('/all');
     await menu(page).click();
@@ -441,7 +440,6 @@ test.describe('TID-006 drawer stress (mobile)', () => {
   test('AC4: double-clicking Menu leaves exactly one history entry to unwind (DEF-005)', async ({
     page,
   }) => {
-    test.fail(true, 'DEF-005: a second Menu click before the drawer renders pushes a second entry');
     await page.goto('/settings'); // a previous entry exists to be lost by an extra back()
     await page.goto('/all');
     await menu(page).dblclick();
@@ -454,7 +452,6 @@ test.describe('TID-006 drawer stress (mobile)', () => {
   test('AC4: two Escape events in the same task do not navigate away from the screen (DEF-005)', async ({
     page,
   }) => {
-    test.fail(true, 'DEF-005: both Escape events call navigate(-1)');
     await page.goto('/settings');
     await page.goto('/all');
     await menu(page).click();

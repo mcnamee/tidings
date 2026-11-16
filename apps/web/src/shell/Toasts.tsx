@@ -41,8 +41,14 @@ function ToastCard({ item, store }: { item: ToastItem; store: ToastStore }) {
           type="button"
           className="ml-auto min-h-11 min-w-11 rounded-sm px-3 font-medium text-toast-action"
           onClick={() => {
-            item.action?.run();
+            // Dismiss first so a failing action cannot be re-run, then surface the failure.
             store.dismiss(item.id);
+            try {
+              item.action?.run();
+            } catch (err) {
+              console.error('Toast action failed', err);
+              store.show('error', 'Something went wrong. Try again.');
+            }
           }}
         >
           {item.action.label}

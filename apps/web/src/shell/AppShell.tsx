@@ -46,14 +46,29 @@ export function AppShell() {
   const menuButton = useRef<HTMLButtonElement>(null);
   const heading = useRef<HTMLHeadingElement>(null);
 
+  // Guards so repeated inputs before React re-renders push at most one entry and pop only our own.
+  // Cleared whenever the location changes (the push, the pop, or a drawer link's replace landed).
+  const openPending = useRef(false);
+  const closePending = useRef(false);
+  useEffect(() => {
+    openPending.current = false;
+    closePending.current = false;
+  }, [location.key, open]);
+
   const openDrawer = useCallback(() => {
+    if (open || openPending.current) return;
+    openPending.current = true;
     navigate(
       { pathname: location.pathname, search: location.search, hash: location.hash },
       { state: { drawer: true } },
     );
-  }, [navigate, location.pathname, location.search, location.hash]);
+  }, [navigate, open, location.pathname, location.search, location.hash]);
 
-  const closeDrawer = useCallback(() => navigate(-1), [navigate]);
+  const closeDrawer = useCallback(() => {
+    if (closePending.current) return;
+    closePending.current = true;
+    navigate(-1);
+  }, [navigate]);
 
   // The sidebar takes over when the viewport grows to 1024px; drop the drawer's history entry.
   const stale = isDesktop && drawerFlag(location.state) && location.key !== initialKey.current;

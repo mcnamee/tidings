@@ -137,8 +137,8 @@ describe('toast Undo through the component', () => {
     expect(screen.getByText('Boom')).toBeInTheDocument();
   });
 
-  // DEF-004: ToastCard calls run() before dismiss(), so a throwing handler leaves the toast stuck.
-  it.fails(
+  // DEF-004: a throwing Undo handler must still dismiss the toast.
+  it(
     'keeps the toast usable when the Undo action throws: the toast is dismissed and the error surfaces once',
     async () => {
       const store = setup();
