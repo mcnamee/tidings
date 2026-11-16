@@ -21,7 +21,7 @@
     "test": "npm run test --workspaces --if-present && vitest run --root . --config vitest.root.config.ts",
     "test:e2e": "npm run test:e2e --workspace e2e --if-present",
     "db:migrate:local": "npm run db:migrate:local -w @tidings/worker",
-    "db:seed:local": "echo 'db:seed:local arrives with TID-004'"
+    "db:seed:local": "npm run db:seed:local -w @tidings/worker"
   },
   "devDependencies": {
     "@eslint/js": "9.39.5",
