@@ -208,7 +208,7 @@ describe('robustness: never throw, bounded work', () => {
     expect(typeof r.ok).toBe('boolean');
   });
 
-  it.fails('bounds work for deeply nested elements (DEF-007)', () => {
+  it('bounds work for deeply nested elements (DEF-007)', () => {
     // htmlparser2's open-element bookkeeping is quadratic: 40k nested tags cost ~0.4 s and a
     // 1 MiB body of nested tags costs ~16 s (10 ms CPU budget). The parser must give up at a sane
     // depth. Deterministic check: count tag-open events instead of wall time.

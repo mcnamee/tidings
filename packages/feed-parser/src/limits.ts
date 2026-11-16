@@ -10,3 +10,5 @@ export const MAX_SUMMARY_CHARS = 300;
 export const SUMMARY_SOURCE_CHARS = 4096;
 /** Image fallback scans the first 8 KB of content (spec §6.5). */
 export const IMAGE_SCAN_CHARS = 8192;
+/** Open XML elements, counted from the document root (ADR 0009 section 3). Real feeds stay under 30. */
+export const MAX_DEPTH = 64;

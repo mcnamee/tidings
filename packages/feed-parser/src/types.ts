@@ -28,6 +28,8 @@ export interface ParsedFeed {
   items: ParsedItem[];
   /** True when parsing stopped early at `maxItems`; later items were never read. */
   stoppedEarly: boolean;
+  /** Set when parsing stopped because elements nested deeper than `MAX_DEPTH` (ADR 0009). */
+  truncated?: 'too_deep';
 }
 
 export type ParseErrorCode = 'not_a_feed' | 'empty' | 'parse_error';
@@ -42,4 +44,6 @@ export interface ParseOptions {
   baseUrl?: string;
   /** Defaults to `MAX_ITEMS_PER_FETCH`. */
   maxItems?: number;
+  /** Optional sink for diagnostics (the parser does no I/O itself). Called for `too_deep`. */
+  log?: (event: string, data: Record<string, unknown>) => void;
 }

@@ -411,3 +411,75 @@ describe('Atom text constructs (AC12, ADR 0009 section 1)', () => {
     expect(r!.endsWith(';')).toBe(true);
   });
 });
+
+describe('nesting bound (AC13, ADR 0009 section 3)', () => {
+  const wrap = (items: string) =>
+    `<rss version="2.0"><channel><title>T</title>${items}</channel></rss>`;
+  const good = (n: number) => `<item><guid>g${n}</guid><title>t${n}</title></item>`;
+  const deep = (n: number) => `<item><guid>bad</guid><title>${'<a>'.repeat(n)}`;
+  const opts = { fetchedAt: FETCHED_AT };
+
+  it('never opens more than 64 elements, and parses 300k nested tags in 50 ms or less', () => {
+    let maxDepth = 0;
+    const proto = Parser.prototype as unknown as Record<string, (...a: unknown[]) => unknown>;
+    const original = proto['onopentagend'] as (...a: unknown[]) => unknown;
+    const spy = vi.spyOn(proto, 'onopentagend').mockImplementation(function (
+      this: { stack: unknown[] },
+      ...a: unknown[]
+    ) {
+      const r = original.apply(this, a);
+      maxDepth = Math.max(maxDepth, this.stack.length);
+      return r;
+    });
+    parseFeed(wrap(good(1) + good(2) + deep(300_000)), opts);
+    spy.mockRestore();
+    // htmlparser2 pushes a tag onto its own stack before our callback runs, so the element that
+    // trips the bound is the 65th entry, transiently. It is never accepted: the test below pins
+    // exactly 64 accepted levels, and parsing stops (no further opens) right there.
+    expect(maxDepth).toBeLessThanOrEqual(65);
+
+    const input = wrap(good(1) + good(2) + deep(300_000));
+    expect(input.length).toBeGreaterThan(890_000);
+    let best = Infinity;
+    for (let i = 0; i < 5; i++) {
+      const t0 = performance.now();
+      parseFeed(input, opts);
+      best = Math.min(best, performance.now() - t0);
+    }
+    expect(best).toBeLessThanOrEqual(50);
+  });
+
+  it('returns the items closed so far with truncated: too_deep, and logs it', () => {
+    const log = vi.fn();
+    const r = parseFeed(wrap(good(1) + good(2) + deep(300_000)), { ...opts, log });
+    if (!r.ok) throw new Error('expected ok');
+    expect(r.feed.items.map((i) => i.guid)).toEqual(['g1', 'g2']);
+    expect(r.feed.truncated).toBe('too_deep');
+    expect(log).toHaveBeenCalledWith('feed_parse_too_deep', { maxDepth: 64, items: 2 });
+  });
+
+  it('returns parse_error when no item closed before the nesting', () => {
+    const r = parseFeed(wrap(deep(300_000)), opts);
+    expect(r).toMatchObject({ ok: false, error: { code: 'parse_error' } });
+  });
+
+  it('counts from the document root: rss + channel + item leave 61 levels', () => {
+    const nest = (n: number) =>
+      `<item><guid>x</guid><title>t</title><description>${'<a>'.repeat(n)}${'</a>'.repeat(n)}</description></item>`;
+    // rss, channel, item, description = 4 open; 60 more reaches exactly 64.
+    const ok64 = parseFeed(wrap(nest(60)), opts);
+    expect(ok64.ok && ok64.feed.truncated).toBeFalsy();
+    expect(ok64.ok && ok64.feed.items).toHaveLength(1);
+    const over = parseFeed(wrap(good(1) + nest(61)), opts);
+    expect(over.ok && over.feed.truncated).toBe('too_deep');
+  });
+
+  it('a real-world shape nested 40 deep (xhtml content) parses normally', () => {
+    const inner = '<div>'.repeat(33) + 'hi' + '</div>'.repeat(33);
+    const xml = `<feed xmlns="http://www.w3.org/2005/Atom"><title>T</title><entry><id>1</id><title>x</title><content type="xhtml">${inner}</content></entry></feed>`;
+    const r = parseFeed(xml, opts);
+    if (!r.ok) throw new Error('expected ok');
+    expect(r.feed.truncated).toBeUndefined();
+    expect(r.feed.items[0]!.contentHtml).toContain('hi');
+  });
+});

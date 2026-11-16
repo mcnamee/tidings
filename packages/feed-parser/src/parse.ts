@@ -1,7 +1,7 @@
 import { Parser } from 'htmlparser2';
 import { canonicalizeHttpUrl } from '@tidings/shared/url';
 import { itemKey } from './key';
-import { MAX_CONTENT_CHARS, MAX_ITEMS_PER_FETCH, MAX_SHORT_FIELD_CHARS } from './limits';
+import { MAX_CONTENT_CHARS, MAX_DEPTH, MAX_ITEMS_PER_FETCH, MAX_SHORT_FIELD_CHARS } from './limits';
 import {
   CappedText,
   escapeAttr,
@@ -148,6 +148,7 @@ function parseFeedUnsafe(input: string, options: ParseOptions): ParseResult {
   const items: ParsedItem[] = [];
   let format = null as FeedFormat | null;
   let notAFeed = false;
+  let tooDeep = false;
   let stopped = false;
   let finishing = false;
   let parseError = null as string | null;
@@ -261,6 +262,13 @@ function parseFeedUnsafe(input: string, options: ParseOptions): ParseResult {
     {
       onopentag(name, attribs) {
         if (stopped) return;
+        if (stack.length >= MAX_DEPTH) {
+          // Opening this element would exceed the bound: stop at once (ADR 0009 section 3).
+          tooDeep = true;
+          stopped = true;
+          parser.pause();
+          return;
+        }
         const depth = stack.length;
         const parent = depth > 0 ? stack[depth - 1] : undefined;
 
@@ -438,6 +446,15 @@ function parseFeedUnsafe(input: string, options: ParseOptions): ParseResult {
     parser.end();
   }
 
+  if (tooDeep) {
+    options.log?.('feed_parse_too_deep', { maxDepth: MAX_DEPTH, items: items.length });
+    if (items.length === 0) {
+      return {
+        ok: false,
+        error: { code: 'parse_error', message: `too_deep: more than ${MAX_DEPTH} nested elements` },
+      };
+    }
+  }
   if (notAFeed || format === null) {
     return {
       ok: false,
@@ -454,6 +471,7 @@ function parseFeedUnsafe(input: string, options: ParseOptions): ParseResult {
     siteUrl: siteUrl ?? resolveUrl(channelLink),
     items,
     stoppedEarly: stopped,
+    ...(tooDeep ? { truncated: 'too_deep' as const } : {}),
   };
   return { ok: true, feed };
 }
