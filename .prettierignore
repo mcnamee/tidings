@@ -7,3 +7,5 @@ lint-fixtures
 .claude
 docs
 CLAUDE.md
+e2e/.wrangler-state
+e2e/fixtures
