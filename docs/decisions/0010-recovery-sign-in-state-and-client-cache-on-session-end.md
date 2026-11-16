@@ -23,7 +23,7 @@ The UX auth specs raised four questions that change the API or the security mode
 
 ## Decision
 
-1. **Migration `0002_session_auth_method.sql` (TID-009)** adds `sessions.auth_method TEXT NOT NULL DEFAULT 'passkey' CHECK (auth_method IN ('setup','passkey','recovery'))`. `GET /api/auth/session` returns `mustAddPasskey: boolean`. It is true only when the current session's `auth_method = 'recovery'` and the user has no passkey with `created_at ≥ sessions.created_at`. That is one indexed read on `passkeys`, done only for recovery sessions, and **no extra writes**. `POST /api/auth/recover` keeps returning `mustAddPasskey: true`. Registering a passkey from any session clears the banner on the next session fetch.
+1. **Migration `0002_session_auth_method.sql`** (shipped in TID-007, see amendment) adds `sessions.auth_method TEXT NOT NULL DEFAULT 'passkey' CHECK (auth_method IN ('setup','passkey','recovery'))`. `GET /api/auth/session` returns `mustAddPasskey: boolean`. It is true only when the current session's `auth_method = 'recovery'` and the user has no passkey with `created_at ≥ sessions.created_at`. That is one indexed read on `passkeys`, done only for recovery sessions, and **no extra writes**. `POST /api/auth/recover` keeps returning `mustAddPasskey: true`. Registering a passkey from any session clears the banner on the next session fetch.
 2. **Recovery-code normalisation** (server, both when hashing a submitted code and when generating one): trim, remove spaces and dashes, upper-case, then map `O→0`, `I→1`, `L→1`. The client sends the value as typed (trimmed).
 3. **CSP unchanged.** TID-007's E2E asserts the Download produces a file with all 10 codes and logs no CSP violation in every Playwright project. If any browser blocks it, the engineer stops and raises it with the PM. The fallback is Copy only on that browser, never a weaker CSP or a `data:` URL.
 4. **Client cache on session end.** A `401 unauthenticated` (expiry, or "sign out everywhere" from another device) keeps the persisted cache but never paints it behind the login screen. An explicit **Sign out** clears it. The persisted cache records the user ID it belongs to. After any sign-in, if that ID differs from the signed-in user, the cache is discarded before anything paints.
@@ -32,6 +32,10 @@ The UX auth specs raised four questions that change the API or the security mode
 
 ## Consequences
 
-- There is a schema change (one column) and a spec API change in §8.3. TID-009 owns the migration.
+- There is a schema change (one column) and a spec API change in §8.3. The migration shipped with TID-007 (amendment below); TID-009 builds `mustAddPasskey` on it.
 - Recovery codes are slightly more forgiving to type, at no security cost.
 - On a device shared by two accounts (M3 invites), a sign-in as the second user discards the first user's cache. The user-ID tag makes that safe now.
+
+## Amendment (2026-11-17, ADR 0011)
+
+Migration `0002_session_auth_method.sql` landed in TID-007, not TID-009, because setup sessions need `auth_method = 'setup'` (TID-007 AC11). TID-009 must not add it again.

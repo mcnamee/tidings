@@ -1,6 +1,6 @@
 # Tidings Backlog
 
-Owner: product-manager. Last updated 2026-11-17.
+Owner: product-manager. Last updated 2026-11-17 (decision round 3).
 
 - Stories are in priority order within each milestone. Build top to bottom unless dependencies allow parallel work.
 - Each acceptance criterion (AC) must map to at least one automated test unless it is marked *(manual)*.
@@ -18,12 +18,12 @@ Owner: product-manager. Last updated 2026-11-17.
 | TID-004 | D1 schema v1 and data-access layer | M0 | Done | TID-001 |
 | TID-005 | Test infrastructure and fixture corpus | M0 | Done | TID-001 |
 | TID-006 | Design system and app shell with theming | M0 | Done | TID-001 |
-| TID-007 | First-run setup with a passkey and recovery codes | M1 | Ready (UX specs ratified 2026-11-17; merge TID-006 first) | TID-003, 004, 005, 006 |
-| TID-008 | Passkey sign-in, sessions, sign-out and API security middleware | M1 | Blocked | TID-007 |
+| TID-007 | First-run setup with a passkey and recovery codes | M1 | Done | TID-003, 004, 005, 006 |
+| TID-008 | Passkey sign-in, sessions, sign-out and API security middleware | M1 | Ready (merge TID-007 first) | TID-007 |
 | TID-009 | Sign in with a recovery code | M1 | Blocked | TID-008 |
 | TID-010 | SSRF-safe fetcher | M1 | Done | TID-004 |
-| TID-011 | Feed parser and normalisation | M1 | In progress (defects DEF-006 to DEF-010) | TID-002 |
-| TID-012 | Background refresh pipeline | M1 | Blocked (on 011) | TID-003, 010, 011 |
+| TID-011 | Feed parser and normalisation | M1 | Done | TID-002 |
+| TID-012 | Background refresh pipeline | M1 | Ready (merge TID-010 and TID-011 first) | TID-003, 010, 011 |
 | TID-013 | Subscribe to a feed | M1 | Blocked | TID-008, 012 |
 | TID-014 | Folders and subscription management | M1 | Blocked | TID-013 |
 | TID-015 | Feed health and "Refresh now" | M1 | Blocked | TID-014 |
@@ -38,6 +38,7 @@ Owner: product-manager. Last updated 2026-11-17.
 | TID-024 | Production deployment, runbook and budget check | M1 | Blocked | all M1 |
 | TID-036 | SSRF guard hardening (TID-010 follow-up) | M1 | Ready | TID-010 |
 | TID-037 | Design-token drift and contrast check in CI (TID-006 follow-up) | M1 | Ready | TID-006 |
+| TID-038 | E2E harness stability: Playwright stalls (TID-007 follow-up) | M1 | Ready (small, tester) | TID-005 |
 | TID-025 … TID-035 | Comfort features | M2 | Later | M1 |
 | TID-040 … TID-045 | Later features | M3 | Later | M2 |
 
@@ -204,6 +205,7 @@ Owner: product-manager. Last updated 2026-11-17.
 - **Agents:** UX, SE, QA, PM
 - **Depends on:** TID-003, TID-004, TID-005, TID-006
 - **Spec:** FR-AU-1, FR-AU-2, FR-AU-8, §8.3, §10.1, §10.7
+- **Status:** Done (accepted 2026-11-17 on `tid-007-first-run-setup`, tip `8908166`; merge to `main` next)
 
 **User story:** As the owner deploying Tidings for the first time, I want to create my account with a passkey using a setup token only I know, so that nobody else can claim my instance.
 
@@ -226,13 +228,19 @@ Owner: product-manager. Last updated 2026-11-17.
 
 **UX rulings ratified 2026-11-17** (`docs/ux/screens/auth-common.md`, `setup.md`, `login.md`, `recover.md` on `ux-m0-updates`; these apply to TID-007 to TID-009): no auto-start of the passkey prompt on `/login`; a cancelled prompt is an info banner with the recovery-code hint; after a recovery-code sign-in, go to the default view with the persistent "Add a new passkey" banner; session expiry keeps the IndexedDB cache and only an explicit sign-out clears it (with the user-ID guard, TID-023 AC7); `passkeyName` is a client best-effort label; auth errors are inline, not toasts. There is no "Lost your codes too?" link (ADR 0010).
 
+**Acceptance (2026-11-17): Accepted.** AC1-AC12 pass. The tester's 35 attack tests found nothing exploitable: parallel setups yield exactly one owner, replayed or cross-purpose challenges are refused, spoofed IP headers don't evade the rate limit, nothing leaks into logs or bodies, and a D1 failure mid-setup leaves no partial rows. Nine code mutations were each caught by a test. DEF-012 (`no-store` on `config_error`) is fixed and closed. The UX review fixes (M1 sticky footer at large text, m1-m3, Copy and Download above the codes) are in, with E2E tests. The tester recommends acceptance.
+- **E2E run:** 543 passed, 1 failed. The failure was a Playwright context-setup stall that didn't reproduce (168/168 on re-running the spec). Stalls have hit different tests in earlier runs, so they're harness flakiness, not a product defect. TID-038 fixes them.
+- **Deviations ratified (ADR 0011):** migration 0002 shipped here, not in TID-009; accessible names include the visible label (WCAG 2.5.3); zod runs in the Worker only (`@tidings/shared/schemas`) because of the CSP; auth rate limits count failures (slot claimed on arrival, refunded on success); a missing or short `SETUP_TOKEN` returns `500 config_error`; the WebAuthn user handle is the new user's ID, held in `webauthn_challenges.user_id`; the E2E resting state is "owner exists".
+- **Follow-ups:** CSRF and Content-Type on the setup routes (TID-008 AC14); capping setup challenge rows and not refunding `login/options` (TID-008 AC15); purging expired challenges (TID-021 AC6); accepted griefing of the global setup limit (risk R12, runbook in TID-024 AC8); Playwright stalls (TID-038).
+
 ---
 
 ### TID-008: Passkey sign-in, sessions, sign-out and API security middleware
 
 - **Agents:** UX, SE, QA, PM
 - **Depends on:** TID-007
-- **Spec:** FR-AU-3, FR-AU-5, §8.1, §10.2, §10.3, §10.4, §10.8
+- **Spec:** FR-AU-3, FR-AU-5, §8.1, §10.2, §10.3, §10.4, §10.7, §10.8, ADR 0011
+- **Status:** Ready (merge TID-007 to `main` first; build on its rate limiter and session code)
 
 **User story:** As the owner, I want to sign in with my passkey on any of my devices and stay signed in, so that opening the app is instant and my data stays mine.
 
@@ -251,6 +259,8 @@ Owner: product-manager. Last updated 2026-11-17.
 11. Given the `API_RL` Rate Limiting binding (spec §4.6, §10.7) reports the limit exceeded for my user ID, when I call any authenticated route, then it returns `429 rate_limited` with `Retry-After: 60`; auth routes never consult it (integration test with a stubbed binding).
 12. *(Added 2026-11-17.)* Given the shared `ErrorCode` type, then it matches spec §8.1 exactly, including `internal` (rename the current `internal_error`) and `config_error`, and an unhandled exception returns `500 internal` with a fixed message (no exception text).
 13. *(Added 2026-11-17, ADR 0010.)* Given a passkey sign-in, then the new session has `auth_method = 'passkey'`. Given a `401` on any request, then the SPA routes to `/login` with the "Your session ended" banner and keeps the persisted cache, without painting it behind the login card. Given an explicit Sign out, then the persisted cache is cleared (E2E checks IndexedDB).
+14. *(Added 2026-11-17, ADR 0011.)* Given the Public auth routes `setup/options`, `setup/verify`, `login/options`, `login/verify` and `recover`, when called with a `text/plain` body, or `Origin: https://evil.example`, or no `Origin` and no `Sec-Fetch-Site: same-origin`, then each returns `403 csrf_failed` and creates no rows (one test per route and case). The TID-007 E2E suite still passes unchanged.
+15. *(Added 2026-11-17, ADR 0011.)* Given 5 unexpired `setup` challenges, when `setup/options` is called with the valid token, then `429 rate_limited` and no new challenge row; given expired `setup` challenges, then that call deletes them. Given 11 calls to `login/options` from one IP within 10 minutes with no verify, then the 11th is `429 rate_limited` and the table holds at most 10 new `login` challenges; given a successful `login/verify`, then only its own slot is refunded, so 10 consecutive full sign-ins from one IP succeed.
 
 **Out of scope:** session list (M2).
 
@@ -270,7 +280,7 @@ Owner: product-manager. Last updated 2026-11-17.
 2. Given the same code again, when submitted, then `401 invalid_recovery_code`.
 3. Given an invalid code, when submitted, then `401 invalid_recovery_code` and the response time doesn't differ by code validity by more than noise (single hashed lookup; no early return before hashing).
 4. Given 10 attempts from one IP in 10 minutes or 30 globally in an hour, when another is made, then `429 rate_limited`.
-5. *(Added 2026-11-17, ADR 0010.)* Given migration `0002_session_auth_method.sql`, when I sign in with a recovery code, then the session has `auth_method = 'recovery'` and `GET /api/auth/session` returns `mustAddPasskey: true`, so the banner is still there after a reload (E2E reloads). Given a passkey is then registered from any session, then the next session fetch returns `mustAddPasskey: false` and the banner is gone. Given a passkey or setup session, `mustAddPasskey` is always false, and computing it adds no D1 writes.
+5. *(Added 2026-11-17, ADR 0010; amended by ADR 0011.)* Given the `sessions.auth_method` column (migration `0002_session_auth_method.sql`, already shipped in TID-007; don't add another migration for it), when I sign in with a recovery code, then the session has `auth_method = 'recovery'` and `GET /api/auth/session` returns `mustAddPasskey: true`, so the banner is still there after a reload (E2E reloads). Given a passkey is then registered from any session, then the next session fetch returns `mustAddPasskey: false` and the banner is gone. Given a passkey or setup session, `mustAddPasskey` is always false, and computing it adds no D1 writes.
 
 ---
 
@@ -309,7 +319,7 @@ Owner: product-manager. Last updated 2026-11-17.
 - **Depends on:** TID-002 (done: htmlparser2 12, 50 items, 1 MiB; ADR 0006)
 - **Spec:** §6.3, §6.5, ADR 0006
 
-- **Status:** In progress (defects). Rejected 2026-11-17: DEF-006 to DEF-010 open; rulings in ADR 0009.
+- **Status:** Done (accepted 2026-11-17 on `tid-011-feed-parser`, tip `e4c0d94`; merge to `main` next). Rejected earlier the same day over DEF-006 to DEF-010 (rulings in ADR 0009).
 
 **User story:** As the owner, I want my RSS, Atom and RDF feeds read correctly, with no duplicate articles, so that my reading list is accurate.
 
@@ -337,6 +347,8 @@ Owner: product-manager. Last updated 2026-11-17.
 
 **To accept:** AC12-AC17 pass, the five `it.fails` tests flip to passing `it`, DEF-006 to DEF-010 are closed by the tester, and the AC10 bench output is re-pasted (AC13's depth counter must not move the p95).
 
+**Acceptance (2026-11-17): Accepted.** AC1-AC17 pass, with 181 parser tests green. The tester verified and closed DEF-006 to DEF-010 and DEF-011, found during retest: stripping tags in one pass could re-form a tag. The fix strips to a fixed point and ends with a fallback that is provably final. DEF-001 is closed as Won't fix (ADR 0008). The tester recommends acceptance. Parse CPU on real Workers is still gated by TID-012 AC13.
+
 ---
 
 ### TID-012: Background refresh pipeline
@@ -344,6 +356,7 @@ Owner: product-manager. Last updated 2026-11-17.
 - **Agents:** SE, QA, PM
 - **Depends on:** TID-003, TID-010, TID-011
 - **Spec:** FR-RF-1 to FR-RF-5, §7.1 to §7.4, ADR 0004
+- **Status:** Ready (TID-010 and TID-011 accepted; merge both to `main` first)
 
 **User story:** As the owner, I want my feeds refreshed in the background every 30 minutes, so that new articles are already there when I open the app.
 
@@ -563,7 +576,7 @@ Owner: product-manager. Last updated 2026-11-17.
 3. Given a purged entry still present in the feed XML, when the feed is refreshed, then it is not re-inserted and no new `user_entries` appear.
 4. Given tombstones older than 180 days, then they're deleted.
 5. Given 5,000 rows eligible, when the job runs once, then it deletes at most 500 per statement and 10 statements per run, and the remainder is handled on later runs.
-6. Given expired sessions, challenges and rate-limit windows, then they're deleted.
+6. Given expired sessions, expired `webauthn_challenges` of every purpose (including orphaned setup and login challenges that were never verified) and stale rate-limit windows, then they're deleted, and unexpired ones are kept (fixed clock, one test per table) (ADR 0011).
 7. Given a parked feed with no subscriptions whose `last_attempt_at` is older than 7 days, then it and its entries are deleted (in chunks).
 8. Given the 03:17 UTC run, then a structured log line records DB size and the previous day's counts.
 
@@ -628,6 +641,7 @@ Owner: product-manager. Last updated 2026-11-17.
 5. Given the production origin, then the response headers match spec §10.4 including HSTS (custom domain) *(automated header check script run against production)*.
 6. Given 10 cold sign-ins in production (each after a deploy or idle period), then auth-route CPU is recorded; if any shows `exceededCpu`, or 2 or more exceed 10 ms, a follow-up story moves WebAuthn verification behind `ctx.exports` (ADR 0002) *(manual, PM)*.
 7. *(Added 2026-11-17.)* Given a deployed fixture served with `Content-Encoding: gzip` that is 200 KB compressed and 1.5 MiB decoded, then the refresh records `too_large`; given one that is 900 KB decoded, then it parses. This confirms the cap applies to decoded bytes in real workerd (spec §7.3 step 4) *(manual check, results in ADR 0006)*.
+8. *(Added 2026-11-17, ADR 0011.)* Given the README runbook, then it explains how to clear setup and recover lockouts (the `wrangler d1 execute` command that deletes the relevant `rate_limits` rows) and warns that this resets the protection *(PM review)*.
 
 **Notes**
 - Cloudflare's per-account `workers.dev` TLS certificate can take about 10 minutes to provision after the first deploy. Allow for it before the first smoke check, and don't treat early TLS errors as a failed deploy.
@@ -670,6 +684,27 @@ Owner: product-manager. Last updated 2026-11-17.
 1. Given the shipped token CSS in `apps/web`, when `npm test` runs, then a test asserts that every `--c-*` token in both themes equals the value documented in `docs/ux/DESIGN_SYSTEM.md`, and fails with the token name on any mismatch.
 2. Given the same run, then the pair list from `docs/ux/check-contrast.mjs` is evaluated against the **shipped** CSS values and every pair meets its WCAG 2.2 AA threshold (4.5:1 body, 3:1 large text and UI).
 3. Given a deliberately lowered token in a test fixture, then both checks fail (mutation check, recorded in the PR).
+
+---
+
+### TID-038: E2E harness stability: Playwright stalls (TID-007 follow-up, time-box: 1 day)
+
+- **Agents:** QA (owner), SE if a config change touches app code, PM
+- **Depends on:** TID-005
+- **Status:** Ready (small; tester; can run alongside TID-008 and TID-012)
+
+**User story:** As the team, I want the E2E suite to finish quickly and fail only on real defects, so that its results can be trusted at acceptance time.
+
+**Context:** Recurring Playwright context-setup and teardown stalls ("Tearing down context exceeded 30000ms", "setting up request" timeouts) have hit different tests in each run. They've caused 15-minute runs and an 8.7-minute hang. No assertion has failed.
+
+**Acceptance criteria**
+
+1. Given `e2e/playwright.config.ts`, then it sets an explicit global timeout, a per-test timeout, an action and navigation timeout, and a browser launch timeout. A stalled test fails within its per-test timeout instead of hanging the run, and the global timeout stops a hung run (a deliberately hanging test proves both, then is removed or skipped with a reason).
+2. Given a test fails from a fixture or teardown error, then the worker restarts and the remaining tests still run (shown with the same deliberate-failure test).
+3. Given 5 consecutive full E2E runs on an idle machine, then the tester records pass counts, wall time and every stall in `docs/testing/TEST_STRATEGY.md`. The target is zero stalls and a run under 10 minutes. If stalls persist, the root-cause findings (wrangler dev, D1 resets, browser contexts or machine load) are written up with a proposed fix.
+4. Given CI, then E2E retries stay at the current setting or lower, so flakiness isn't hidden. Any retry that passes is reported as flaky in the run summary.
+
+**Out of scope:** per-worker databases for parallel E2E (a later story if run time demands it).
 
 ---
 
