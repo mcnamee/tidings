@@ -34,6 +34,18 @@ Entry template:
 
 ## Closed
 
+### DEF-012: `config_error` responses are not `Cache-Control: no-store`
+- Story: TID-007 (spec 8.1: "Responses carry `Cache-Control: no-store`"; AC-adjacent, the story added the header)
+- Severity: S3. Owner: SE.
+- Status: Closed (tester, tip a8d00f5)
+- Found by: `apps/worker/test/setup-attack.test.ts` > "every response, including the config_error short-circuit, is Cache-Control: no-store (DEF-012)" (`it.fails`)
+- Steps to reproduce: call any `/api/*` route with `ALLOW_FETCH_HOSTS` set and `APP_ORIGIN` not `http://localhost:*`.
+- Expected: `500 config_error` with `Cache-Control: no-store`, like every other API response.
+- Actual: no `Cache-Control` header. The config guard in `apps/worker/src/api/app.ts` is registered before the no-store middleware and returns without calling `next()`, so the second middleware never runs. No secret is in the body (fixed message), so impact is a cacheable 500 at an intermediary, not a leak.
+- Suggested fix: register the no-store middleware first (it sets the header after `await next()`, which also covers short-circuits), then switch the `it.fails` to `it`.
+- Closure (tester, a8d00f5): the test differs from the `it.fails` version only by `it.fails` to `it` and its comment (assertions unchanged: status 500 and `Cache-Control: no-store`). The no-store middleware is now the first `app.use` in `createApp`, so it also wraps the config guard's short-circuit. `npm test -w @tidings/worker`: 452 tests pass (19 files).
+
+
 ### DEF-002: A stored theme opposite to the OS flashes the OS tone while the stylesheet loads
 - Story: TID-006 (AC1 spirit; FR-ST-1, NFR-10 "no flash of the wrong theme on load")
 - Severity: S3. Owner: SE.

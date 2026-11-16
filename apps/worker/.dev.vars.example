@@ -1,0 +1,4 @@
+# Copy to .dev.vars (gitignored) for local development. Never commit a real value.
+# Required for first-run setup (TID-007): at least 32 random characters, for example
+#   openssl rand -base64 36
+SETUP_TOKEN=replace-me-with-at-least-32-random-characters

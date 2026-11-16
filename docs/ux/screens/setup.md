@@ -218,6 +218,9 @@ The goal is that the owner ends up with the codes saved somewhere, and cannot le
 |  | of these codes signs you in.    |  |
 |  | Each code works once.           |  |
 |  |                                 |  |
+|  | [ Copy codes ] [ Download .txt ]|  |  two secondary buttons, each 44 high, 50% width
+|  | (status line, role=status)      |  |  "Copied" / "Saved as ..." / error
+|  |                                 |  |
 |  | +-----------------------------+ |  |  <ol aria-label="Recovery codes">, bg-sunken,
 |  | | 1   K7Q2-M9XD-4TRP-8WZB     | |  |  rounded-md, p-3, font-mono text-base,
 |  | | 2   3HFN-V6C0-JQ5E-A2YT     | |  |  each row min-h-10 (40 px), number muted
@@ -225,9 +228,6 @@ The goal is that the owner ends up with the codes saved somewhere, and cannot le
 |  | | ...                         | |  |
 |  | | 10  ...                     | |  |
 |  | +-----------------------------+ |  |
-|  |                                 |  |
-|  | [ Copy codes ] [ Download .txt ]|  |  two secondary buttons, each 44 high, 50% width
-|  | (status line, role=status)      |  |  "Copied" / "Saved as ..." / error
 |  |                                 |  |
 |  | [x] I've saved these            |  |  checkbox row, 44 high hit area
 |  |     Somewhere safe, like a      |  |  helper (aria-describedby)
@@ -241,7 +241,7 @@ The goal is that the owner ends up with the codes saved somewhere, and cannot le
 +---------------------------------------+
 ```
 
-The page scrolls (about 1.3 screens tall). The "I've saved these" row and Continue form a **sticky footer** inside the card column: `position: sticky; bottom: 0` with `bg-surface`, top `border-line`, padding bottom `env(safe-area-inset-bottom)`, in normal flow (the same pattern as the shell's bottom bar). This keeps the confirmation and Continue reachable by thumb while the codes scroll past. Desktop shows it all without scrolling and the footer does not stick visibly.
+Copy and Download sit **above** the codes list (TID-007 review m3), so they are in the first screen and are seen before the checkbox. The page scrolls (about 1.3 screens tall). The "I've saved these" row and Continue form a **sticky footer** inside the card column: `position: sticky; bottom: 0` with `bg-surface`, top `border-line`, padding bottom `max(0.75rem, env(safe-area-inset-bottom))` (the 0.75 rem keeps the helper text off the screen edge where there is no inset), in normal flow (the same pattern as the shell's bottom bar). **Sticky only when the viewport is tall enough for it** (added after TID-007 review): `position: sticky` applies under `@media (min-height: 40rem)` and the footer is static below that. Media queries in rem follow the user's browser text size, so at large text sizes the footer scrolls with the page instead of covering most of the screen (at 200% the footer is about 560 px of 812). While sticky, the page has `scroll-padding-bottom` equal to the footer height so a focused Copy or Download is never hidden behind it (WCAG 2.4.11; the build uses `12rem`). This keeps the confirmation and Continue reachable by thumb while the codes scroll past. Desktop shows it all without scrolling and the footer does not stick visibly.
 
 ### 5.1 The codes list
 
@@ -258,10 +258,10 @@ The page scrolls (about 1.3 screens tall). The "I've saved these" row and Contin
 
 | Button | Label | Accessible name | Result |
 |---|---|---|---|
-| Copy | Copy codes | Copy all 10 recovery codes | Writes the ten codes, one per line, nothing else, to the clipboard. Label changes to "Copied" with a `Check` icon for 4 s, and the status line says "Copied 10 codes." |
-| Download | Download .txt | Download recovery codes as a text file | Saves `tidings-recovery-codes.txt` (below). Status line: "Saved tidings-recovery-codes.txt." |
+| Copy | Copy codes | Copy codes, all 10 recovery codes (after copying: Copied 10 recovery codes) | Writes the ten codes, one per line, nothing else, to the clipboard. Label changes to "Copied" with a `Check` icon for 4 s, and the status line says "Copied 10 codes." |
+| Download | Download .txt | Download .txt file of recovery codes | Saves `tidings-recovery-codes.txt` (below). Status line: "Saved tidings-recovery-codes.txt." |
 
-Icons: `Copy` and `Download` (aria-hidden). Buttons are secondary style, 44 high, side by side at 375 (each about 145 px wide; labels do not wrap at normal size, and stack to full width if the label would wrap).
+Accessible names start with the visible label so voice-control users can say what they see (WCAG 2.5.3 Label in Name); the names above replace the first draft, which did not contain the visible text. Icons: `Copy` and `Download` (aria-hidden). Buttons are secondary style, 44 high, side by side at 375 (each about 145 px wide; labels do not wrap at normal size, and stack to full width if the label would wrap).
 
 Download file content (plain text, UTF-8, `\n` line endings):
 
@@ -371,11 +371,11 @@ Leave dialog (appears only on Back with the box unticked):
 |             | (!) Save these now. This is the only |                  |
 |             | time they're shown.                  |                  |
 |             | If you lose your passkey, ...        |                  |
+|             | [ Copy codes ]  [ Download .txt ]    |                  |
 |             | +----------------------------------+ |                  |
 |             | | 1   K7Q2-M9XD-4TRP-8WZB          | |                  |
 |             | | ...                              | |                  |
 |             | +----------------------------------+ |                  |
-|             | [ Copy codes ]  [ Download .txt ]    |                  |
 |             | [x] I've saved these                 |                  |
 |             | [            Continue              ] |                  |
 |             +--------------------------------------+                  |
@@ -390,7 +390,7 @@ On desktop the card is wider (28 rem, `md:max-w-md`) so the list and buttons sit
 
 Step 1: `h1` (programmatic only) then Your name, Setup token, Show/Hide setup token, Create passkey, Already set up? Sign in.
 
-Step 2: `h1` (focus lands here on entry) then the codes list (not a tab stop; it is selectable text), Copy codes, Download .txt, I've saved these, Continue. In the leave dialog focus is trapped on "Stay and save codes" then "Leave anyway".
+Step 2: `h1` (focus lands here on entry), then Copy codes, Download .txt, I've saved these, Continue. The codes list sits after the buttons in the document and is not a tab stop (it is selectable text). In the leave dialog focus is trapped on "Stay and save codes" then "Leave anyway".
 
 ---
 
@@ -442,8 +442,8 @@ Step 2: `h1` (focus lands here on entry) then the codes list (not a tab stop; it
 | Banner containers | `role="alert"` for errors and rate limit, `role="status"` for info and offline, present from first render |
 | Primary button | `aria-disabled`, `aria-busy`, `aria-describedby` to the helper |
 | Codes list | `<ol aria-label="Recovery codes">` |
-| Copy | `aria-label="Copy all 10 recovery codes"` |
-| Download | `aria-label="Download recovery codes as a text file"` |
+| Copy | `aria-label="Copy codes, all 10 recovery codes"`, then `"Copied 10 recovery codes"` while the label reads Copied (always starts with the visible label, WCAG 2.5.3) |
+| Download | `aria-label="Download .txt file of recovery codes"` (starts with the visible label, WCAG 2.5.3) |
 | Status line | `role="status"`, present from first render |
 | Checkbox | label "I've saved these", `aria-describedby` helper |
 | Continue | `aria-disabled` until ticked, `aria-describedby` helper |

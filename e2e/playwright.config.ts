@@ -1,4 +1,5 @@
 import { defineConfig } from '@playwright/test';
+import { E2E_SETUP_TOKEN, SEED_OWNER_FILE } from './support/auth-state.ts';
 import { FIXTURE_PORT } from './support/ports.ts';
 
 const APP_PORT = Number(process.env.E2E_APP_PORT ?? 8788);
@@ -41,8 +42,12 @@ export default defineConfig({
       'npm run build -w @tidings/web && ' +
       'npm run db:migrate:local -w @tidings/worker -- --persist-to ../../e2e/.wrangler-state && ' +
       'cd ../apps/worker && ' +
+      // Resting state: an owner exists, so only the setup specs see a fresh instance (auth-state.ts).
+      `wrangler d1 execute tidings --local --persist-to ../../e2e/.wrangler-state --file ${SEED_OWNER_FILE} && ` +
       `wrangler dev --port ${APP_PORT} --persist-to ../../e2e/.wrangler-state ` +
       `--var APP_ORIGIN:${baseURL} --var RP_ID:localhost --var RP_NAME:Tidings-E2E ` +
+      // Passed here, not read from apps/worker/.dev.vars, so a developer's real token is never used.
+      `--var SETUP_TOKEN:${E2E_SETUP_TOKEN} ` +
       `--var ALLOW_FETCH_HOSTS:127.0.0.1:${FIXTURE_PORT}`,
     url: `${baseURL}/api/health`,
     reuseExistingServer: !CI,

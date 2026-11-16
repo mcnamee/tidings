@@ -1,10 +1,12 @@
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { render, screen, within, act } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter, useLocation, useNavigate } from 'react-router';
-import { beforeEach, describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { App } from './App';
 import { fetchHealth } from './api';
 import { toast } from './lib/toast';
+import { installFakeApi, type FakeApi } from './test-api';
 import { installMatchMedia, type FakeMedia } from './test-utils';
 
 describe('fetchHealth', () => {
@@ -33,15 +35,25 @@ function Probe() {
   );
 }
 
+// Every test starts with "a user exists, nobody is signed in"; setup tests change it.
+let api: FakeApi;
+beforeEach(() => {
+  api = installFakeApi();
+});
+afterEach(() => vi.unstubAllGlobals());
+
 function renderApp(entries: string[], index?: number) {
+  const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   return render(
-    <MemoryRouter
-      initialEntries={entries}
-      {...(index === undefined ? {} : { initialIndex: index })}
-    >
-      <App />
-      <Probe />
-    </MemoryRouter>,
+    <QueryClientProvider client={client}>
+      <MemoryRouter
+        initialEntries={entries}
+        {...(index === undefined ? {} : { initialIndex: index })}
+      >
+        <App />
+        <Probe />
+      </MemoryRouter>
+    </QueryClientProvider>,
   );
 }
 
@@ -83,9 +95,13 @@ describe('routing placeholders (spec 11.1)', () => {
 
   it.each(AUTH_ROUTES)(
     '%s renders the auth layout without header or navigation',
-    (route, title) => {
+    async (route, title) => {
+      // /setup only shows its form while setup is open.
+      api.set('GET /api/auth/session', {
+        body: { user: null, setupRequired: route === '/setup', mustAddPasskey: false },
+      });
       renderApp([route]);
-      expect(screen.getByRole('heading', { level: 1 })).toHaveTextContent(title);
+      expect(await screen.findByRole('heading', { level: 1 })).toHaveTextContent(title);
       expect(screen.queryByRole('banner')).not.toBeInTheDocument();
       expect(screen.queryByRole('button', { name: 'Open navigation' })).not.toBeInTheDocument();
       expect(screen.queryByRole('navigation')).not.toBeInTheDocument();

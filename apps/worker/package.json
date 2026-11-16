@@ -12,13 +12,14 @@
     "db:seed:local": "node scripts/seed.mjs"
   },
   "dependencies": {
+    "@simplewebauthn/server": "14.1.0",
     "@tidings/shared": "*",
     "hono": "4.13.18"
   },
   "devDependencies": {
     "@cloudflare/vitest-plugin": "1.8.2",
-    "@tidings/test-utils": "*",
     "@cloudflare/workers-types": "5.20261116.1",
+    "@tidings/test-utils": "*",
     "wrangler": "4.162.0"
   }
 }

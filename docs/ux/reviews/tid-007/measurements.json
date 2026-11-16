@@ -1,0 +1,634 @@
+{
+  "m-light": {
+    "step1": {
+      "overflowX": false,
+      "small": [],
+      "h1": 1,
+      "docTitle": "Set up Tidings - Tidings"
+    },
+    "step1Tab": [
+      "INPUT <input>",
+      "INPUT <input>",
+      "Show setup token <button>",
+      "Create passkey <button>",
+      "Already set up? Sign in <a>",
+      "TidingsSet up TidingsCreate your account <body>"
+    ],
+    "validationFocus": "INPUT <input>",
+    "wrongTokenFocus": "INPUT <input>",
+    "wrongTokenSel": [
+      0,
+      16,
+      16
+    ],
+    "rate": {
+      "text": "Tidings\nSet up Tidings\n\nCreate your account with a passkey. You'll need the setup token from your deployment.\n\nToo many attempts. Try again in 10 minutes.\n\nYour name\n\nShown in Settings.\n\nSetup token\n\nThe SETUP_TOKEN secret you set when you deployed Tidings.\n\nCreate passkey\n\nTry again in 10 minutes\n\nAlready set up? Sign in",
+      "btn": "<button type=\"submit\" class=\"flex min-h-12 w-full items-center justify-center gap-2 rounded-md bg-accent px-4 text-base font-medium text-accent-fg cursor-not-allowed opacity-60 \" aria-describedby=\"setup-helper\" aria-disabled=\"true\">Create passkey</button>"
+    },
+    "unsupportedBefore": "Tidings\nSet up Tidings\n\nThis browser can't use passkeys.\n\nTidings signs in with passkeys. Open it in a recent version of Safari, Chrome, Edge or Firefox, on a device with a screen lock, Face ID, Touch ID or a security key.",
+    "unsupportedRuntime": "Tidings\nSet up Tidings\n\nCreate your account with a passkey. You'll need the setup token from your deployment.\n\nThis device can't use passkeys. Turn on a screen lock, or connect a security key, then try again.\n\nYour name\n\nShown in Settings.\n\nSetup token\n\nThe SETUP_TOKEN secret you set when you deployed Tidings.\n\nCreate passkey\n\nAlready set up? Sign in",
+    "progress": {
+      "text": "Tidings\nSet up Tidings\n\nCreate your account with a passkey. You'll need the setup token from your deployment.\n\nYour name\n\nShown in Settings.\n\nSetup token\n\nThe SETUP_TOKEN secret you set when you deployed Tidings.\n\nWaiting for your passkey...\n\nFollow the prompt on your device.\n\nAlready set up? Sign in",
+      "btn": "<button type=\"submit\" class=\"flex min-h-12 w-full items-center justify-center gap-2 rounded-md bg-accent px-4 text-base font-medium text-accent-fg cursor-not-allowed opacity-60 \" aria-describedby=\"setup-helper\" aria-disabled=\"true\" aria-busy=\"true\"><svg xmlns=\"http://www.w3.org/2000/svg\" width=\"24\" height=\"24\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\" class=\"lucide lucide-loader size-5 motion-safe:animate-spin\" aria-hidd",
+      "ro": [
+        true,
+        true
+      ]
+    },
+    "cancelledFocus": "Create passkey <button>",
+    "cancelledValues": [
+      4,
+      36
+    ],
+    "codesFocus": "Save your recovery codes <h1>",
+    "codes": {
+      "overflowX": false,
+      "small": [
+        "INPUT \"INPUT\" 24x24"
+      ],
+      "h1": 1,
+      "docTitle": "Save your recovery codes - Tidings"
+    },
+    "codesTab": [
+      "Copy codes, all 10 recovery codes <button>",
+      "Download .txt file of recovery codes <button>",
+      "INPUT <input>",
+      "Continue <button>",
+      "TidingsSave your recovery codesSave thes <body>"
+    ],
+    "codeCount": 10,
+    "codeDistinct": 10,
+    "codesSample": "84VT-VYBR-SA60-QZJA",
+    "codeFont": {
+      "size": "16px",
+      "family": "ui-monospace, \"SF Mono\", Menlo, Consolas",
+      "w": 183.03125,
+      "ol": 293
+    },
+    "names": [
+      [
+        "Copy codes",
+        "Copy codes, all 10 recovery codes",
+        null
+      ],
+      [
+        "Download .txt",
+        "Download .txt file of recovery codes",
+        null
+      ],
+      [
+        "Continue",
+        null,
+        "true"
+      ]
+    ],
+    "clip": "84VT-VYBR-SA60-QZJA\n0XVF-0TP8-AA80-4PZJ\nK49G-RGAH-QM5D-E4G5\n46HA-30VS-8CK4-5E8A\nP89J-NA82-HR1B-D5ES\nA7M0-HPJ8-4JP0-9QNZ\nWD6E-KG3F-MSD3-XTHQ\nA5QD-7NQF-H9MP-0565\n65D0-53X9-B24T-AP98\n7P1Q-JG4W-J6QP-CAE0",
+    "copyStatus": [
+      "Save these now. This is the only time they're shown.",
+      "Copied 10 codes.",
+      "",
+      ""
+    ],
+    "copyBtn": [
+      "Copied|Copied 10 recovery codes",
+      "Download .txt|Download .txt file of recovery codes",
+      "Continue|null"
+    ],
+    "download": {
+      "name": "tidings-recovery-codes.txt",
+      "content": [
+        "Tidings recovery codes",
+        "Created 2026-11-16 for localhost:8798",
+        "",
+        "Each code works once. Keep this file somewhere safe and private.",
+        "",
+        "1. 84VT-VYBR-SA60-QZJA"
+      ]
+    },
+    "downloadStatus": [
+      "Save these now. This is the only time they're shown.",
+      "Saved tidings-recovery-codes.txt.",
+      "",
+      ""
+    ],
+    "continueInertUrl": "http://localhost:8798/setup",
+    "continueInertStatus": [
+      "Save these now. This is the only time they're shown.",
+      "Saved tidings-recovery-codes.txt.",
+      "Tick the box to continue.",
+      ""
+    ],
+    "leaveFocus": "Stay and save codes <button>",
+    "leaveText": "Leave without saving?\n\nYour recovery codes won't be shown again. You can make new ones later in Settings.\n\nStay and save codes\nLeave anyway",
+    "leaveTab": [
+      "Leave anyway <button>",
+      "Stay and save codes <button>",
+      "Leave anyway <button>"
+    ],
+    "afterEscape": {
+      "dialog": 0,
+      "focus": "INPUT <input>",
+      "url": "http://localhost:8798/setup"
+    },
+    "ticked": [
+      "Save these now. This is the only time they're shown.",
+      "Saved tidings-recovery-codes.txt.",
+      "",
+      ""
+    ],
+    "tickedContinueDisabled": null,
+    "text200": {
+      "docOverflow": 0,
+      "ol": [
+        429,
+        213,
+        "auto"
+      ]
+    },
+    "backTicked": {
+      "dialog": 0,
+      "url": "http://localhost:8798/all"
+    },
+    "sticky": {
+      "stickyEl": "DIV bottom=0px",
+      "continueBottom": 582,
+      "vh": 667,
+      "docH": 1147
+    },
+    "stickyAtTop": {
+      "top": 591,
+      "bottom": 639,
+      "vh": 667
+    },
+    "beforeunloadPrompted": false,
+    "spinnerReduced": [
+      "none/1e-05s",
+      "none/1e-05s"
+    ]
+  },
+  "m-dark": {
+    "step1": {
+      "overflowX": false,
+      "small": [],
+      "h1": 1,
+      "docTitle": "Set up Tidings - Tidings"
+    },
+    "step1Tab": [
+      "INPUT <input>",
+      "INPUT <input>",
+      "Show setup token <button>",
+      "Create passkey <button>",
+      "Already set up? Sign in <a>",
+      "TidingsSet up TidingsCreate your account <body>"
+    ],
+    "validationFocus": "INPUT <input>",
+    "wrongTokenFocus": "INPUT <input>",
+    "wrongTokenSel": [
+      0,
+      16,
+      16
+    ],
+    "rate": {
+      "text": "Tidings\nSet up Tidings\n\nCreate your account with a passkey. You'll need the setup token from your deployment.\n\nToo many attempts. Try again in 10 minutes.\n\nYour name\n\nShown in Settings.\n\nSetup token\n\nThe SETUP_TOKEN secret you set when you deployed Tidings.\n\nCreate passkey\n\nTry again in 10 minutes\n\nAlready set up? Sign in",
+      "btn": "<button type=\"submit\" class=\"flex min-h-12 w-full items-center justify-center gap-2 rounded-md bg-accent px-4 text-base font-medium text-accent-fg cursor-not-allowed opacity-60 \" aria-describedby=\"setup-helper\" aria-disabled=\"true\">Create passkey</button>"
+    },
+    "unsupportedBefore": "Tidings\nSet up Tidings\n\nThis browser can't use passkeys.\n\nTidings signs in with passkeys. Open it in a recent version of Safari, Chrome, Edge or Firefox, on a device with a screen lock, Face ID, Touch ID or a security key.",
+    "unsupportedRuntime": "Tidings\nSet up Tidings\n\nCreate your account with a passkey. You'll need the setup token from your deployment.\n\nThis device can't use passkeys. Turn on a screen lock, or connect a security key, then try again.\n\nYour name\n\nShown in Settings.\n\nSetup token\n\nThe SETUP_TOKEN secret you set when you deployed Tidings.\n\nCreate passkey\n\nAlready set up? Sign in",
+    "progress": {
+      "text": "Tidings\nSet up Tidings\n\nCreate your account with a passkey. You'll need the setup token from your deployment.\n\nYour name\n\nShown in Settings.\n\nSetup token\n\nThe SETUP_TOKEN secret you set when you deployed Tidings.\n\nWaiting for your passkey...\n\nFollow the prompt on your device.\n\nAlready set up? Sign in",
+      "btn": "<button type=\"submit\" class=\"flex min-h-12 w-full items-center justify-center gap-2 rounded-md bg-accent px-4 text-base font-medium text-accent-fg cursor-not-allowed opacity-60 \" aria-describedby=\"setup-helper\" aria-disabled=\"true\" aria-busy=\"true\"><svg xmlns=\"http://www.w3.org/2000/svg\" width=\"24\" height=\"24\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\" class=\"lucide lucide-loader size-5 motion-safe:animate-spin\" aria-hidd",
+      "ro": [
+        true,
+        true
+      ]
+    },
+    "cancelledFocus": "Create passkey <button>",
+    "cancelledValues": [
+      4,
+      36
+    ],
+    "codesFocus": "Save your recovery codes <h1>",
+    "codes": {
+      "overflowX": false,
+      "small": [
+        "INPUT \"INPUT\" 24x24"
+      ],
+      "h1": 1,
+      "docTitle": "Save your recovery codes - Tidings"
+    },
+    "codesTab": [
+      "Copy codes, all 10 recovery codes <button>",
+      "Download .txt file of recovery codes <button>",
+      "INPUT <input>",
+      "Continue <button>",
+      "TidingsSave your recovery codesSave thes <body>"
+    ],
+    "codeCount": 10,
+    "codeDistinct": 10,
+    "codesSample": "57G8-A42N-71G7-HK36",
+    "codeFont": {
+      "size": "16px",
+      "family": "ui-monospace, \"SF Mono\", Menlo, Consolas",
+      "w": 183.03125,
+      "ol": 293
+    },
+    "names": [
+      [
+        "Copy codes",
+        "Copy codes, all 10 recovery codes",
+        null
+      ],
+      [
+        "Download .txt",
+        "Download .txt file of recovery codes",
+        null
+      ],
+      [
+        "Continue",
+        null,
+        "true"
+      ]
+    ],
+    "clip": "57G8-A42N-71G7-HK36\n02RE-A8BN-GSWX-KEPK\nG9A3-M934-ZV8X-C1YH\nW7AX-SPMT-XJB7-ZQD8\nBZKG-GPKN-K266-5KS7\nQ83W-3VTF-AFAP-041A\n6AYQ-6YVR-X39K-WJXK\n18SY-WBY1-TXTT-3KZK\n8X4J-SVDT-G0YM-N9F2\nVXM0-AVZM-NH1P-A1RG",
+    "copyStatus": [
+      "Save these now. This is the only time they're shown.",
+      "Copied 10 codes.",
+      "",
+      ""
+    ],
+    "copyBtn": [
+      "Copied|Copied 10 recovery codes",
+      "Download .txt|Download .txt file of recovery codes",
+      "Continue|null"
+    ],
+    "download": {
+      "name": "tidings-recovery-codes.txt",
+      "content": [
+        "Tidings recovery codes",
+        "Created 2026-11-16 for localhost:8798",
+        "",
+        "Each code works once. Keep this file somewhere safe and private.",
+        "",
+        "1. 57G8-A42N-71G7-HK36"
+      ]
+    },
+    "downloadStatus": [
+      "Save these now. This is the only time they're shown.",
+      "Saved tidings-recovery-codes.txt.",
+      "",
+      ""
+    ],
+    "continueInertUrl": "http://localhost:8798/setup",
+    "continueInertStatus": [
+      "Save these now. This is the only time they're shown.",
+      "Saved tidings-recovery-codes.txt.",
+      "Tick the box to continue.",
+      ""
+    ],
+    "leaveFocus": "Stay and save codes <button>",
+    "leaveText": "Leave without saving?\n\nYour recovery codes won't be shown again. You can make new ones later in Settings.\n\nStay and save codes\nLeave anyway",
+    "leaveTab": [
+      "Leave anyway <button>",
+      "Stay and save codes <button>",
+      "Leave anyway <button>"
+    ],
+    "afterEscape": {
+      "dialog": 0,
+      "focus": "INPUT <input>",
+      "url": "http://localhost:8798/setup"
+    },
+    "ticked": [
+      "Save these now. This is the only time they're shown.",
+      "Saved tidings-recovery-codes.txt.",
+      "",
+      ""
+    ],
+    "tickedContinueDisabled": null,
+    "text200": {
+      "docOverflow": 0,
+      "ol": [
+        429,
+        213,
+        "auto"
+      ]
+    },
+    "backTicked": {
+      "dialog": 0,
+      "url": "http://localhost:8798/all"
+    },
+    "sticky": {
+      "stickyEl": "DIV bottom=0px",
+      "continueBottom": 582,
+      "vh": 667,
+      "docH": 1147
+    },
+    "stickyAtTop": {
+      "top": 591,
+      "bottom": 639,
+      "vh": 667
+    },
+    "beforeunloadPrompted": false
+  },
+  "d-light": {
+    "step1": {
+      "overflowX": false,
+      "small": [],
+      "h1": 1,
+      "docTitle": "Set up Tidings - Tidings"
+    },
+    "step1Tab": [
+      "INPUT <input>",
+      "INPUT <input>",
+      "Show setup token <button>",
+      "Create passkey <button>",
+      "Already set up? Sign in <a>",
+      "TidingsSet up TidingsCreate your account <body>"
+    ],
+    "validationFocus": "INPUT <input>",
+    "wrongTokenFocus": "INPUT <input>",
+    "wrongTokenSel": [
+      0,
+      16,
+      16
+    ],
+    "rate": {
+      "text": "Tidings\nSet up Tidings\n\nCreate your account with a passkey. You'll need the setup token from your deployment.\n\nToo many attempts. Try again in 10 minutes.\n\nYour name\n\nShown in Settings.\n\nSetup token\n\nThe SETUP_TOKEN secret you set when you deployed Tidings.\n\nCreate passkey\n\nTry again in 10 minutes\n\nAlready set up? Sign in",
+      "btn": "<button type=\"submit\" class=\"flex min-h-12 w-full items-center justify-center gap-2 rounded-md bg-accent px-4 text-base font-medium text-accent-fg cursor-not-allowed opacity-60 \" aria-describedby=\"setup-helper\" aria-disabled=\"true\">Create passkey</button>"
+    },
+    "unsupportedBefore": "Tidings\nSet up Tidings\n\nThis browser can't use passkeys.\n\nTidings signs in with passkeys. Open it in a recent version of Safari, Chrome, Edge or Firefox, on a device with a screen lock, Face ID, Touch ID or a security key.",
+    "unsupportedRuntime": "Tidings\nSet up Tidings\n\nCreate your account with a passkey. You'll need the setup token from your deployment.\n\nThis device can't use passkeys. Turn on a screen lock, or connect a security key, then try again.\n\nYour name\n\nShown in Settings.\n\nSetup token\n\nThe SETUP_TOKEN secret you set when you deployed Tidings.\n\nCreate passkey\n\nAlready set up? Sign in",
+    "progress": {
+      "text": "Tidings\nSet up Tidings\n\nCreate your account with a passkey. You'll need the setup token from your deployment.\n\nYour name\n\nShown in Settings.\n\nSetup token\n\nThe SETUP_TOKEN secret you set when you deployed Tidings.\n\nWaiting for your passkey...\n\nFollow the prompt on your device.\n\nAlready set up? Sign in",
+      "btn": "<button type=\"submit\" class=\"flex min-h-12 w-full items-center justify-center gap-2 rounded-md bg-accent px-4 text-base font-medium text-accent-fg cursor-not-allowed opacity-60 \" aria-describedby=\"setup-helper\" aria-disabled=\"true\" aria-busy=\"true\"><svg xmlns=\"http://www.w3.org/2000/svg\" width=\"24\" height=\"24\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\" class=\"lucide lucide-loader size-5 motion-safe:animate-spin\" aria-hidd",
+      "ro": [
+        true,
+        true
+      ]
+    },
+    "cancelledFocus": "Create passkey <button>",
+    "cancelledValues": [
+      4,
+      36
+    ],
+    "codesFocus": "Save your recovery codes <h1>",
+    "codes": {
+      "overflowX": false,
+      "small": [
+        "INPUT \"INPUT\" 24x24"
+      ],
+      "h1": 1,
+      "docTitle": "Save your recovery codes - Tidings"
+    },
+    "codesTab": [
+      "Copy codes, all 10 recovery codes <button>",
+      "Download .txt file of recovery codes <button>",
+      "INPUT <input>",
+      "Continue <button>",
+      "TidingsSave your recovery codesSave thes <body>"
+    ],
+    "codeCount": 10,
+    "codeDistinct": 10,
+    "codesSample": "MG4M-QJPA-K6KK-Q5YQ",
+    "codeFont": {
+      "size": "18px",
+      "family": "ui-monospace, \"SF Mono\", Menlo, Consolas",
+      "w": 205.90625,
+      "ol": 398
+    },
+    "names": [
+      [
+        "Copy codes",
+        "Copy codes, all 10 recovery codes",
+        null
+      ],
+      [
+        "Download .txt",
+        "Download .txt file of recovery codes",
+        null
+      ],
+      [
+        "Continue",
+        null,
+        "true"
+      ]
+    ],
+    "clip": "MG4M-QJPA-K6KK-Q5YQ\n15CH-JCYZ-Y84W-4859\n1CXM-5S4G-AB8E-4DTN\nSKQ7-SQDM-XXWS-DCWV\n39AR-057R-BJ7Y-09M8\n8RJQ-SE3M-EKJ4-ZDWA\n4AR1-932M-JVXD-PBSD\nYQF6-CJY6-V98S-AK40\n2E91-TQ5K-7K9X-44Z8\nMYS3-5BHK-TYH1-VG2B",
+    "copyStatus": [
+      "Save these now. This is the only time they're shown.",
+      "Copied 10 codes.",
+      "",
+      ""
+    ],
+    "copyBtn": [
+      "Copied|Copied 10 recovery codes",
+      "Download .txt|Download .txt file of recovery codes",
+      "Continue|null"
+    ],
+    "download": {
+      "name": "tidings-recovery-codes.txt",
+      "content": [
+        "Tidings recovery codes",
+        "Created 2026-11-16 for localhost:8798",
+        "",
+        "Each code works once. Keep this file somewhere safe and private.",
+        "",
+        "1. MG4M-QJPA-K6KK-Q5YQ"
+      ]
+    },
+    "downloadStatus": [
+      "Save these now. This is the only time they're shown.",
+      "Saved tidings-recovery-codes.txt.",
+      "",
+      ""
+    ],
+    "continueInertUrl": "http://localhost:8798/setup",
+    "continueInertStatus": [
+      "Save these now. This is the only time they're shown.",
+      "Saved tidings-recovery-codes.txt.",
+      "Tick the box to continue.",
+      ""
+    ],
+    "leaveFocus": "Stay and save codes <button>",
+    "leaveText": "Leave without saving?\n\nYour recovery codes won't be shown again. You can make new ones later in Settings.\n\nStay and save codes\nLeave anyway",
+    "leaveTab": [
+      "Leave anyway <button>",
+      "Stay and save codes <button>",
+      "Leave anyway <button>"
+    ],
+    "afterEscape": {
+      "dialog": 0,
+      "focus": "INPUT <input>",
+      "url": "http://localhost:8798/setup"
+    },
+    "ticked": [
+      "Save these now. This is the only time they're shown.",
+      "Saved tidings-recovery-codes.txt.",
+      "",
+      ""
+    ],
+    "tickedContinueDisabled": null,
+    "text200": {
+      "docOverflow": 0,
+      "ol": [
+        798,
+        798,
+        "auto"
+      ]
+    },
+    "backTicked": {
+      "dialog": 0,
+      "url": "http://localhost:8798/all"
+    }
+  },
+  "d-dark": {
+    "step1": {
+      "overflowX": false,
+      "small": [],
+      "h1": 1,
+      "docTitle": "Set up Tidings - Tidings"
+    },
+    "step1Tab": [
+      "INPUT <input>",
+      "INPUT <input>",
+      "Show setup token <button>",
+      "Create passkey <button>",
+      "Already set up? Sign in <a>",
+      "TidingsSet up TidingsCreate your account <body>"
+    ],
+    "validationFocus": "INPUT <input>",
+    "wrongTokenFocus": "INPUT <input>",
+    "wrongTokenSel": [
+      0,
+      16,
+      16
+    ],
+    "rate": {
+      "text": "Tidings\nSet up Tidings\n\nCreate your account with a passkey. You'll need the setup token from your deployment.\n\nToo many attempts. Try again in 10 minutes.\n\nYour name\n\nShown in Settings.\n\nSetup token\n\nThe SETUP_TOKEN secret you set when you deployed Tidings.\n\nCreate passkey\n\nTry again in 10 minutes\n\nAlready set up? Sign in",
+      "btn": "<button type=\"submit\" class=\"flex min-h-12 w-full items-center justify-center gap-2 rounded-md bg-accent px-4 text-base font-medium text-accent-fg cursor-not-allowed opacity-60 \" aria-describedby=\"setup-helper\" aria-disabled=\"true\">Create passkey</button>"
+    },
+    "unsupportedBefore": "Tidings\nSet up Tidings\n\nThis browser can't use passkeys.\n\nTidings signs in with passkeys. Open it in a recent version of Safari, Chrome, Edge or Firefox, on a device with a screen lock, Face ID, Touch ID or a security key.",
+    "unsupportedRuntime": "Tidings\nSet up Tidings\n\nCreate your account with a passkey. You'll need the setup token from your deployment.\n\nThis device can't use passkeys. Turn on a screen lock, or connect a security key, then try again.\n\nYour name\n\nShown in Settings.\n\nSetup token\n\nThe SETUP_TOKEN secret you set when you deployed Tidings.\n\nCreate passkey\n\nAlready set up? Sign in",
+    "progress": {
+      "text": "Tidings\nSet up Tidings\n\nCreate your account with a passkey. You'll need the setup token from your deployment.\n\nYour name\n\nShown in Settings.\n\nSetup token\n\nThe SETUP_TOKEN secret you set when you deployed Tidings.\n\nWaiting for your passkey...\n\nFollow the prompt on your device.\n\nAlready set up? Sign in",
+      "btn": "<button type=\"submit\" class=\"flex min-h-12 w-full items-center justify-center gap-2 rounded-md bg-accent px-4 text-base font-medium text-accent-fg cursor-not-allowed opacity-60 \" aria-describedby=\"setup-helper\" aria-disabled=\"true\" aria-busy=\"true\"><svg xmlns=\"http://www.w3.org/2000/svg\" width=\"24\" height=\"24\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\" class=\"lucide lucide-loader size-5 motion-safe:animate-spin\" aria-hidd",
+      "ro": [
+        true,
+        true
+      ]
+    },
+    "cancelledFocus": "Create passkey <button>",
+    "cancelledValues": [
+      4,
+      36
+    ],
+    "codesFocus": "Save your recovery codes <h1>",
+    "codes": {
+      "overflowX": false,
+      "small": [
+        "INPUT \"INPUT\" 24x24"
+      ],
+      "h1": 1,
+      "docTitle": "Save your recovery codes - Tidings"
+    },
+    "codesTab": [
+      "Copy codes, all 10 recovery codes <button>",
+      "Download .txt file of recovery codes <button>",
+      "INPUT <input>",
+      "Continue <button>",
+      "TidingsSave your recovery codesSave thes <body>"
+    ],
+    "codeCount": 10,
+    "codeDistinct": 10,
+    "codesSample": "0KPV-877M-PKXW-QG8C",
+    "codeFont": {
+      "size": "18px",
+      "family": "ui-monospace, \"SF Mono\", Menlo, Consolas",
+      "w": 205.90625,
+      "ol": 398
+    },
+    "names": [
+      [
+        "Copy codes",
+        "Copy codes, all 10 recovery codes",
+        null
+      ],
+      [
+        "Download .txt",
+        "Download .txt file of recovery codes",
+        null
+      ],
+      [
+        "Continue",
+        null,
+        "true"
+      ]
+    ],
+    "clip": "0KPV-877M-PKXW-QG8C\nAP7X-QAV1-1J4S-9A2V\nHMKM-QP00-QAPJ-FWJ6\nGA6N-5JBG-PYE1-355R\nJXSG-Q786-7J1Y-051G\nC6AA-RV73-S8QE-KFJH\n5QAS-9CR5-4TT5-5ZBA\n6AQ7-H5H6-QQ0N-YPS3\nK7ZB-WV1J-Z5XS-N6PF\nJKNY-X4Y6-724F-2ATW",
+    "copyStatus": [
+      "Save these now. This is the only time they're shown.",
+      "Copied 10 codes.",
+      "",
+      ""
+    ],
+    "copyBtn": [
+      "Copied|Copied 10 recovery codes",
+      "Download .txt|Download .txt file of recovery codes",
+      "Continue|null"
+    ],
+    "download": {
+      "name": "tidings-recovery-codes.txt",
+      "content": [
+        "Tidings recovery codes",
+        "Created 2026-11-16 for localhost:8798",
+        "",
+        "Each code works once. Keep this file somewhere safe and private.",
+        "",
+        "1. 0KPV-877M-PKXW-QG8C"
+      ]
+    },
+    "downloadStatus": [
+      "Save these now. This is the only time they're shown.",
+      "Saved tidings-recovery-codes.txt.",
+      "",
+      ""
+    ],
+    "continueInertUrl": "http://localhost:8798/setup",
+    "continueInertStatus": [
+      "Save these now. This is the only time they're shown.",
+      "Saved tidings-recovery-codes.txt.",
+      "Tick the box to continue.",
+      ""
+    ],
+    "leaveFocus": "Stay and save codes <button>",
+    "leaveText": "Leave without saving?\n\nYour recovery codes won't be shown again. You can make new ones later in Settings.\n\nStay and save codes\nLeave anyway",
+    "leaveTab": [
+      "Leave anyway <button>",
+      "Stay and save codes <button>",
+      "Leave anyway <button>"
+    ],
+    "afterEscape": {
+      "dialog": 0,
+      "focus": "INPUT <input>",
+      "url": "http://localhost:8798/setup"
+    },
+    "ticked": [
+      "Save these now. This is the only time they're shown.",
+      "Saved tidings-recovery-codes.txt.",
+      "",
+      ""
+    ],
+    "tickedContinueDisabled": null,
+    "text200": {
+      "docOverflow": 0,
+      "ol": [
+        798,
+        798,
+        "auto"
+      ]
+    },
+    "backTicked": {
+      "dialog": 0,
+      "url": "http://localhost:8798/all"
+    }
+  }
+}
