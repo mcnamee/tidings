@@ -336,7 +336,7 @@ describe('real-world shapes', () => {
     });
   });
 
-  it('podcast item: enclosure is the dedup fallback and itunes:image is currently not used for imageUrl', () => {
+  it('podcast item: enclosure is the dedup fallback and itunes:image supplies imageUrl (ADR 0009 section 6, AC17)', () => {
     const f = ok(
       parse(
         rss(
@@ -348,8 +348,7 @@ describe('real-world shapes', () => {
     const item = f.items[0]!;
     expect(item.guid).toBeNull();
     expect(item.guidKey).toBe('Ep 1\n2026-11-09T08:15:00.000Z\nhttps://cdn.example.test/ep1.mp3');
-    // Spec 6.5 does not list itunes:image, so null is spec-correct; recorded as an enhancement.
-    expect(item.imageUrl).toBeNull();
+    expect(item.imageUrl).toBe('https://cdn.example.test/ep1.jpg');
   });
 
   it('prefixed Atom (a:feed) is reported as not_a_feed (engineer choice: unprefixed Atom only)', () => {

@@ -5,11 +5,13 @@ import { itemKey } from './key';
 import { MAX_CONTENT_CHARS, MAX_DEPTH, MAX_ITEMS_PER_FETCH, MAX_SHORT_FIELD_CHARS } from './limits';
 import {
   CappedText,
+  cleanText,
   escapeAttr,
   escapeHtml,
   escapeText,
   firstImgSrc,
   plainField,
+  safeSlice,
   sniffedHtml,
   summarise,
 } from './text';
@@ -56,6 +58,7 @@ interface ItemState {
   thumbnail: string | null;
   mediaImage: string | null;
   enclosureImage: string | null;
+  itunesImage: string | null;
   enclosureUrl: string | null;
 }
 
@@ -95,6 +98,7 @@ function newItem(depth: number, about: string | null, base: string | null): Item
     thumbnail: null,
     mediaImage: null,
     enclosureImage: null,
+    itunesImage: null,
     enclosureUrl: null,
   };
 }
@@ -139,6 +143,7 @@ function parseFeedUnsafe(input: string, options: ParseOptions): ParseResult {
   const maxItems = options.maxItems ?? MAX_ITEMS_PER_FETCH;
   const { fetchedAt, baseUrl } = options;
   if (input.charCodeAt(0) === 0xfeff) input = input.slice(1);
+  input = cleanText(input);
   if (input.trim() === '') {
     return { ok: false, error: { code: 'empty', message: 'Empty response body' } };
   }
@@ -250,7 +255,7 @@ function parseFeedUnsafe(input: string, options: ParseOptions): ParseResult {
     const summaryText = summarySource === null ? '' : summarise(summarySource);
 
     let imageUrl: string | null = null;
-    for (const candidate of [it.thumbnail, it.mediaImage, it.enclosureImage]) {
+    for (const candidate of [it.thumbnail, it.mediaImage, it.enclosureImage, it.itunesImage]) {
       imageUrl = resolveUrl(candidate, it.base);
       if (imageUrl) break;
     }
@@ -261,7 +266,7 @@ function parseFeedUnsafe(input: string, options: ParseOptions): ParseResult {
     items.push({
       guidKey: key,
       guid,
-      title: rawTitle || summaryText.slice(0, 80) || link || 'Untitled',
+      title: rawTitle || safeSlice(summaryText, 80) || link || 'Untitled',
       link,
       author: authorText === '' ? null : authorText,
       publishedAt,
@@ -350,6 +355,10 @@ function parseFeedUnsafe(input: string, options: ParseOptions): ParseResult {
         // Media and enclosure elements carry data in attributes, at any depth.
         if (name === 'media:thumbnail') {
           it.thumbnail ??= attribs['url'] ?? null;
+          return;
+        }
+        if (name === 'itunes:image') {
+          it.itunesImage ??= attribs['href'] ?? null;
           return;
         }
         if (name === 'media:content') {

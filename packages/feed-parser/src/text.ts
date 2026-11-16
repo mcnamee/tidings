@@ -188,3 +188,21 @@ export function sniffedHtml(decoded: string, cap: number): string {
   if (cut.length > 0 && isHighSurrogate(cut.charCodeAt(cut.length - 1))) cut = cut.slice(0, -1);
   return cut;
 }
+
+const BAD_UTF16 = /\u0000|[\uD800-\uDBFF](?![\uDC00-\uDFFF])|(?<![\uD800-\uDBFF])[\uDC00-\uDFFF]/g;
+
+/**
+ * Removes U+0000 and replaces lone surrogates with U+FFFD (ADR 0009 section 6). The parser runs
+ * this over the whole document before any cap is applied, so every stored string is clean.
+ */
+export function cleanText(input: string): string {
+  return input.replace(BAD_UTF16, (m) => (m === '\u0000' ? '' : '\uFFFD'));
+}
+
+/** `slice(0, n)` that does not leave half a surrogate pair at the end. */
+export function safeSlice(text: string, n: number): string {
+  if (text.length <= n) return text;
+  let cut = text.slice(0, n);
+  if (isHighSurrogate(cut.charCodeAt(cut.length - 1))) cut = cut.slice(0, -1);
+  return cut;
+}
