@@ -99,12 +99,13 @@ Notation: `[Screen]` is a screen, `-> ` is a user action, `(state)` is a notable
 2. -> enters display name and setup token -> "Create passkey". The device passkey prompt appears.
    - (wrong token) inline error on the token field, nothing created.
    - (passkey cancelled) stay on Setup, message "Passkey setup was cancelled. Try again."
-3. **[Recovery codes]**: ten codes shown once, with Copy and Download. "Continue" is disabled until "I've saved these" is ticked.
+   - Full states and copy: `screens/setup.md`.
+3. **[Recovery codes]** (second step of `/setup`, same route): ten codes shown once, with Copy and Download. "Continue" is inert until "I've saved these" is ticked. Back, reload and tab close are guarded while it is unticked.
 4. -> Continue -> **[All articles, empty state]**: "No feeds yet", with two actions: "Import from Inoreader" (primary, goes to Import) and "Add a feed".
 
-Returning sign-in: **[Login]** with one "Sign in with a passkey" button (discoverable credentials), "Lost your passkey?" link to **[Recover]**. Success lands on the last list (or `/all`).
+Returning sign-in: **[Login]** with one "Sign in with a passkey" button (discoverable credentials), "Lost your passkey?" link to **[Recover]**. Success lands on the remembered route after a session expiry, otherwise the last list (or `/all`). Detail: `screens/login.md`.
 
-Lost passkey: **[Recover]** accepts one recovery code, signs in, burns it, and shows a persistent banner "Add a new passkey" linking to Settings (FR-AU-4). The banner sits in the shell under the header until the owner adds a passkey.
+Lost passkey: **[Recover]** accepts one recovery code, signs in, burns it, and shows a persistent banner "Add a new passkey" linking to Settings (FR-AU-4). The banner sits in the shell under the header until the owner adds a passkey. Detail: `screens/recover.md`.
 
 Session ended (any 401 while using the app): redirect to **[Login]** with the line "Your session ended. Sign in again." The previous route is remembered and restored after sign-in.
 

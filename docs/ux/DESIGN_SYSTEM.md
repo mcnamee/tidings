@@ -533,6 +533,11 @@ Icon inventory for TID-006 and the stories that follow:
 | All caught up | `CircleCheck` |
 | Mark read / unread | `Circle` (unread) and `CircleCheck` (read) |
 | Overflow menu | `Ellipsis` |
+| Sign in with a passkey (auth screens) | `KeyRound` |
+| Show / hide the setup token | `Eye`, `EyeOff` |
+| Copy recovery codes, download recovery codes | `Copy`, `Download` |
+| Copied confirmation | `Check` |
+| Button in progress (auth screens) | `Loader` (static under reduced motion) |
 
 ---
 

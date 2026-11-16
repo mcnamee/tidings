@@ -14,6 +14,7 @@ DOM order is also the Tab order.
 <a  class="skip-link" href="#main">Skip to content</a>
 <aside>/<nav> feed tree      sidebar at >=1024px (static)  |  drawer dialog <1024px (after the header in DOM, rendered only when open)
 <header role=banner>         Menu or Back | h1 title | right actions
+<div role=status>            "Add a new passkey" banner (only after recovery-code sign-in; see recover.md section 4)
 <div role=status>            offline banner (only when offline)
 <main id="main" tabindex="-1">   screen content
 <div  id="bottom-bar">       screen-supplied actions (only when a screen supplies them)
@@ -440,7 +441,7 @@ Auth titles (also the `document.title` prefix): "Set up Tidings", "Sign in", "Us
 
 ## 12. Auth layout (outside the shell)
 
-For `/setup`, `/login`, `/recover` (screen specs arrive with TID-007).
+For `/setup`, `/login`, `/recover`. Full specs: `setup.md`, `login.md`, `recover.md`; the layout rules, shared controls and shared messages are in `auth-common.md`, which supersedes the outline below where they differ.
 
 ```
 375 px
