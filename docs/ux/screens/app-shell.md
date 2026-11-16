@@ -111,7 +111,7 @@ Drawer rules:
 3. **Focus trap**: Tab and Shift+Tab cycle only through the drawer's focusable elements (Close, tree rows and chevrons, footer buttons). The rest of the app is `inert` (and `aria-hidden` on older browsers). Body scroll is locked with a class on `html`, not an inline style.
 4. **Close** by: Escape; tap on the scrim; Close button; choosing any destination link or footer action; system Back; viewport growing to 1024 px or wider (the sidebar takes over).
 5. **Focus on close**: returns to the Menu button, **except** when closing because of navigation, in which case focus goes to the new screen's `h1` (FLOWS 1.7).
-6. **Swipe left** on the open drawer follows the finger and closes past 40% of its width or on a quick flick (`touch-action: pan-y` on the drawer). Enhancement, not an acceptance requirement. Swiping from the screen edge to open is deliberately not offered.
+6. **No swipe gestures in MVP.** Swipe-left-to-close moved to TID-035 (Later, M2): swipe past 40% of the width or flick, popping the history entry the drawer pushed. Swiping from the screen edge to open is deliberately not offered (it collides with the iOS Safari back gesture). Every way to close has a button or key.
 7. **Motion**: 200 ms slide and fade; none under `prefers-reduced-motion` (design system section 7).
 8. Opening the drawer never refetches; it shows cached folders and counts and revalidates quietly.
 
@@ -279,8 +279,8 @@ Required in `index.html`: `<meta name="viewport" content="width=device-width, in
 | Region | Inset used |
 |---|---|
 | Header | `padding-top: env(safe-area-inset-top)`. Left and right padding `max(1rem, env(safe-area-inset-left / right))` |
-| Main | Left and right `max(1rem, env(safe-area-inset-left / right))`. Bottom padding equals the bottom bar height when there is one, otherwise `env(safe-area-inset-bottom)` |
-| Bottom bar | `padding-bottom: env(safe-area-inset-bottom)` plus the 56 px bar |
+| Main | Left and right `max(1rem, env(safe-area-inset-left / right))`. No bottom padding rule for the bar: the bar is in the page flow, so content never sits under it. When there is no bar, `padding-bottom: env(safe-area-inset-bottom)` |
+| Bottom bar | In normal page flow after `main`, `position: sticky; bottom: 0` (not fixed), `padding-bottom: env(safe-area-inset-bottom)` plus the 56 px bar. It sticks to the viewport bottom while the list scrolls and rests at the end of the page when the content is short. |
 | Drawer | Top, left and bottom insets in padding; scroll area ends above the footer, footer has `padding-bottom: env(safe-area-inset-bottom)` |
 | Toasts | `bottom: calc(var(--bottom-offset, 0px) + env(safe-area-inset-bottom) + 0.75rem)` where bottom offset is the bar height when a bar is present |
 | Landscape phone (812 x 375) | Notch on the left or right is covered by the gutters; header stays 56 px; the drawer takes `min(86vw, 20rem)` and its content respects the left inset |
@@ -329,7 +329,6 @@ Placeholder routes for TID-006 (every route in spec 11.1) use the titles in FLOW
 | Tap scrim, Escape, Close | Closes drawer, focus to Menu |
 | Tap a destination in the drawer | Navigates, closes drawer, focus to the new `h1` |
 | Tap folder chevron | Expands or collapses; drawer stays open |
-| Swipe left on drawer | Closes it (enhancement) |
 | Android system Back / iOS swipe-back with drawer open | Closes the drawer |
 | Tap Back in header | Parent screen (FLOWS 1.6) |
 | Tab / Shift+Tab | Order per section 1; trapped inside the drawer while open |
@@ -394,13 +393,32 @@ Typography: sentence case everywhere, no exclamation marks, no emoji, plain verb
 | Route | Title |
 |---|---|
 | `/all` | All articles |
-| `/folders/:id` | Folder name (while loading: skeleton bar 8 rem wide, `aria-busy`; document title "Folder - Tidings") |
-| `/feeds/:id` | Subscription title (while loading: skeleton bar) |
+| `/folders/:id` | Folder name |
+| `/feeds/:id` | Subscription title (custom title if set) |
 | article routes | Feed title (the article's own title is in the page body) |
 | `/manage` | Manage feeds |
 | `/manage/add` | Add a feed |
 | `/manage/import` | Import from OPML |
 | `/settings` | Settings |
+| `/setup`, `/login`, `/recover` | No header (auth layout). `h1` is in the card: "Set up Tidings", "Sign in", "Use a recovery code" (see `setup.md`, `login.md`, `recover.md`) |
+| unknown | Page not found |
+
+### 10.1 Loading and fallback titles
+
+While a name is loading, the header never shows a placeholder word. "Folder" and "Feed" appear **only** as the `document.title` fallback while loading; the visible header shows a skeleton.
+
+| Route | Header (visible) while loading | `document.title` while loading | After load |
+|---|---|---|---|
+| `/folders/:id`, `/folders/:id/a/:entryId` | Skeleton bar, 8 rem wide, `bg-sunken`, pulsing, `aria-busy="true"` on the `h1` | Folder - Tidings | `{Folder name} - Tidings` |
+| `/feeds/:id`, `/feeds/:id/a/:entryId` | Skeleton bar, 8 rem wide | Feed - Tidings | `{Feed title} - Tidings` |
+| `/all`, `/all/a/:entryId` | "All articles" (static) | All articles - Tidings | same |
+| `/manage`, `/manage/add`, `/manage/import`, `/settings` | Static title from the table above | `{Title} - Tidings` | same |
+| Folder or feed not found (404 from API) | "Page not found" | Page not found - Tidings | |
+| Name request fails, no cache | "Couldn't load" in `text-fg-muted` is **not** used; keep the skeleton and show the screen's own error state in main | Feed - Tidings | |
+
+The skeleton `h1` still exists in the DOM with an `aria-label` of "Loading" so the page has one `h1` and focus-on-navigation has a target (FLOWS 1.7); the label is replaced by the real name on load. With a warm cache the name renders immediately and no skeleton is shown.
+
+Auth titles (also the `document.title` prefix): "Set up Tidings", "Sign in", "Use a recovery code", each followed by " - Tidings" except "Set up Tidings", which is used as is.
 
 ---
 
