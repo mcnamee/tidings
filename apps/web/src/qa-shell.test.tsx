@@ -138,34 +138,31 @@ describe('toast Undo through the component', () => {
   });
 
   // DEF-004: a throwing Undo handler must still dismiss the toast.
-  it(
-    'keeps the toast usable when the Undo action throws: the toast is dismissed and the error surfaces once',
-    async () => {
-      const store = setup();
-      const boom = new Error('undo failed');
-      const errors: unknown[] = [];
-      const onError = (e: ErrorEvent) => {
-        errors.push(e.error);
-        e.preventDefault();
-      };
-      window.addEventListener('error', onError);
-      act(
-        () =>
-          void store.show('undo', 'Marked 3 as read', {
-            action: {
-              label: 'Undo',
-              run: () => {
-                throw boom;
-              },
+  it('keeps the toast usable when the Undo action throws: the toast is dismissed and the error surfaces once', async () => {
+    const store = setup();
+    const boom = new Error('undo failed');
+    const errors: unknown[] = [];
+    const onError = (e: ErrorEvent) => {
+      errors.push(e.error);
+      e.preventDefault();
+    };
+    window.addEventListener('error', onError);
+    act(
+      () =>
+        void store.show('undo', 'Marked 3 as read', {
+          action: {
+            label: 'Undo',
+            run: () => {
+              throw boom;
             },
-          }),
-      );
-      const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime });
-      await user.click(screen.getByRole('button', { name: 'Undo' })).catch(() => {});
-      window.removeEventListener('error', onError);
-      expect(screen.queryByRole('button', { name: 'Undo' })).not.toBeInTheDocument();
-    },
-  );
+          },
+        }),
+    );
+    const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime });
+    await user.click(screen.getByRole('button', { name: 'Undo' })).catch(() => {});
+    window.removeEventListener('error', onError);
+    expect(screen.queryByRole('button', { name: 'Undo' })).not.toBeInTheDocument();
+  });
 });
 
 describe('lastList storage safety', () => {
@@ -184,20 +181,17 @@ describe('lastList storage safety', () => {
   });
 
   // DEF-003: the localStorage global must be read inside the try/catch.
-  it(
-    'returns /all and does not throw when the localStorage global itself throws on access',
-    () => {
-      const spy = vi.spyOn(window, 'localStorage', 'get').mockImplementation(() => {
-        throw new DOMException('denied', 'SecurityError');
-      });
-      try {
-        expect(() => readLastList()).not.toThrow();
-        expect(() => saveLastList('/all')).not.toThrow();
-      } finally {
-        spy.mockRestore();
-      }
-    },
-  );
+  it('returns /all and does not throw when the localStorage global itself throws on access', () => {
+    const spy = vi.spyOn(window, 'localStorage', 'get').mockImplementation(() => {
+      throw new DOMException('denied', 'SecurityError');
+    });
+    try {
+      expect(() => readLastList()).not.toThrow();
+      expect(() => saveLastList('/all')).not.toThrow();
+    } finally {
+      spy.mockRestore();
+    }
+  });
 
   it.each([
     '//evil.example',

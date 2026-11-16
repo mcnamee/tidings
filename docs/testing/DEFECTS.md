@@ -35,7 +35,7 @@ Entry template:
 ### DEF-002: A stored theme opposite to the OS flashes the OS tone while the stylesheet loads
 - Story: TID-006 (AC1 spirit; FR-ST-1, NFR-10 "no flash of the wrong theme on load")
 - Severity: S3. Owner: SE.
-- Status: Open
+- Status: Fixed (95792b2), awaiting tester closure
 - Found by: `e2e/specs/tid-006-app-shell-qa.spec.ts` > "AC1: before the stylesheet arrives the canvas colour scheme equals the stored choice (DEF-002)" (marked `test.fail`, so it turns red when fixed and the marker must then be removed). A pixel-level run of the same scenario, with CDP screencast frames, showed tones dark,light,light under a dark OS with a stored light choice; that version is timing-dependent (the pre-stylesheet frame is not always composited), so the deterministic cause check is what is committed.
 - Steps to reproduce: set `localStorage['tidings.theme'] = 'light'` with the OS in dark mode (or the reverse), hold back `/assets/*.css` for 1.5 s, load `/all`, and read `meta[name=color-scheme]` once `data-theme` is set.
 - Expected: every frame is the stored theme's colour.
@@ -45,7 +45,7 @@ Entry template:
 ### DEF-003: App crashes when `localStorage` access throws (storage blocked)
 - Story: TID-006 (robustness of the "/" redirect and last-list memory, FLOWS 1.8)
 - Severity: S2 for affected browsers (blank app), S3 overall. Owner: SE.
-- Status: Open
+- Status: Fixed (95792b2), awaiting tester closure
 - Found by: `apps/web/src/qa-shell.test.tsx` > "returns /all and does not throw when the localStorage global itself throws on access" (`it.fails`), and `e2e/specs/tid-006-app-shell-qa.spec.ts` > "localStorage blocked: the app still renders, follows the OS and "/" lands on /all (DEF-003)" (`test.fail`).
 - Steps to reproduce: in a browser that throws `SecurityError` on reading `window.localStorage` (Chrome with "Block all cookies", some embedded webviews), open `/`.
 - Expected: `/` redirects to `/all`, the shell renders, the theme follows the OS.
@@ -55,7 +55,7 @@ Entry template:
 ### DEF-004: A throwing Undo action leaves the toast on screen
 - Story: TID-006 (toast region, UX app-shell 2.4)
 - Severity: S4. Owner: SE.
-- Status: Open
+- Status: Fixed (e16e62b), awaiting tester closure
 - Found by: `apps/web/src/qa-shell.test.tsx` > "keeps the toast usable when the Undo action throws..." (`it.fails`).
 - Steps to reproduce: show an Undo toast whose `run` throws, click Undo.
 - Expected: the toast is dismissed, so a second click cannot re-run a failing action.
@@ -65,7 +65,7 @@ Entry template:
 ### DEF-005: Drawer close inputs are not idempotent, so a repeated input leaves the screen
 - Story: TID-006 (AC4, drawer closes on Escape and backdrop tap; UX app-shell 2.2 rule 1 "pushes one history entry")
 - Severity: S3. Owner: SE.
-- Status: Open
+- Status: Fixed (e16e62b), awaiting tester closure
 - Found by: `e2e/specs/tid-006-app-shell-qa.spec.ts` (all `test.fail`, so they turn red when fixed and the markers must then be removed): "a double tap on the scrim closes the drawer once and stays on the screen (DEF-005)", "two Escape events in the same task do not navigate away from the screen (DEF-005)", "double-clicking Menu leaves exactly one history entry to unwind (DEF-005)".
 - Steps to reproduce (mobile, 375 px): open `/settings`, then `/all`; open the drawer; double-tap the scrim (or the Close button), or press Escape twice quickly.
 - Expected: the drawer closes and the user stays on `/all`.
