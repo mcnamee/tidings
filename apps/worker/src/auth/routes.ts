@@ -1,13 +1,8 @@
 import { Hono, type Context } from 'hono';
 import { deleteCookie, getCookie, setCookie } from 'hono/cookie';
 import type { ZodType } from 'zod';
-import {
-  setupOptionsRequestSchema,
-  setupVerifyRequestSchema,
-  type ApiError,
-  type ErrorCode,
-  type SetupVerifyResponse,
-} from '@tidings/shared';
+import type { ApiError, ErrorCode, SetupVerifyResponse } from '@tidings/shared';
+import { setupOptionsRequestSchema, setupVerifyRequestSchema } from '@tidings/shared/schemas';
 import type { Env } from '../../env';
 import { Db, newId, systemClock, type Clock } from '../db';
 import { randomToken } from './crypto';

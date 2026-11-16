@@ -106,9 +106,18 @@ export function RecoveryCodesStep({ codes, onDone, now, host }: RecoveryCodesSte
     if (dialogOpen) stayRef.current?.focus();
   }, [dialogOpen]);
 
+  // Focus returns to the checkbox only once the page behind the dialog is interactive again.
+  const restoreFocus = useRef(false);
+  useEffect(() => {
+    if (!dialogOpen && restoreFocus.current) {
+      restoreFocus.current = false;
+      checkboxRef.current?.focus();
+    }
+  }, [dialogOpen]);
+
   function closeDialog() {
+    restoreFocus.current = true;
     setDialogOpen(false);
-    checkboxRef.current?.focus();
   }
 
   // While the dialog is open: Escape chooses Stay and Tab is trapped between its two buttons.
@@ -217,7 +226,9 @@ export function RecoveryCodesStep({ codes, onDone, now, host }: RecoveryCodesSte
           <button
             type="button"
             onClick={() => void copy()}
-            aria-label="Copy all 10 recovery codes"
+            aria-label={
+              copiedLabel ? 'Copied 10 recovery codes' : 'Copy codes, all 10 recovery codes'
+            }
             className="flex min-h-11 min-w-36 flex-1 items-center justify-center gap-2 rounded-md border border-line-strong bg-surface px-3 text-base text-fg"
           >
             {copiedLabel ? (
@@ -230,7 +241,7 @@ export function RecoveryCodesStep({ codes, onDone, now, host }: RecoveryCodesSte
           <button
             type="button"
             onClick={download}
-            aria-label="Download recovery codes as a text file"
+            aria-label="Download .txt file of recovery codes"
             className="flex min-h-11 min-w-36 flex-1 items-center justify-center gap-2 rounded-md border border-line-strong bg-surface px-3 text-base text-fg"
           >
             <Download className="size-5" aria-hidden="true" />

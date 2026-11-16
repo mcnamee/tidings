@@ -406,9 +406,12 @@ describe('step 1: running the ceremony', () => {
   });
 
   it('409 setup_unavailable redirects to /login with the notice', async () => {
-    api.set('POST /api/auth/setup/options', {
-      status: 409,
-      body: { error: { code: 'setup_unavailable', message: 'x' } },
+    // The server now says setup is closed, to the options call and to any later session check.
+    api.set('POST /api/auth/setup/options', () => {
+      api.set('GET /api/auth/session', {
+        body: { user: null, setupRequired: false, mustAddPasskey: false },
+      });
+      return { status: 409, body: { error: { code: 'setup_unavailable', message: 'x' } } };
     });
     renderSetup();
     const user = await fill();
@@ -492,10 +495,10 @@ describe('step 2: recovery codes (AC2, AC3)', () => {
   it('keeps the focus order Copy, Download, checkbox, Continue', async () => {
     const user = await reachStepTwo();
     await user.tab();
-    expect(screen.getByRole('button', { name: 'Copy all 10 recovery codes' })).toHaveFocus();
+    expect(screen.getByRole('button', { name: 'Copy codes, all 10 recovery codes' })).toHaveFocus();
     await user.tab();
     expect(
-      screen.getByRole('button', { name: 'Download recovery codes as a text file' }),
+      screen.getByRole('button', { name: 'Download .txt file of recovery codes' }),
     ).toHaveFocus();
     await user.tab();
     expect(screen.getByRole('checkbox', { name: "I've saved these" })).toHaveFocus();
@@ -539,10 +542,10 @@ describe('step 2: recovery codes (AC2, AC3)', () => {
     expect(
       screen.getByText("Somewhere safe, like a password manager. They won't be shown again."),
     ).toBeInTheDocument();
-    await user.click(screen.getByRole('button', { name: 'Copy all 10 recovery codes' }));
+    await user.click(screen.getByRole('button', { name: 'Copy codes, all 10 recovery codes' }));
     expect(writeText).toHaveBeenCalledWith(CODES.join('\n'));
     expect(await screen.findByText('Copied 10 codes.')).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'Copy all 10 recovery codes' })).toHaveTextContent(
+    expect(screen.getByRole('button', { name: 'Copied 10 recovery codes' })).toHaveTextContent(
       'Copied',
     );
     expect(
@@ -553,7 +556,7 @@ describe('step 2: recovery codes (AC2, AC3)', () => {
   it('shows the copy failure as an alert and leaves the codes selectable', async () => {
     const user = await reachStepTwo();
     vi.spyOn(navigator.clipboard, 'writeText').mockRejectedValue(new Error('denied'));
-    await user.click(screen.getByRole('button', { name: 'Copy all 10 recovery codes' }));
+    await user.click(screen.getByRole('button', { name: 'Copy codes, all 10 recovery codes' }));
     const alert = await waitFor(() => inMain().getByRole('alert'));
     expect(alert).toHaveTextContent("Couldn't copy. Select the codes and copy them by hand.");
     expect(screen.getByRole('list', { name: 'Recovery codes' }).className).toContain('select-text');
@@ -575,9 +578,7 @@ describe('step 2: recovery codes (AC2, AC3)', () => {
       clicked.push({ download: this.download, href: this.href });
     });
     const user = await reachStepTwo();
-    await user.click(
-      screen.getByRole('button', { name: 'Download recovery codes as a text file' }),
-    );
+    await user.click(screen.getByRole('button', { name: 'Download .txt file of recovery codes' }));
     expect(clicked).toEqual([
       { download: 'tidings-recovery-codes.txt', href: 'blob:http://localhost/xyz' },
     ]);
@@ -593,9 +594,7 @@ describe('step 2: recovery codes (AC2, AC3)', () => {
       throw new Error('blocked');
     });
     const user = await reachStepTwo();
-    await user.click(
-      screen.getByRole('button', { name: 'Download recovery codes as a text file' }),
-    );
+    await user.click(screen.getByRole('button', { name: 'Download .txt file of recovery codes' }));
     expect(await waitFor(() => inMain().getByRole('alert'))).toHaveTextContent(
       "Couldn't download the file. Copy the codes instead.",
     );

@@ -11,9 +11,19 @@ npm install
 npm run dev        # wrangler dev on :8787 (Worker + local D1) and Vite on :5173, /api proxied
 ```
 
-Open http://localhost:5173. The placeholder page calls `/api/health`.
+Open http://localhost:5173. On a fresh local database it opens the first-run setup screen (TID-007).
 
-Create `apps/worker/.dev.vars` (gitignored) for local secrets such as `SETUP_TOKEN` (used from TID-007).
+Before the first run, apply the migrations and create `apps/worker/.dev.vars` (gitignored) from the
+example. `SETUP_TOKEN` must be at least 32 characters; setup asks for it once, and passkeys need
+`localhost` (a secure context), not a LAN address:
+
+```sh
+npm run db:migrate:local
+cp apps/worker/.dev.vars.example apps/worker/.dev.vars   # then edit SETUP_TOKEN
+```
+
+For a deployment, set the secret with `wrangler secret put SETUP_TOKEN`. The E2E harness passes its
+own throwaway token on the `wrangler dev` command line and never reads `.dev.vars`.
 
 ## Scripts
 

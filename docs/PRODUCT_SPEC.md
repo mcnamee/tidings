@@ -653,7 +653,7 @@ type Passkey = { id: string; name: string; createdAt: string; lastUsedAt: string
 | `GET /api/me` | Session | – | `200 User` |
 | `PATCH /api/me` | Session | `{ displayName?: string, settings?: Partial<UserSettings> }` | `200 User` |
 
-Rate limits for Public routes: 10 requests / 10 min per IP per route family (setup, login, recover), plus 30 / hour global for `recover` and `setup` (D1 `rate_limits`, §10.7).
+Rate limits for Public routes: 10 requests / 10 min per IP per route family (setup, login, recover), plus 30 / hour global for `recover` and `setup` (D1 `rate_limits`, §10.7). For `setup` (TID-007), a slot is taken when a request arrives and handed back when it succeeds, so the limits count failed attempts: a normal setup (options, then verify) uses none, and 10 failures from one IP in 10 minutes block the 11th with `429 rate_limited` and `Retry-After`. Setup also needs `SETUP_TOKEN` of at least 32 characters; a shorter or missing one returns `500 config_error` rather than accepting any token.
 
 ### 8.4 Folders and subscriptions
 
