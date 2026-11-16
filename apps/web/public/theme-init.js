@@ -22,6 +22,8 @@
     root.setAttribute('data-theme-pref', pref);
     var meta = document.querySelector('meta[name="theme-color"]');
     if (meta) meta.setAttribute('content', BAR[theme]);
+    var scheme = document.querySelector('meta[name="color-scheme"]');
+    if (scheme) scheme.setAttribute('content', theme);
     var size = read(SIZE_KEY);
     root.setAttribute('data-text-size', size === 's' || size === 'l' ? size : 'm');
   }

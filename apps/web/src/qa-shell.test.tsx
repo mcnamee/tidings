@@ -183,8 +183,8 @@ describe('lastList storage safety', () => {
     expect(() => saveLastList('/all', throwing)).not.toThrow();
   });
 
-  // DEF-003: default parameter `storage = localStorage` is evaluated outside the try/catch.
-  it.fails(
+  // DEF-003: the localStorage global must be read inside the try/catch.
+  it(
     'returns /all and does not throw when the localStorage global itself throws on access',
     () => {
       const spy = vi.spyOn(window, 'localStorage', 'get').mockImplementation(() => {

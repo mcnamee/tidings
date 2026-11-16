@@ -110,7 +110,6 @@ test.describe('TID-006 AC1 no flash (pixels)', () => {
   test('AC1: before the stylesheet arrives the canvas colour scheme equals the stored choice (DEF-002)', async ({
     page,
   }, testInfo) => {
-    test.fail(true, 'DEF-002: meta color-scheme stays "light dark", so the canvas follows the OS');
     const os = osScheme(testInfo.project.name);
     const stored = os === 'dark' ? 'light' : 'dark';
     await page.addInitScript((v) => localStorage.setItem('tidings.theme', v), stored);
@@ -206,7 +205,6 @@ test.describe('TID-006 storage edge cases', () => {
   test('localStorage blocked: the app still renders, follows the OS and "/" lands on /all (DEF-003)', async ({
     page,
   }, testInfo) => {
-    test.fail(true, 'DEF-003: readLastList()/saveLastList() throw when localStorage access throws');
     const errors: string[] = [];
     page.on('pageerror', (e) => errors.push(e.message));
     await blockStorage(page);
