@@ -66,11 +66,11 @@ export async function fakeRegistration(
   options: CreationOptionsLike,
   opts: FakeRegistrationOptions,
 ): Promise<FakeRegistration> {
-  const pair = await crypto.subtle.generateKey({ name: 'ECDSA', namedCurve: 'P-256' }, true, [
+  const pair = (await crypto.subtle.generateKey({ name: 'ECDSA', namedCurve: 'P-256' }, true, [
     'sign',
     'verify',
-  ]);
-  const jwk = await crypto.subtle.exportKey('jwk', pair.publicKey);
+  ])) as CryptoKeyPair;
+  const jwk = (await crypto.subtle.exportKey('jwk', pair.publicKey)) as JsonWebKey;
   const x = b64urlToBytes(jwk.x as string);
   const y = b64urlToBytes(jwk.y as string);
   const credId = crypto.getRandomValues(new Uint8Array(32));

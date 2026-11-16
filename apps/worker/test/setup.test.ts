@@ -20,8 +20,15 @@ beforeEach(async () => {
   h = createHarness();
 });
 
-const count = async (table: string) =>
-  (await env.DB.prepare(`SELECT COUNT(*) AS n FROM ${table}`).first<{ n: number }>())?.n ?? -1;
+const COUNT_SQL = {
+  users: 'SELECT COUNT(*) AS n FROM users',
+  passkeys: 'SELECT COUNT(*) AS n FROM passkeys',
+  recovery_codes: 'SELECT COUNT(*) AS n FROM recovery_codes',
+  sessions: 'SELECT COUNT(*) AS n FROM sessions',
+  webauthn_challenges: 'SELECT COUNT(*) AS n FROM webauthn_challenges',
+} as const;
+const count = async (table: keyof typeof COUNT_SQL) =>
+  (await env.DB.prepare(COUNT_SQL[table]).first<{ n: number }>())?.n ?? -1;
 
 async function optionsFor(token: string, displayName = 'Matt', ip?: string) {
   return h.call('POST', '/api/auth/setup/options', {
