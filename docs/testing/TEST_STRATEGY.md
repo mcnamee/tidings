@@ -151,23 +151,26 @@ that directory is empty, so AC1 is proven with an in-test probe migration throug
 
 Specs: `e2e/specs/tid-006-app-shell.spec.ts` (engineer), `e2e/specs/tid-006-app-shell-qa.spec.ts` (tester),
 `apps/web/src/App.test.tsx`, `theme-init.test.ts`, `headers.test.ts`, `lib/toast.test.ts` (engineer),
-`apps/web/src/qa-shell.test.tsx` (tester).
+`apps/web/src/qa-shell.test.tsx` (tester), `e2e/specs/tid-006-large-text.spec.ts` (UX fixes M1-M3, m1, m2;
+phone width except m1; the toast tests run against a throwaway Vite dev server because the production
+bundle exposes no toast trigger yet, with `e2e/support/bottom-bar-harness.ts` mounting a real `<BottomBar>`).
 
 | Criterion                         | Status   | Tests                                                                                                                                                                            |
 | --------------------------------- | -------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | AC1: dark OS, no flash            | pass     | engineer: DOMContentLoaded attribute and held-CSS tests. QA: "AC1 pixels" (CDP screencast frames sampled), "AC1 control" (detector fails without theme-init.js), "AC1 paint timing" |
-| AC1 with a stored opposite choice | fail     | "AC1: before the stylesheet arrives the canvas colour scheme equals the stored choice" (`test.fail`, DEF-002)                                                                                                         |
+| AC1 with a stored opposite choice | pass | "AC1: before the stylesheet arrives the canvas colour scheme equals the stored choice (DEF-002, closed)" |
 | AC2: stored choice beats the OS   | pass     | engineer "AC2"; QA "AC2" (computed colours, other-tab storage event, corrupted values)                                                                                             |
 | AC3: live OS changes              | pass     | engineer "AC3" (two); QA "AC3: theme-color meta follows live OS changes"                                                                                                           |
-| AC4: drawer                       | pass     | engineer "AC4" (two) and App.test.tsx; QA "drawer stress", "tap targets" per route. Repeated-input robustness fails (DEF-005)                                                        |
+| AC4: drawer                       | pass     | engineer "AC4" (two) and App.test.tsx; QA "drawer stress", "tap targets" per route. Repeated-input robustness: QA "drawer stress" (double scrim tap, double Menu, double Escape, Back then reopen, stale entry after reload) (DEF-005, closed)                                                        |
 | AC5: axe on every route           | pass     | engineer "AC5" per route; QA adds drawer-open, offline banner, 320 px reflow, 200 status per route                                                                                 |
 | AC6: headers and no CSP violation | pass     | engineer "AC6"; QA headers on static files plus HSTS, violation listener with control, bundle has no inline code                                                                   |
+| Large text and layout (UX M1-M3, m1, m2) | pass | `tid-006-large-text.spec.ts`: M1 title wraps to two lines, M2 drawer footer inside the viewport, M3 undo toast not clipped, m2 toast 12 px above a measured bottom bar, m1 desktop header aligned to the content column. Each was mutation-checked: reverting its fix turns it red |
 | AC7: contrast ratios              | untested | UX verifies with `docs/ux/check-contrast.mjs`; not run by the tester                                                                                                              |
 
 Technique notes. The no-flash check records the frames the compositor produced
 (`Page.startScreencast`), decodes them in a scratch page and classifies the bottom-centre pixel, with the
 stylesheet held back by `page.route`. `test.fail` marks a known defect by ID; remove it when the defect is
-fixed so the test guards the fix. `localStorage` blocking is simulated by a throwing property getter.
+fixed so the test guards the fix (done for DEF-002 to DEF-005; no markers remain in the TID-006 specs). `localStorage` blocking is simulated by a throwing property getter.
 
 ## Security and free-tier checks (applied per story)
 

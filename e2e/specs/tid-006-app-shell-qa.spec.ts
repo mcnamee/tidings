@@ -465,6 +465,45 @@ test.describe('TID-006 drawer stress (mobile)', () => {
     await expect(page).toHaveURL(/\/all$/);
   });
 
+  // DEF-005 verification: the new ref guards must not stay set after a close or open that did not go
+  // through the guarded path (browser Back, a stale drawer entry after reload).
+  test('AC4: after browser Back closes the drawer, Menu opens it again and one Escape closes it (guards reset)', async ({
+    page,
+  }) => {
+    await page.goto('/settings');
+    await page.goto('/all');
+    await menu(page).click();
+    await expect(dialog(page)).toBeVisible();
+    await page.goBack();
+    await expect(dialog(page)).toBeHidden();
+    await expect(page).toHaveURL(/\/all$/);
+    await menu(page).click();
+    await expect(dialog(page)).toBeVisible();
+    await page.keyboard.press('Escape');
+    await expect(dialog(page)).toBeHidden();
+    await expect(page).toHaveURL(/\/all$/);
+    await page.keyboard.press('Escape'); // nothing open: must not navigate
+    await page.waitForTimeout(200);
+    await expect(page).toHaveURL(/\/all$/);
+  });
+
+  test('AC4: after a reload onto a stale drawer entry, a double-click on Menu and one Escape stay on the screen', async ({
+    page,
+  }) => {
+    await page.goto('/settings');
+    await page.goto('/all');
+    await menu(page).click();
+    await expect(dialog(page)).toBeVisible();
+    await page.reload();
+    await expect(dialog(page)).toHaveCount(0);
+    await menu(page).dblclick();
+    await expect(dialog(page)).toHaveCount(1);
+    await page.keyboard.press('Escape');
+    await expect(dialog(page)).toBeHidden();
+    await expect(page).toHaveURL(/\/all$/);
+    await expect(page.getByRole('heading', { level: 1, name: 'All articles' })).toBeVisible();
+  });
+
   test('AC4: a tap (touch) on the scrim closes the drawer and does not activate what is behind it', async ({
     page,
   }) => {
