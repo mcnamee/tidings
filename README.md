@@ -17,14 +17,14 @@ Create `apps/worker/.dev.vars` (gitignored) for local secrets such as `SETUP_TOK
 
 ## Scripts
 
-| Script                     | What it does                                                         |
-| -------------------------- | -------------------------------------------------------------------- |
-| `npm run typecheck`        | `tsc` in every workspace                                             |
-| `npm run lint`             | ESLint + Prettier check                                              |
-| `npm test`                 | Vitest unit tests in every workspace, plus lint-rule tests           |
-| `npm run build`            | Builds `apps/web/dist`, then `wrangler deploy --dry-run` (no upload) |
-| `npm run test:e2e`         | Placeholder until TID-005                                            |
-| `npm run db:migrate:local` | Applies D1 migrations locally (none yet; schema is TID-004)          |
+| Script                     | What it does                                                                            |
+| -------------------------- | --------------------------------------------------------------------------------------- |
+| `npm run typecheck`        | `tsc` in every workspace                                                                |
+| `npm run lint`             | ESLint + Prettier check                                                                 |
+| `npm test`                 | Vitest unit tests in every workspace, plus lint-rule tests                              |
+| `npm run build`            | Builds `apps/web/dist`, then `wrangler deploy --dry-run` (no upload)                    |
+| `npm run test:e2e`         | Playwright, 4 projects (mobile/desktop x light/dark); see docs/testing/TEST_STRATEGY.md |
+| `npm run db:migrate:local` | Applies D1 migrations locally (none yet; schema is TID-004)                             |
 
 Never run `wrangler deploy` by hand; production deploys are covered by TID-024. The D1 `database_id` in
 `apps/worker/wrangler.jsonc` is a placeholder until then.
@@ -32,3 +32,9 @@ Never run `wrangler deploy` by hand; production deploys are covered by TID-024. 
 ## Layout
 
 `apps/web` (React SPA), `apps/worker` (Hono Worker), `packages/shared` (API types), `packages/feed-parser`, `e2e`.
+
+## Testing
+
+`npm test` runs Worker integration tests inside workerd against a migrated local D1. `npm run test:e2e`
+needs a one-off `npm run install:browsers -w @tidings/e2e` (Chromium). Layers, helpers, fixtures and the
+traceability convention are in `docs/testing/TEST_STRATEGY.md`.
