@@ -6,6 +6,8 @@ declare global {
   namespace Cloudflare {
     interface Env extends WorkerEnv {
       TEST_MIGRATIONS: D1Migration[];
+      /** Output of scripts/seed.mjs buildSeedSql(), computed Node-side in vitest.config.ts. */
+      SEED_SQL: string;
     }
   }
 }
