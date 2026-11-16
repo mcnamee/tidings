@@ -287,8 +287,8 @@ No other runtime libraries without PM approval (state management, UI kits, date 
   },
   "d1_databases": [{ "binding": "DB", "database_name": "tidings", "database_id": "<id>", "migrations_dir": "migrations" }],
   "triggers": { "crons": ["* * * * *", "17 * * * *"] },
-  "routes": [{ "pattern": "tidings.mcnamee.co", "custom_domain": true }], // needs mcnamee.co DNS on Cloudflare (Q2)
-  "vars": { "APP_ORIGIN": "https://tidings.mcnamee.co", "RP_ID": "tidings.mcnamee.co", "RP_NAME": "Tidings" }
+  "routes": [{ "pattern": "tidings.mcn.am", "custom_domain": true }],
+  "vars": { "APP_ORIGIN": "https://tidings.mcn.am", "RP_ID": "tidings.mcn.am", "RP_NAME": "Tidings" }
   // secrets: SETUP_TOKEN (wrangler secret put)
 }
 ```
@@ -1008,14 +1008,12 @@ On push to `main` after CI passes: `wrangler d1 migrations apply tidings --remot
 
 ## 16. Decisions on open questions
 
-The user accepted every recommended default on 2026-11-16 and chose the hostname `tidings.mcnamee.co`.
-
-**Still open:** the `mcnamee.co` DNS is hosted by DigitalOcean. A Workers custom domain needs the zone on Cloudflare, so the nameservers must move to Cloudflare (free plan) before TID-024. The alternative is a different hostname, which must be chosen before first-run setup.
+The user accepted every recommended default on 2026-11-16 and chose the hostname `tidings.mcn.am`.
 
 | # | Question | Decision |
 |---|---|---|
 | Q1 | Single user, or will others use your deployment? | **Single owner in MVP**; invite-only multi-user in M3. Data model already supports it. |
-| Q2 | Which hostname? Passkeys are bound to it, so changing it later means re-registering passkeys. | **`tidings.mcnamee.co`** (user, 2026-11-16). Requires `mcnamee.co` DNS on Cloudflare; see above. |
+| Q2 | Which hostname? Passkeys are bound to it, so changing it later means re-registering passkeys. | **`tidings.mcn.am`** (user, 2026-11-16; the zone is already on Cloudflare). |
 | Q3 | Auth: passkeys in the app, or Cloudflare Access in front of it? | **Passkeys + recovery codes** (ADR 0002). |
 | Q4 | Retention: how long to keep articles? | **Read: 30 days. Unread: 90 days. Starred (M2): forever.** |
 | Q5 | Refresh interval? | **30 minutes** for every feed; adaptive per-feed intervals in M2. Fastest allowed: 20 minutes. |
