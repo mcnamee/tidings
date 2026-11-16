@@ -35,7 +35,7 @@ Entry template:
 ### DEF-012: `config_error` responses are not `Cache-Control: no-store`
 - Story: TID-007 (spec 8.1: "Responses carry `Cache-Control: no-store`"; AC-adjacent, the story added the header)
 - Severity: S3. Owner: SE.
-- Status: Open
+- Status: Fixed (TID-007 review-fixes commit), awaiting tester closure
 - Found by: `apps/worker/test/setup-attack.test.ts` > "every response, including the config_error short-circuit, is Cache-Control: no-store (DEF-012)" (`it.fails`)
 - Steps to reproduce: call any `/api/*` route with `ALLOW_FETCH_HOSTS` set and `APP_ORIGIN` not `http://localhost:*`.
 - Expected: `500 config_error` with `Cache-Control: no-store`, like every other API response.

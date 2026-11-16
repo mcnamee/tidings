@@ -9,6 +9,14 @@ export const APP_VERSION = '0.0.0';
 export function createApp(deps?: Partial<AuthDeps>): Hono<{ Bindings: Env }> {
   const app = new Hono<{ Bindings: Env }>().basePath('/api');
 
+  // Spec 8.1. Recovery codes travel in these responses, so nothing may be cached. It is registered
+  // first so it also covers the config guard's short-circuit below (DEF-012). TID-008 adds
+  // the rest of the API security headers next to this.
+  app.use('*', async (c, next) => {
+    await next();
+    c.header('Cache-Control', 'no-store');
+  });
+
   // TID-010 AC6: a misconfigured ALLOW_FETCH_HOSTS makes every request fail loudly.
   app.use('*', async (c, next) => {
     if (c.env) {
@@ -24,13 +32,6 @@ export function createApp(deps?: Partial<AuthDeps>): Hono<{ Bindings: Env }> {
       }
     }
     await next();
-  });
-
-  // Spec 8.1. Recovery codes travel in these responses, so nothing may be cached. TID-008 adds
-  // the rest of the API security headers next to this.
-  app.use('*', async (c, next) => {
-    await next();
-    c.header('Cache-Control', 'no-store');
   });
 
   app.route('/auth', createAuthRoutes(deps));

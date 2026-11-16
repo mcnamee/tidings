@@ -313,7 +313,7 @@ function SetupForm({ onCreated, onAlreadySetUp }: SetupFormProps) {
   const helper = showOffline
     ? "You're offline."
     : rateWait !== null
-      ? rateWait
+      ? `${rateWait}.`
       : phase === 'prompt'
         ? 'Follow the prompt on your device.'
         : '';

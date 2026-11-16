@@ -378,7 +378,7 @@ describe('step 1: running the ceremony', () => {
       );
       expect(button()).toHaveAttribute('aria-disabled', 'true');
       expect(
-        screen.getByText('Try again in 7 minutes', { selector: '#setup-helper' }),
+        screen.getByText('Try again in 7 minutes.', { selector: '#setup-helper' }),
       ).toBeInTheDocument();
       await user.click(button());
       expect(api.calls.filter((c) => c.path === '/api/auth/setup/options')).toHaveLength(1);

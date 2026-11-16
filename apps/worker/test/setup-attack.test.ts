@@ -353,20 +353,17 @@ describe('injection through names', () => {
 });
 
 describe('config_error and headers', () => {
-  // DEF-012: the config guard returns before the no-store middleware runs. Switch to `it` when fixed.
-  it.fails(
-    'every response, including the config_error short-circuit, is Cache-Control: no-store (DEF-012)',
-    async () => {
-      vi.spyOn(console, 'error').mockImplementation(() => undefined);
-      const res = await createApp().fetch(new Request(`${env.APP_ORIGIN}/api/auth/session`), {
-        ...env,
-        APP_ORIGIN: 'https://tidings.example.com',
-        ALLOW_FETCH_HOSTS: '127.0.0.1:8790',
-      });
-      expect(res.status).toBe(500);
-      expect(res.headers.get('Cache-Control')).toBe('no-store');
-    },
-  );
+  // DEF-012: the no-store middleware is registered before the config guard, so it covers the 500.
+  it('every response, including the config_error short-circuit, is Cache-Control: no-store (DEF-012)', async () => {
+    vi.spyOn(console, 'error').mockImplementation(() => undefined);
+    const res = await createApp().fetch(new Request(`${env.APP_ORIGIN}/api/auth/session`), {
+      ...env,
+      APP_ORIGIN: 'https://tidings.example.com',
+      ALLOW_FETCH_HOSTS: '127.0.0.1:8790',
+    });
+    expect(res.status).toBe(500);
+    expect(res.headers.get('Cache-Control')).toBe('no-store');
+  });
 
   it('unknown routes and wrong methods under /api/auth are 404 with no-store', async () => {
     for (const [method, path] of [

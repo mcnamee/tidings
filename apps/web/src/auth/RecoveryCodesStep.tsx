@@ -208,20 +208,6 @@ export function RecoveryCodesStep({ codes, onDone, now, host }: RecoveryCodesSte
           If you lose your passkey, one of these codes signs you in. Each code works once.
         </p>
 
-        <ol
-          aria-label="Recovery codes"
-          className="mt-4 select-text overflow-x-auto rounded-md bg-sunken p-3 [counter-reset:code]"
-        >
-          {codes.map((code) => (
-            <li
-              key={code}
-              className="flex min-h-10 items-center font-mono text-base tabular-nums text-fg [counter-increment:code] before:inline-block before:w-8 before:select-none before:text-fg-muted before:content-[counter(code)] md:text-lg"
-            >
-              <code className="whitespace-nowrap">{code}</code>
-            </li>
-          ))}
-        </ol>
-
         <div className="mt-4 flex flex-wrap gap-3">
           <button
             type="button"
@@ -255,7 +241,24 @@ export function RecoveryCodesStep({ codes, onDone, now, host }: RecoveryCodesSte
           {statusText}
         </p>
 
-        <div className="sticky bottom-0 -mx-6 mt-4 border-t border-line bg-surface px-6 pb-[max(0px,env(safe-area-inset-bottom))] pt-3 md:static">
+        <ol
+          aria-label="Recovery codes"
+          className="mt-2 select-text overflow-x-auto rounded-md bg-sunken p-3 [counter-reset:code]"
+        >
+          {codes.map((code) => (
+            <li
+              key={code}
+              className="flex min-h-10 items-center font-mono text-base tabular-nums text-fg [counter-increment:code] before:inline-block before:w-8 before:select-none before:text-fg-muted before:content-[counter(code)] md:text-lg"
+            >
+              <code className="whitespace-nowrap">{code}</code>
+            </li>
+          ))}
+        </ol>
+
+        <div
+          data-codes-footer
+          className="static bottom-0 -mx-6 mt-4 border-t border-line bg-surface px-6 pb-[max(0.75rem,env(safe-area-inset-bottom))] pt-3 [@media(min-height:40rem)_and_(max-width:47.999rem)]:sticky md:static"
+        >
           <label className="flex min-h-11 cursor-pointer items-start gap-3 py-2">
             <input
               ref={checkboxRef}

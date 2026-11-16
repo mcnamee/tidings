@@ -1,7 +1,7 @@
 import { readFile } from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import type { Locator, Page } from '@playwright/test';
+import { chromium, type Locator, type Page } from '@playwright/test';
 import { expectNoSeriousA11yViolations } from '../support/axe.ts';
 import { E2E_SETUP_TOKEN, resetToSetupRequired, seedOwner } from '../support/auth-state.ts';
 import { expect, test as base } from '../support/test.ts';
@@ -943,5 +943,68 @@ test.describe('AC11: passkeyName is a best-effort label', () => {
     const body = (await verify).postDataJSON() as { passkeyName: string };
     expect(body.passkeyName).toMatch(/^Passkey( on (iPhone|Android|Windows|Mac))?$/);
     await expect(heading(page, 'Save your recovery codes')).toBeVisible();
+  });
+});
+
+// ---- UX review M1: the codes footer is sticky only when the viewport is tall in rem ----------
+
+const footerOf = (page: Page) => page.locator('[data-codes-footer]');
+const footerPosition = (page: Page) =>
+  footerOf(page).evaluate((el) => getComputedStyle(el).position);
+
+test.describe('UX review M1: sticky footer follows the text size', () => {
+  test.describe('200% text at 375 x 812', () => {
+    // 200% text is the browser's default font size of 32px. `html { font-size: 200% }` would not
+    // do: rem in a media query follows the browser setting, not the page's own font-size. That
+    // needs a launch flag, which a describe block cannot set, so this test owns its browser.
+    test('the footer is not sticky, so the codes are reachable and visible', async ({
+      browserName,
+    }, testInfo) => {
+      void browserName;
+      const browser = await chromium.launch({ args: ['--blink-settings=defaultFontSize=32'] });
+      try {
+        const context = await browser.newContext({
+          baseURL: testInfo.project.use.baseURL,
+          viewport: { width: 375, height: 812 },
+          colorScheme: testInfo.project.use.colorScheme ?? 'light',
+        });
+        const page = await context.newPage();
+        const authenticator = await addVirtualAuthenticator(page);
+        void authenticator;
+        await reachCodes(page);
+        expect(await page.evaluate(() => getComputedStyle(document.documentElement).fontSize)).toBe(
+          '32px',
+        );
+        expect(await footerPosition(page)).toBe('static');
+
+        // Every code can be scrolled to and is fully visible: nothing pinned covers it.
+        const items = page.getByRole('list', { name: 'Recovery codes' }).locator('li');
+        await expect(items).toHaveCount(10);
+        for (const i of [0, 9]) {
+          const item = items.nth(i);
+          await item.scrollIntoViewIfNeeded();
+          await expect(item).toBeInViewport({ ratio: 1 });
+        }
+      } finally {
+        await browser.close();
+      }
+    });
+  });
+
+  test.describe('normal text at 375 x 667', () => {
+    test.use({ viewport: { width: 375, height: 667 } });
+
+    test('the footer is sticky and pinned to the bottom of the screen', async ({
+      page,
+      authenticator,
+    }) => {
+      void authenticator;
+      await reachCodes(page);
+      expect(await footerPosition(page)).toBe('sticky');
+      await page.evaluate(() => window.scrollTo(0, 0));
+      const box = await footerOf(page).boundingBox();
+      expect(box).not.toBeNull();
+      expect((box?.y ?? 0) + (box?.height ?? 0)).toBeCloseTo(667, 0);
+    });
   });
 });
