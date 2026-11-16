@@ -156,6 +156,7 @@ Drawer rules:
 | Keyboard | The action button and close are in the normal Tab order after `main` and the bottom bar. Escape dismisses a focused toast. |
 | Motion | Slide up 12 px and fade, 200 ms; instant under reduced motion. |
 | Undo behaviour | Pressing Undo runs the action, dismisses the toast and announces the result ("Undone"). |
+| Undo fails | The Undo toast is dismissed and an **error** toast shows "Couldn't undo. Your change was kept." (8 s, close button, no action). It must not use the generic "Something went wrong. Try again.": the Undo button is gone, so "Try again" would point at nothing. The original action stays applied, so the copy is accurate for every Undo (for example mark all as read); the user can reverse it by hand (mark as unread). Offline, the offline copy still applies. |
 
 Toast API the engineer should build (names are a suggestion): `toast.info(message)`, `toast.success(message)`, `toast.error(message)`, `toast.undo(message, onUndo)`.
 
@@ -371,6 +372,7 @@ No gesture is the only way to do something. Pull-to-refresh on lists has a butto
 | Offline, no cache | Nothing saved yet. Connect to load your articles. |
 | Mutation failed offline (toast) | You're offline. That change wasn't saved. |
 | Generic error (toast) | Something went wrong. Try again. |
+| Undo failed (toast) | Couldn't undo. Your change was kept. |
 | Server error (inline) | Something went wrong on our side. |
 | Rate limited (toast) | Too many requests. Try again in a minute. |
 | Update available (toast) | A new version is ready. |
