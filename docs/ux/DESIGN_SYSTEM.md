@@ -533,6 +533,11 @@ Icon inventory for TID-006 and the stories that follow:
 | All caught up | `CircleCheck` |
 | Mark read / unread | `Circle` (unread) and `CircleCheck` (read) |
 | Overflow menu | `Ellipsis` |
+| Sign in with a passkey (auth screens) | `KeyRound` |
+| Show / hide the setup token | `Eye`, `EyeOff` |
+| Copy recovery codes, download recovery codes | `Copy`, `Download` |
+| Copied confirmation | `Check` |
+| Button in progress (auth screens) | `Loader` (static under reduced motion) |
 
 ---
 
@@ -610,7 +615,7 @@ Why this order: the script must run before the stylesheet is applied, so tokens 
 4. `localStorage` throws (private mode, blocked): falls back to `system`; the app still renders.
 5. `meta[name=theme-color]` content equals the surface colour of the resolved theme.
 
-The manifest can carry only one `theme_color` and `background_color`; use the light values (`#ffffff` and `#f6f5f1`). The live meta tag handles the in-app status bar. Dark-mode launch splash on Android may therefore show light for a moment; recorded as a known minor limitation for TID-023.
+The manifest can carry only one `theme_color` and `background_color`; use the light values (`#ffffff` and `#f6f5f1`). The live meta tag handles the in-app status bar. Dark-mode launch splash on Android may therefore show light for a moment. This is the accepted single-`theme_color` limitation: TID-023 AC4 and FR-PW-1 (accepted by the PM, 2026-11-16). Do not try to work around it (no second manifest, no `media` variants); the icon set and wordmark are designed under TID-023.
 
 ---
 

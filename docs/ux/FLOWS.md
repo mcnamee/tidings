@@ -59,17 +59,18 @@ The right-hand and bottom slots are provided by the shell and filled by each scr
 
 ### 1.5 Drawer behaviour (summary; full rules in `screens/app-shell.md`)
 
-- Opens from the Menu button. Also closes on Escape, backdrop tap, choosing a destination, and browser/system Back.
+- Opens from the Menu button. Also closes on Escape, backdrop tap, choosing a destination, and browser/system Back. Open and close are in the TID-006 scope; the drawer pushes one history entry while open (spec 11.1).
 - Modal: focus is trapped and the page behind is inert.
-- There is deliberately no swipe-from-the-left-edge to open: it collides with the iOS Safari back gesture. Swiping the open drawer to the left closes it (enhancement).
+- There is deliberately no swipe-from-the-left-edge to open: it collides with the iOS Safari back gesture. There is no swipe-to-close in MVP either: it moved to TID-035 (Later, M2). Every close path above has a button or key equivalent.
 
 ### 1.6 Back behaviour
 
 | From | Back (header button, browser back, Android back) goes to | Rule |
 |---|---|---|
-| Article | The list it was opened from, at the same scroll position | Next/previous inside the article use `replace`, so history is always `[list, article]`, never a stack of articles. Header Back and browser back are equivalent. |
-| Article opened by a direct link or after reload | The list for the feed the article belongs to (`/feeds/:id`), then Back leaves to wherever the user came from | The header Back button navigates to the parent list when there is no list entry in history. |
-| Add feed, Import | `/manage` | |
+| Article, app has history | One history entry back: the list it was opened from, at the same scroll position | Next/previous inside the article use `replace`, so history is always `[list, article]`, never a stack of articles. Header Back and browser back are equivalent. (TID-006 AC9) |
+| Article opened by a direct link or after reload (no history in the app) | The list **in the article's own route**: `/all`, `/folders/:id` or `/feeds/:id` for `/all/a/:entryId`, `/folders/:id/a/:entryId`, `/feeds/:id/a/:entryId` | Not "the feed the article belongs to": an article opened from a folder list returns to that folder. Navigate with `replace`. After that, Back leaves to wherever the user came from. |
+| Add feed, Import, app has history | One history entry back (for example `/all` or the drawer's origin) | History first (TID-006 AC8). |
+| Add feed, Import, opened directly (no history in the app) | `/manage`, with `replace` | Fallback only. |
 | Drawer open | Closes the drawer | The drawer pushes one history entry while open |
 | A list, Manage, Settings | Previous screen in history as normal | No custom stack |
 | Login after sign-out | Back must not return into the app | Sign-out replaces history |
@@ -84,7 +85,7 @@ Scroll position is restored on returning to a list (React Router scroll restorat
 
 ### 1.8 Where the app opens
 
-`/` redirects to `/all` (spec 11.1). **Proposed for PM:** redirect to the last list the user viewed (stored on the device, falling back to `/all`), because NFR-1 talks about "the last view" rendering from cache, and someone who reads one folder daily should land there. This is a one-line change and does not alter any route.
+**Decided (PM, 2026-11-16, spec 11.1).** `/` redirects to the last list viewed on this device, stored in `localStorage['tidings.lastList']` (one of `/all`, `/folders/:id`, `/feeds/:id`). It falls back to `/all` when nothing is stored, the value is malformed, or the folder or feed no longer exists (TID-018 AC11). "Default view" after sign-in (FR-AU-3) means the same target; after first-run setup the user lands on `/all`. Wrap storage access in try/catch like the theme (DESIGN_SYSTEM 9.4).
 
 ---
 
@@ -98,12 +99,13 @@ Notation: `[Screen]` is a screen, `-> ` is a user action, `(state)` is a notable
 2. -> enters display name and setup token -> "Create passkey". The device passkey prompt appears.
    - (wrong token) inline error on the token field, nothing created.
    - (passkey cancelled) stay on Setup, message "Passkey setup was cancelled. Try again."
-3. **[Recovery codes]**: ten codes shown once, with Copy and Download. "Continue" is disabled until "I've saved these" is ticked.
+   - Full states and copy: `screens/setup.md`.
+3. **[Recovery codes]** (second step of `/setup`, same route): ten codes shown once, with Copy and Download. "Continue" is inert until "I've saved these" is ticked. Back, reload and tab close are guarded while it is unticked.
 4. -> Continue -> **[All articles, empty state]**: "No feeds yet", with two actions: "Import from Inoreader" (primary, goes to Import) and "Add a feed".
 
-Returning sign-in: **[Login]** with one "Sign in with a passkey" button (discoverable credentials), "Lost your passkey?" link to **[Recover]**. Success lands on the last list (or `/all`).
+Returning sign-in: **[Login]** with one "Sign in with a passkey" button (discoverable credentials), "Lost your passkey?" link to **[Recover]**. Success lands on the remembered route after a session expiry, otherwise the last list (or `/all`). Detail: `screens/login.md`.
 
-Lost passkey: **[Recover]** accepts one recovery code, signs in, burns it, and shows a persistent banner "Add a new passkey" linking to Settings (FR-AU-4). The banner sits in the shell under the header until the owner adds a passkey.
+Lost passkey: **[Recover]** accepts one recovery code, signs in, burns it, and shows a persistent banner "Add a new passkey" linking to Settings (FR-AU-4). The banner sits in the shell under the header until the owner adds a passkey. Detail: `screens/recover.md`.
 
 Session ended (any 401 while using the app): redirect to **[Login]** with the line "Your session ended. Sign in again." The previous route is remembered and restored after sign-in.
 
