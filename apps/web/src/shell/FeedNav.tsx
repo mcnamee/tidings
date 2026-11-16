@@ -53,11 +53,11 @@ export function FeedNav({ replace = false }: { replace?: boolean }) {
           <Plus aria-hidden="true" className="size-5" strokeWidth={1.75} />
           Add feed
         </Link>
-        <div className="mt-2 flex gap-2">
+        <div className="mt-2 flex flex-wrap gap-2">
           <Link
             to="/manage"
             replace={replace}
-            className="flex min-h-11 flex-1 items-center justify-center gap-2 rounded-md border border-line-strong px-2 text-base font-medium text-fg"
+            className="flex min-h-11 min-w-fit flex-1 items-center justify-center gap-2 rounded-md border border-line-strong px-2 text-base font-medium text-fg"
           >
             <ListChecks aria-hidden="true" className="size-5" strokeWidth={1.75} />
             Manage
@@ -65,7 +65,7 @@ export function FeedNav({ replace = false }: { replace?: boolean }) {
           <Link
             to="/settings"
             replace={replace}
-            className="flex min-h-11 flex-1 items-center justify-center gap-2 rounded-md border border-line-strong px-2 text-base font-medium text-fg"
+            className="flex min-h-11 min-w-fit flex-1 items-center justify-center gap-2 rounded-md border border-line-strong px-2 text-base font-medium text-fg"
           >
             <Settings aria-hidden="true" className="size-5" strokeWidth={1.75} />
             Settings

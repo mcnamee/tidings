@@ -31,13 +31,15 @@ function ToastCard({ item, store }: { item: ToastItem; store: ToastStore }) {
   return (
     <div
       ref={card}
-      className="toast-item pointer-events-auto mx-auto flex w-full max-w-md items-center gap-2 rounded-md border border-line bg-toast py-1 pl-4 text-base text-toast-fg shadow-raised"
+      className="toast-item pointer-events-auto mx-auto flex w-full max-w-md flex-wrap items-center gap-x-2 rounded-md border border-line bg-toast py-1 pl-4 text-base text-toast-fg shadow-raised"
     >
-      <p className="line-clamp-2 min-w-0 flex-1 py-2">{item.message}</p>
+      <div className="min-w-[12ch] flex-1 py-2">
+        <p className="line-clamp-2">{item.message}</p>
+      </div>
       {item.action && (
         <button
           type="button"
-          className="min-h-11 min-w-11 rounded-sm px-3 font-medium text-toast-action"
+          className="ml-auto min-h-11 min-w-11 rounded-sm px-3 font-medium text-toast-action"
           onClick={() => {
             item.action?.run();
             store.dismiss(item.id);

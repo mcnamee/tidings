@@ -105,7 +105,7 @@ export function AppShell() {
           <div className="flex min-h-dvh min-w-0 flex-1 flex-col">
             <div className="sticky top-0 z-20">
               <header className="border-b border-line bg-surface pl-[max(1rem,env(safe-area-inset-left))] pr-[max(1rem,env(safe-area-inset-right))] pt-[env(safe-area-inset-top)]">
-                <div className="flex min-h-14 items-center gap-2">
+                <div className="flex min-h-14 items-center gap-2 py-2 lg:mx-auto lg:max-w-2xl">
                   {showBack ? (
                     <button
                       type="button"
@@ -134,7 +134,7 @@ export function AppShell() {
                   <h1
                     ref={heading}
                     tabIndex={-1}
-                    className="min-w-0 flex-1 truncate text-lg font-semibold text-fg"
+                    className="min-w-0 flex-1 line-clamp-2 break-words text-lg font-semibold text-fg"
                   >
                     {route.title}
                   </h1>
