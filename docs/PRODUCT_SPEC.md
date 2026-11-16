@@ -287,7 +287,8 @@ No other runtime libraries without PM approval (state management, UI kits, date 
   },
   "d1_databases": [{ "binding": "DB", "database_name": "tidings", "database_id": "<id>", "migrations_dir": "migrations" }],
   "triggers": { "crons": ["* * * * *", "17 * * * *"] },
-  "vars": { "APP_ORIGIN": "https://<host>", "RP_ID": "<host>", "RP_NAME": "Tidings" }
+  "routes": [{ "pattern": "tidings.mcnamee.co", "custom_domain": true }], // needs mcnamee.co DNS on Cloudflare (Q2)
+  "vars": { "APP_ORIGIN": "https://tidings.mcnamee.co", "RP_ID": "tidings.mcnamee.co", "RP_NAME": "Tidings" }
   // secrets: SETUP_TOKEN (wrangler secret put)
 }
 ```
@@ -1005,20 +1006,22 @@ On push to `main` after CI passes: `wrangler d1 migrations apply tidings --remot
 
 ---
 
-## 16. Open questions for the user
+## 16. Decisions on open questions
 
-Each has a recommended default. Work proceeds on the default unless the user says otherwise.
+The user accepted every recommended default on 2026-11-16 and chose the hostname `tidings.mcnamee.co`.
 
-| # | Question | Recommended default |
+**Still open:** the `mcnamee.co` DNS is hosted by DigitalOcean. A Workers custom domain needs the zone on Cloudflare, so the nameservers must move to Cloudflare (free plan) before TID-024. The alternative is a different hostname, which must be chosen before first-run setup.
+
+| # | Question | Decision |
 |---|---|---|
 | Q1 | Single user, or will others use your deployment? | **Single owner in MVP**; invite-only multi-user in M3. Data model already supports it. |
-| Q2 | Which hostname? Passkeys are bound to it, so changing it later means re-registering passkeys. | **A subdomain of a domain you already have on Cloudflare** (e.g. `tidings.yourdomain.com`), which is free. Otherwise `tidings.<account>.workers.dev`. Decide before first-run setup. |
+| Q2 | Which hostname? Passkeys are bound to it, so changing it later means re-registering passkeys. | **`tidings.mcnamee.co`** (user, 2026-11-16). Requires `mcnamee.co` DNS on Cloudflare; see above. |
 | Q3 | Auth: passkeys in the app, or Cloudflare Access in front of it? | **Passkeys + recovery codes** (ADR 0002). |
 | Q4 | Retention: how long to keep articles? | **Read: 30 days. Unread: 90 days. Starred (M2): forever.** |
 | Q5 | Refresh interval? | **30 minutes** for every feed; adaptive per-feed intervals in M2. Fastest allowed: 20 minutes. |
 | Q6 | If spikes show the Free plan can't parse your feeds within 10 ms CPU, would you pay **$5/month for Workers Paid**? | **Stay free and degrade** (skip or cap oversized feeds, show them as "too large") unless more than 5% of your feeds are affected; then ask again with numbers. |
 | Q7 | Migrate Inoreader starred/saved items? (Not in OPML.) | **No.** Export them from Inoreader for safekeeping; Tidings starts fresh. |
-| Q8 | Where is the repo hosted? CI assumes GitHub Actions. | **GitHub (private repo) + GitHub Actions.** |
+| Q8 | Where is the repo hosted? CI assumes GitHub Actions. | **GitHub `mcnamee/tidings` + GitHub Actions.** |
 | Q9 | Article images load directly from publishers' servers (they see your IP, not what you read, thanks to `no-referrer`). Proxy them instead? | **Load directly.** Proxying would cost a Worker request per image and blow the request budget. |
 | Q10 | Inoreader lets a feed sit in several folders. OK to allow only one folder per feed in MVP? | **Yes, one folder**; on import the first folder wins. Multi-folder (tags) in M3. |
 | Q11 | First fetch of a new feed: OK to bring in the 10 newest items, with items older than 7 days pre-marked read? | **Yes.** |
