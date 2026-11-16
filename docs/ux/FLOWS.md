@@ -1,0 +1,187 @@
+# Tidings navigation model and key flows
+
+Status: designed for TID-006 (navigation model and flow-level journeys). Screen-level detail for each step lives in `docs/ux/screens/`; the shell is in `screens/app-shell.md`. Visual tokens are in `DESIGN_SYSTEM.md`.
+
+---
+
+## 1. Navigation model
+
+### 1.1 Principles
+
+- One place to go anywhere: the **feed tree** (All, folders, feeds). It is a drawer on phones and tablets and a permanent sidebar on wide screens. Same content, same order, same component.
+- The header says where you are and offers one way to move: **Menu** on top-level screens, **Back** on sub-pages.
+- Reading is a two-level journey: list, then article. Going back always returns to the same list at the same scroll position.
+- Everything people do many times a day (read, next, mark read) is reachable with a thumb in the bottom half of the screen. Rare things (manage, import, settings) sit in the drawer footer.
+
+### 1.2 Breakpoints
+
+| Width | Feed tree | Header left control | Content |
+|---|---|---|---|
+| under 1024 px (phone, tablet) | Modal **drawer**, opened from the header Menu button | Menu | One column, centred, max 42rem on tablet |
+| 1024 px and up | Permanent **sidebar**, 18rem | None (the sidebar is always there) | One column, centred, max 42rem, next to the sidebar |
+
+768 px (tablet) changes only gutters and the article title size. There is no split view in MVP: list and article are separate screens at every width. Reasoning: the owner reads on a phone; a split view would be a second layout to build and test for a rare case. Revisit in M2 if the owner reads on a desktop.
+
+### 1.3 Route map and chrome
+
+Authenticated routes are inside the shell. Auth routes are not.
+
+| Route | Header left | Header title (`h1`) | Right-hand actions (slot) | Bottom bar (slot) |
+|---|---|---|---|---|
+| `/setup`, `/login`, `/recover` | no shell: centred auth layout, no header, no drawer | | | |
+| `/all` | Menu | All articles | Unread/All filter, overflow | Mark all as read, refresh |
+| `/folders/:id` | Menu | Folder name | same | same |
+| `/feeds/:id` | Menu | Feed title (custom title if set) | same, plus feed overflow | same |
+| `/*/a/:entryId` | Back | Feed title | Open original | Previous, Mark read/unread, Next |
+| `/manage` | Menu | Manage feeds | Add feed | none |
+| `/manage/add` | Back | Add a feed | none | Primary action when keyboard is closed |
+| `/manage/import` | Back | Import from OPML | none | none |
+| `/settings` | Menu | Settings | none | none |
+| unknown | Menu | Page not found | none | none |
+
+The right-hand and bottom slots are provided by the shell and filled by each screen; this table is the contract for those later screen specs. Top-level destinations use Menu, sub-pages use Back. A screen never shows both.
+
+### 1.4 Where things live
+
+| Thing | Where | Notes |
+|---|---|---|
+| Unread counts | Feed tree rows (All, each folder, each feed) | A right-aligned number, `999+` above 999. Zero is not drawn; the row is dimmed instead (FR-RD-2). Counts never appear in the header. |
+| Folders | Feed tree, alphabetical, collapsed by default | Chevron toggles; tapping the name opens the merged folder list. The folder holding the current feed is open. Open/closed state is remembered on the device. |
+| Feeds without a folder | Feed tree, below the folders | Alphabetical |
+| Failing feed marker | Feed tree row, a warning icon with text label for screen readers | FR-FH-2 |
+| Add feed | Drawer footer (primary button) and Manage header | |
+| Manage, Settings | Drawer footer | |
+| Unread-only / All toggle | List header right slot | FR-RD-4 |
+| Mark all as read | List bottom bar | FR-RD-9. Bottom, because it is a frequent one-handed action. |
+| Refresh | Pull to refresh on lists. Also in the bottom bar for non-touch users. | Refetches cached server data only (FR-RD-11) |
+| Offline state | A banner directly under the header, on every screen | |
+| Toasts (undo, errors) | Bottom of the screen, above the bottom bar | |
+
+### 1.5 Drawer behaviour (summary; full rules in `screens/app-shell.md`)
+
+- Opens from the Menu button. Also closes on Escape, backdrop tap, choosing a destination, and browser/system Back.
+- Modal: focus is trapped and the page behind is inert.
+- There is deliberately no swipe-from-the-left-edge to open: it collides with the iOS Safari back gesture. Swiping the open drawer to the left closes it (enhancement).
+
+### 1.6 Back behaviour
+
+| From | Back (header button, browser back, Android back) goes to | Rule |
+|---|---|---|
+| Article | The list it was opened from, at the same scroll position | Next/previous inside the article use `replace`, so history is always `[list, article]`, never a stack of articles. Header Back and browser back are equivalent. |
+| Article opened by a direct link or after reload | The list for the feed the article belongs to (`/feeds/:id`), then Back leaves to wherever the user came from | The header Back button navigates to the parent list when there is no list entry in history. |
+| Add feed, Import | `/manage` | |
+| Drawer open | Closes the drawer | The drawer pushes one history entry while open |
+| A list, Manage, Settings | Previous screen in history as normal | No custom stack |
+| Login after sign-out | Back must not return into the app | Sign-out replaces history |
+
+Scroll position is restored on returning to a list (React Router scroll restoration plus the cached infinite query, so the same pages are present).
+
+### 1.7 Focus and announcements on navigation
+
+- The document title is `Screen name - Tidings` and updates on every route change.
+- After a route change (not after Back/Forward) focus moves to the `h1`, which has `tabindex="-1"`, so screen-reader and keyboard users start at the top of the new screen.
+- After Back or Forward, the browser restores scroll and focus is left alone.
+
+### 1.8 Where the app opens
+
+`/` redirects to `/all` (spec 11.1). **Proposed for PM:** redirect to the last list the user viewed (stored on the device, falling back to `/all`), because NFR-1 talks about "the last view" rendering from cache, and someone who reads one folder daily should land there. This is a one-line change and does not alter any route.
+
+---
+
+## 2. Key journeys
+
+Notation: `[Screen]` is a screen, `-> ` is a user action, `(state)` is a notable state. Each journey ends in a defined place.
+
+### 2.1 First sign-in (first run, story TID-007)
+
+1. Owner opens the deployed URL. The app asks the session endpoint; with no users it returns `setupRequired`, so the app goes to **[Setup]** (no shell).
+2. -> enters display name and setup token -> "Create passkey". The device passkey prompt appears.
+   - (wrong token) inline error on the token field, nothing created.
+   - (passkey cancelled) stay on Setup, message "Passkey setup was cancelled. Try again."
+3. **[Recovery codes]**: ten codes shown once, with Copy and Download. "Continue" is disabled until "I've saved these" is ticked.
+4. -> Continue -> **[All articles, empty state]**: "No feeds yet", with two actions: "Import from Inoreader" (primary, goes to Import) and "Add a feed".
+
+Returning sign-in: **[Login]** with one "Sign in with a passkey" button (discoverable credentials), "Lost your passkey?" link to **[Recover]**. Success lands on the last list (or `/all`).
+
+Lost passkey: **[Recover]** accepts one recovery code, signs in, burns it, and shows a persistent banner "Add a new passkey" linking to Settings (FR-AU-4). The banner sits in the shell under the header until the owner adds a passkey.
+
+Session ended (any 401 while using the app): redirect to **[Login]** with the line "Your session ended. Sign in again." The previous route is remembered and restored after sign-in.
+
+### 2.2 Import OPML from Inoreader (the switch, TID-016)
+
+The first-run goal is to be reading within 15 minutes.
+
+1. Entry points: the empty state ("Import from Inoreader"), **[Manage]** header menu, **[Settings]** Data section. All go to **[Import]**.
+2. **[Import]** step 1, "Choose your file": short instructions to export OPML from Inoreader, then a "Choose OPML file" button (system file picker, `.opml` and `.xml`).
+3. The browser parses the file locally. Step 2, **preview**: "Found 243 feeds in 18 folders. 3 already subscribed. 1 invalid." Lists the affected counts (for example feeds in several folders: first folder wins). Nothing is saved yet.
+   - (not an OPML file / empty) error "That file doesn't look like an OPML export" with "Choose another file".
+4. -> "Import 239 feeds" (primary, bottom of screen). Chunks are sent; a progress bar is shown.
+5. Step 3, **progress**: "Fetched 120 of 243 feeds", polled every 5 s. The owner can leave at any time; fetching continues on the server. A "Start reading" button is available as soon as one feed has articles.
+   - (some feeds fail) they are counted at the end: "12 feeds couldn't be fetched" with "See which" going to **[Manage]** filtered to problem feeds.
+6. -> "Start reading" -> **[All articles]**.
+
+Re-import is safe (idempotent): the preview shows everything as already subscribed.
+
+### 2.3 Add a feed (TID-013)
+
+1. Entry: drawer footer "Add feed", **[Manage]** header, empty state.
+2. **[Add a feed]**: one URL field (pasted feed URL or website URL), optional folder picker, optional title. Primary "Add feed" button at the bottom of the screen.
+3. Outcomes:
+   - One feed found: subscribes, fetches (up to 10 s), then **toast** "Added Feed title" and goes to that feed's list. First fetch shows at most 10 items.
+   - Several candidates: a short list to choose from ("We found 3 feeds on this site"), pick one, continue as above. JSON Feed candidates are shown disabled with "Not supported yet".
+   - None found: inline error "We couldn't find a feed at that address."
+   - Already subscribed: "You already follow this feed" with a link to it.
+   - Limit reached (1,000): "You've reached the limit of 1,000 feeds."
+   - Offline: the button is disabled with "You're offline" helper text.
+
+### 2.4 Organise folders (TID-014)
+
+Done on **[Manage]**, which lists folders and feeds with health.
+
+- **Create folder**: "New folder" in the Manage header menu, name field, 1 to 64 characters, unique; inline error "You already have a folder with that name."
+- **Rename folder**: row menu, "Rename".
+- **Move a feed**: tap the feed row, "Move to folder", choose a folder or "No folder" (one folder per feed, FR-FO-2). Done in a bottom sheet in the lower half of the screen.
+- **Rename a feed**: same row menu, "Rename" (empty resets to the feed's own title).
+- **Delete a folder**: row menu, "Delete folder", confirm dialog: "Delete Tech? Its 12 feeds move out of the folder. Nothing is unsubscribed." Buttons "Delete folder" (destructive) and "Cancel". Toast afterwards.
+- **Unsubscribe**: row menu, "Unsubscribe", confirm dialog: "Unsubscribe from Feed title? Your read history for this feed will be removed." Buttons "Unsubscribe" and "Cancel".
+- The feed tree updates immediately (optimistic), rolling back with an error toast on failure.
+
+### 2.5 Browse by folder or feed
+
+1. Open the drawer (Menu). The tree shows All, folders, then loose feeds with counts.
+2. Tap **All articles**, a folder name, or a feed. The drawer closes, the list opens, focus goes to the title.
+3. Tap a folder's chevron to peek at its feeds without leaving the current list. The drawer stays open.
+4. The list shows "Unread" by default (setting); the header toggle switches to "All" without losing position in the tree.
+5. With nothing unread, the list shows "All caught up" with a button "Show all articles".
+
+### 2.6 Read an article (TID-019)
+
+1. **[List]** -> tap a row -> **[Article]** (route `/.../a/:entryId`). The article is marked read on open (if the setting is on) and the list row and counts update immediately (optimistic).
+2. Read. The bottom bar offers Previous, Mark as unread/read, Next. "Open original" is in the header.
+3. -> Next: replaces the article in place (history stays `[list, article]`), scroll resets to top. At the end of the loaded list the Next button loads more; at the very end it is disabled.
+4. -> Back: return to the list at the same scroll position, with the read items now showing as read (or gone, in unread-only mode, only after the list is next refreshed, so rows do not jump away under the thumb).
+
+Decision recorded here for the list spec: in Unread-only mode a row that has just been read stays in place until the user leaves and returns or pulls to refresh.
+
+### 2.7 Mark as read
+
+- **One article**: automatic on open, or the Mark as read/unread button in the article bottom bar and on a list row's overflow. Optimistic within 100 ms; on failure the state rolls back and a toast says "Couldn't update that article. Try again."
+- **Mark all as read**: list bottom bar, "Mark all as read".
+  - 20 or fewer articles: happens immediately, with a toast "Marked 14 as read" and an Undo button for 5 seconds.
+  - More than 20: confirm sheet in the lower half: "Mark 84 articles as read?" with "Mark 84 as read" and "Cancel", then the same toast with Undo.
+  - More than 1,000: the confirm step applies, and the toast has no Undo (spec FR-RD-9).
+  - Only articles that were in the view when it loaded are affected.
+- Counts in the feed tree update with the action and are reconciled by the next count refetch.
+
+---
+
+## 3. Cross-cutting states every flow must handle
+
+| State | Behaviour | Copy |
+|---|---|---|
+| Offline | Banner under the header; cached lists and counts still show; any change fails with a toast; actions that need the network are disabled with a reason. | "You're offline. Showing saved articles." and "You're offline. That change wasn't saved." |
+| Session ended | See 2.1. | "Your session ended. Sign in again." |
+| Server error | Inline retry in place of the failing region; never a blank screen. | "Something went wrong on our side." with "Try again" |
+| Loading with cache | Show cached content instantly and refresh quietly: no spinner, no flash. | |
+| Loading without cache | Skeleton rows shaped like the final content. | |
+| Rate limited | Toast with the wait time where known. | "Too many requests. Try again in a minute." |
