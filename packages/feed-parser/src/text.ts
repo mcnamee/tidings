@@ -102,9 +102,6 @@ const HTML_ELEMENT_NAMES =
   'tfoot|th|thead|time|title|tr|track|tt|u|ul|var|video|wbr|xmp|svg|math';
 const HTML_TAG_RE = new RegExp(`</?(?:${HTML_ELEMENT_NAMES})(?=[\\s/>]|$)[^>]*(?:>|$)`, 'gi');
 
-/** Opener of an element tag or a comment: what must never survive in plain text. */
-const TAG_OPENER_RE = new RegExp(`<(?=/?(?:${HTML_ELEMENT_NAMES})(?=[\\s/>]|$)|!--)`, 'gi');
-
 /** One strip pass. Every match is at least 2 chars and becomes at most 1, so it always shortens. */
 function stripPass(text: string): string {
   return (
@@ -126,8 +123,10 @@ const MAX_STRIP_PASSES = 16;
 /**
  * Strips tags until the text stops changing, so removing one tag cannot leave another formed from
  * its fragments (`<scr<b>ipt>`, DEF-011). Each changing pass shortens the text, so the loop ends;
- * the pass cap bounds the cost, and if it is hit every remaining element-tag or comment opener `<`
- * is dropped. Deleting a `<` can never create a new one, so that fallback is final.
+ * the pass cap bounds the cost. If it is hit, the fallback deletes every `<` that is followed by
+ * `/`, `!` or an ASCII letter (a superset of every tag and comment opener), taking a whole run of
+ * `<` with it so `<<b` cannot collapse into `<b`, and repeats until nothing changes. Each round
+ * shortens the text, so it ends, and its output has no such `<` left: that is final.
  */
 function stripTags(text: string): string {
   let current = text;
@@ -136,7 +135,17 @@ function stripTags(text: string): string {
     if (next === current) return current;
     current = next;
   }
-  return current.replace(TAG_OPENER_RE, '');
+  return dropOpeners(current);
+}
+
+/** Cap fallback: drop every `<` run that precedes `/`, `!` or an ASCII letter, to a fixed point. */
+function dropOpeners(text: string): string {
+  let current = text;
+  for (;;) {
+    const next = current.replace(/<+(?=[/!A-Za-z])/g, '');
+    if (next === current) return current;
+    current = next;
+  }
 }
 
 /**

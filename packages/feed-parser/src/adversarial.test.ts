@@ -219,13 +219,26 @@ describe('hostile text never becomes more dangerous', () => {
     expect(htmlToText(nested)).toContain('Vec<T> 5 < 6 I <3');
   });
 
-  // DEF-011 residual: the 16-pass cap fallback deletes openers in one regex pass, and deleting a
-  // `<` can expose a new opener (`<<b>` becomes `<b>`). Switch to `it` when the fallback is final.
-  it.fails('cap fallback cannot leave an element tag: 17 nested levels (DEF-011 residual)', () => {
+  // DEF-011 residual: the pass-cap fallback must be final. Deleting a `<` can expose a new opener
+  // (`<<b>` becomes `<b>`), so the fallback deletes every `<` before `/`, `!` or a letter, to a fixed point.
+  it('cap fallback cannot leave an element tag: 17 nested levels (DEF-011 residual)', () => {
     for (const depth of [17, 33]) {
       const hostile = '<' + '<b'.repeat(depth) + '>'.repeat(depth);
       expect(htmlToText(hostile), `depth ${depth}`).not.toMatch(ELEMENT_TAG);
     }
+  });
+
+  it.each([17, 18, 40, 1000])('cap fallback is final at %i nested levels', (depth) => {
+    const hostile = '<' + '<b'.repeat(depth) + '>'.repeat(depth);
+    expect(htmlToText(hostile, hostile.length)).not.toMatch(ELEMENT_TAG);
+    expect(htmlToText(hostile, hostile.length)).not.toMatch(/<[/!A-Za-z]/);
+  });
+
+  it.each([17, 18, 40, 1000])('cap fallback with a script> suffix at %i levels', (depth) => {
+    const hostile = '<' + '<b'.repeat(depth) + '>'.repeat(depth) + 'script>x';
+    const out = htmlToText(hostile, hostile.length);
+    expect(out).not.toMatch(ELEMENT_TAG);
+    expect(out).not.toMatch(/<[/!A-Za-z]/);
   });
 
   it('non-HTML angle text in the payloads is kept as literal text, not stripped (ADR 0009 s2)', () => {
