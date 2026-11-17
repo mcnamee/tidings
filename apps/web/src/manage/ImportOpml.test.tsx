@@ -37,7 +37,7 @@ function sub(id: string, url: string, state: Subscription['health']['state'] = '
 
 const feedTag = (url: string) => `<outline type="rss" text="${url}" xmlUrl="${url}"/>`;
 
-/** 250 distinct feeds: 18 folders (one with a nested folder), 13 unfiled, 2 repeated, 2 invalid. */
+/** 250 distinct feeds: 18 folders (one with a nested folder), 13 unfiled, 2 repeated, 2 invalid, 1 blocked. */
 function fixture(): string {
   let body = '';
   for (let i = 0; i < 18; i += 1) {
@@ -52,7 +52,10 @@ function fixture(): string {
     body += `<outline text="Folder ${i}" title="Folder ${i}">${inner}</outline>`;
   }
   for (let k = 0; k < 13; k += 1) body += feedTag(`https://t${k}.example.com/feed.xml`);
-  body += feedTag('not a url') + feedTag('ftp://x.example.com/feed.xml');
+  body +=
+    feedTag('not a url') +
+    feedTag('ftp://x.example.com/feed.xml') +
+    feedTag('http://127.0.0.1/feed.xml');
   return `<?xml version="1.0"?><opml version="2.0"><head><title>Inoreader</title></head><body>${body}</body></opml>`;
 }
 
@@ -129,12 +132,12 @@ describe('AC1: the preview comes before anything is sent', () => {
     const user = userEvent.setup();
     renderImport();
     await choose(user, fixture());
-    // 250 feeds + 2 invalid addresses, 18 folders; 3 already followed; 2 feeds in two folders.
+    // 250 feeds + 3 the server would refuse (2 invalid, 1 blocked), 18 folders; 3 already followed; 2 feeds in two folders.
     expect(
-      await screen.findByRole('heading', { name: 'Found 252 feeds in 18 folders' }),
+      await screen.findByRole('heading', { name: 'Found 253 feeds in 18 folders' }),
     ).toBeInTheDocument();
     expect(screen.getByText('3 already subscribed')).toBeInTheDocument();
-    expect(screen.getByText('2 invalid')).toBeInTheDocument();
+    expect(screen.getByText("3 can't be imported")).toBeInTheDocument();
     expect(screen.getByText(/2 feeds in more than one folder/)).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Import 247 feeds' })).toBeInTheDocument();
     expect(posts()).toHaveLength(0);

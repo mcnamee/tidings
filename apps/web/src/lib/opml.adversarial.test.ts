@@ -127,7 +127,7 @@ describe('hostile values', () => {
     expect(out.entries[0]?.title?.length).toBeLessThanOrEqual(200);
   });
 
-  it.fails('DEF-060: a folder name of only zero-width characters is treated as no folder', () => {
+  it('DEF-060: a folder name of only zero-width characters is treated as no folder', () => {
     const zw = '\u200B\u200C\u200D\u2060\uFEFF';
     const out = parseOpml(
       wrap(`<outline text="${zw}">${feed('https://a.example.com/f')}</outline>`),
@@ -135,20 +135,17 @@ describe('hostile values', () => {
     expect(out.folderCount).toBe(0); // DEF-060
   });
 
-  it.fails(
-    'DEF-060: a feed title of only zero-width characters falls back to the feed title (no invisible name)',
-    () => {
-      const zw = '\u200B\u200C\u200D';
-      const out = parseOpml(
-        wrap(`<outline type="rss" text="${zw}" title="${zw}" xmlUrl="https://a.example.com/f"/>`),
-      );
-      expect(out.entries[0]?.title ?? '').not.toMatch(
-        new RegExp('^[\\u200B-\\u200D\\u2060\\uFEFF]+$'),
-      );
-    },
-  );
+  it('DEF-060: a feed title of only zero-width characters falls back to the feed title (no invisible name)', () => {
+    const zw = '\u200B\u200C\u200D';
+    const out = parseOpml(
+      wrap(`<outline type="rss" text="${zw}" title="${zw}" xmlUrl="https://a.example.com/f"/>`),
+    );
+    expect(out.entries[0]?.title ?? '').not.toMatch(
+      new RegExp('^[\\u200B-\\u200D\\u2060\\uFEFF]+$'),
+    );
+  });
 
-  it.fails('DEF-061: clipping a folder name never cuts a surrogate pair in half', () => {
+  it('DEF-061: clipping a folder name never cuts a surrogate pair in half', () => {
     const name = 'a'.repeat(63) + '\u{1F600}';
     const out = parseOpml(
       wrap(`<outline text="${name}">${feed('https://a.example.com/f')}</outline>`),

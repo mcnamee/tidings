@@ -43,7 +43,12 @@ export function sniff(body: Uint8Array, contentType: string | null): Looks {
   if (type.includes('html') || /<!doctype\s+html|<html[\s>]/.test(head)) return 'html';
   // XML we cannot place: let the refresher try it and record `parse_error` if it is not a feed.
   if (type.includes('xml')) return 'feed';
-  return 'other';
+  // DEF-031: plain text (or no type) is a page of prose unless it starts like markup, even past a
+  // long comment. Any other type that is neither feed nor HTML (octet-stream, json, ...) is left
+  // to the refresher too, so a mislabelled feed is not refused on a guess.
+  const plain = type === '' || type.startsWith('text/plain');
+  if (!plain) return 'feed';
+  return /^\s*(\ufeff)?\s*<[?!a-z]/i.test(head) ? 'feed' : 'other';
 }
 
 export async function resolveFeedUrl(url: string, deps: ResolveDeps): Promise<Resolution> {

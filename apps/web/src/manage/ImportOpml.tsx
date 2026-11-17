@@ -225,7 +225,7 @@ export function ImportOpml() {
         </h2>
         <ul className="mt-3 space-y-1 text-base text-fg">
           <li>{plan.alreadySubscribed.toLocaleString('en-US')} already subscribed</li>
-          <li>{plan.invalid.toLocaleString('en-US')} invalid</li>
+          <li>{plan.invalid.toLocaleString('en-US')} can&apos;t be imported</li>
           {plan.multiFolder > 0 && (
             <li>
               {plural(plan.multiFolder, 'feed')} in more than one folder. Each goes in the first

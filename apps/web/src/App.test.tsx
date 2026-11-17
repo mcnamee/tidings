@@ -263,6 +263,23 @@ describe('routing placeholders (spec 11.1)', () => {
     });
     expect(screen.queryByText("You're offline. Showing saved articles.")).not.toBeInTheDocument();
   });
+
+  it.each(['/manage', '/manage/add', '/manage/import', '/settings'])(
+    'says changes cannot be saved, not "saved articles", on %s',
+    (path) => {
+      renderApp([path]);
+      act(() => {
+        Object.defineProperty(navigator, 'onLine', { value: false, configurable: true });
+        window.dispatchEvent(new Event('offline'));
+      });
+      expect(screen.getByText("You're offline. Changes can't be saved.")).toBeInTheDocument();
+      expect(screen.queryByText(/Showing saved articles/)).not.toBeInTheDocument();
+      act(() => {
+        Object.defineProperty(navigator, 'onLine', { value: true, configurable: true });
+        window.dispatchEvent(new Event('online'));
+      });
+    },
+  );
 });
 
 describe('navigation drawer (AC4)', () => {

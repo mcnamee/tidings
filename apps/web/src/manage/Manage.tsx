@@ -1,6 +1,7 @@
 import { useState, type FormEvent } from 'react';
 import { Link } from 'react-router';
 import {
+  Clock,
   Folder as FolderIcon,
   FolderPlus,
   Pencil,
@@ -44,6 +45,7 @@ function healthNote(s: Subscription): string | null {
   if (state === 'dead') return errorMessage ?? 'This feed has stopped updating.';
   if (state === 'gone') return errorMessage ?? 'This feed no longer exists.';
   if (state === 'failing') return errorMessage ?? "Couldn't fetch this feed.";
+  if (state === 'pending') return 'Waiting for the first fetch.';
   return warning;
 }
 
@@ -61,11 +63,52 @@ export function Manage() {
     .flat()
     .sort((a, b) => a.title.localeCompare(b.title, undefined, { sensitivity: 'base' }));
 
+  const top = (
+    <>
+      <HeaderActions>
+        <button
+          type="button"
+          onClick={() => setModal({ kind: 'newFolder' })}
+          className="inline-flex min-h-11 items-center gap-2 whitespace-nowrap rounded-md px-3 text-base font-medium text-fg active:bg-sunken"
+        >
+          <FolderPlus aria-hidden="true" className="size-5" strokeWidth={1.75} />
+          New folder
+        </button>
+      </HeaderActions>
+
+      <Link
+        to="/manage/add"
+        className="flex min-h-12 w-full items-center justify-center gap-2 rounded-md bg-accent px-4 text-base font-medium text-accent-fg"
+      >
+        <Plus aria-hidden="true" className="size-5" strokeWidth={1.75} />
+        Add feed
+      </Link>
+      <Link
+        to="/manage/import"
+        className="mt-2 flex min-h-12 w-full items-center justify-center rounded-md border border-line-strong bg-surface px-4 text-base font-medium text-fg"
+      >
+        Import from OPML
+      </Link>
+    </>
+  );
+
   if (folders.isPending || subs.isPending) {
     return (
-      <p role="status" className="text-base text-fg-muted">
-        Loading
-      </p>
+      <div>
+        {top}
+        <div aria-busy="true" aria-label="Loading feeds" className="mt-6 space-y-6">
+          {[0, 1].map((n) => (
+            <div key={n}>
+              <div className="h-5 w-1/3 animate-skeleton rounded-md bg-sunken" />
+              <div className="mt-2 space-y-2">
+                {[0, 1, 2, 3].map((r) => (
+                  <div key={r} className="h-14 animate-skeleton rounded-md bg-sunken" />
+                ))}
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
     );
   }
   if (folders.isError || subs.isError) {
@@ -88,30 +131,7 @@ export function Manage() {
 
   return (
     <div>
-      <HeaderActions>
-        <button
-          type="button"
-          onClick={() => setModal({ kind: 'newFolder' })}
-          className="inline-flex min-h-11 items-center gap-2 rounded-md px-3 text-base font-medium text-fg active:bg-sunken"
-        >
-          <FolderPlus aria-hidden="true" className="size-5" strokeWidth={1.75} />
-          New folder
-        </button>
-      </HeaderActions>
-
-      <Link
-        to="/manage/add"
-        className="flex min-h-12 w-full items-center justify-center gap-2 rounded-md bg-accent px-4 text-base font-medium text-accent-fg"
-      >
-        <Plus aria-hidden="true" className="size-5" strokeWidth={1.75} />
-        Add feed
-      </Link>
-      <Link
-        to="/manage/import"
-        className="mt-2 flex min-h-12 w-full items-center justify-center rounded-md border border-line-strong bg-surface px-4 text-base font-medium text-fg"
-      >
-        Import from OPML
-      </Link>
+      {top}
 
       <section aria-labelledby="folders-h" className="mt-6">
         <h2 id="folders-h" className="text-lg font-semibold text-fg">
@@ -184,9 +204,15 @@ export function Manage() {
                     {note && (
                       <span
                         id={`${s.id}-note`}
-                        className="mt-0.5 flex w-full items-start gap-1.5 text-sm text-warning-subtle-fg"
+                        className={`mt-0.5 flex w-full items-start gap-1.5 text-sm ${
+                          s.health.state === 'pending' ? 'text-fg-muted' : 'text-warning-subtle-fg'
+                        }`}
                       >
-                        <TriangleAlert aria-hidden="true" className="mt-0.5 size-4 shrink-0" />
+                        {s.health.state === 'pending' ? (
+                          <Clock aria-hidden="true" className="mt-0.5 size-4 shrink-0" />
+                        ) : (
+                          <TriangleAlert aria-hidden="true" className="mt-0.5 size-4 shrink-0" />
+                        )}
                         <span>{note}</span>
                       </span>
                     )}

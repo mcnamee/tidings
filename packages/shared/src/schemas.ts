@@ -6,6 +6,7 @@ import {
   READ_STATE_MAX_IDS,
   SUBSCRIPTION_TITLE_MAX,
 } from './index';
+import { cleanName, tidyText } from './text';
 
 /** Request schemas for the auth routes (spec 8.3). Worker only: see the note in index.ts. */
 
@@ -69,15 +70,15 @@ export const subscribeRequestSchema = z.object({
   folderId: z.string().min(1).max(64).nullish(),
   title: z
     .string()
-    .trim()
-    .max(SUBSCRIPTION_TITLE_MAX)
+    .transform(tidyText)
+    .pipe(z.string().max(SUBSCRIPTION_TITLE_MAX))
     .transform((t) => (t === '' ? undefined : t))
     .optional(),
 });
 
 /** `POST` and `PATCH /api/folders`: 1 to 64 characters after trimming (FR-FO-1). */
 export const folderRequestSchema = z.object({
-  name: z.string().trim().min(1).max(FOLDER_NAME_MAX),
+  name: z.string().transform(tidyText).pipe(z.string().min(1).max(FOLDER_NAME_MAX)),
 });
 
 /** `PATCH /api/subscriptions/:id`: at least one field; a blank title means "use the feed's". */
@@ -85,8 +86,8 @@ export const updateSubscriptionRequestSchema = z
   .object({
     title: z
       .string()
-      .trim()
-      .max(SUBSCRIPTION_TITLE_MAX)
+      .transform(tidyText)
+      .pipe(z.string().max(SUBSCRIPTION_TITLE_MAX))
       .transform((t) => (t === '' ? null : t))
       .nullable()
       .optional(),
@@ -110,7 +111,7 @@ export const entriesQuerySchema = z
     path: ['id'],
   });
 
-const clip = (max: number) => (t: string) => t.trim().slice(0, max);
+const clip = (max: number) => (t: string) => cleanName(t, max);
 
 const importFeedSchema = z.object({
   // Over-long or odd URLs are reported per feed as `invalid_url`, not by failing the request.

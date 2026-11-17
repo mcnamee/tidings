@@ -1,3 +1,6 @@
+import { readFileSync } from 'node:fs';
+import { dirname, resolve } from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
 import { OpmlError, chunkEntries, parseOpml } from './opml';
 
@@ -59,6 +62,35 @@ describe('parseOpml', () => {
     );
     expect(p.entries).toHaveLength(1);
     expect(p.invalid).toEqual(['not a url', 'ftp://x.example.com/f']);
+  });
+
+  it.each([
+    'http://127.0.0.1/feed.xml',
+    'http://localhost/feed.xml',
+    'http://10.0.0.5/feed.xml',
+    'http://intranet/feed.xml',
+    'http://printer.local/feed.xml',
+    'https://example.com:22/feed.xml',
+    'https://[::1]/feed.xml',
+    'https://tidings.example/feed.xml',
+  ])('rejects %s, as the server does (blocked_address)', (url) => {
+    const p = parseOpml(
+      wrap(feed(url) + feed('https://ok.example.com/f')),
+      'https://tidings.example',
+    );
+    expect(p.entries.map((e) => e.xmlUrl)).toEqual(['https://ok.example.com/f']);
+    expect(p.invalid).toEqual([url]);
+  });
+
+  it('counts the Inoreader export exactly: 250 outlines, 2 refused (javascript: and 127.0.0.1)', () => {
+    const here = dirname(fileURLToPath(import.meta.url));
+    const file = resolve(here, '../../../../e2e/fixtures/opml/inoreader-export.opml');
+    const p = parseOpml(readFileSync(file, 'utf8'), 'https://tidings.example');
+    // The one feed that sits in two folders is a single entry (first folder wins), not a loss.
+    expect(p.multiFolder).toBe(1);
+    expect(p.invalid).toEqual(['javascript:alert(1)', 'http://127.0.0.1/feed.xml']);
+    expect(p.entries).toHaveLength(248);
+    expect(p.folderCount).toBe(18);
   });
 
   it.each([

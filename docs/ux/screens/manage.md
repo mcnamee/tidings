@@ -70,10 +70,10 @@ Every action is optimistic where it can be (tree and lists update at once) and r
 
 | State | What shows |
 |---|---|
-| Loading | **To build** (review item 1): Add feed and Import buttons stay; two skeleton cards below (`aria-busy`, label "Loading feeds"). Built today: the word "Loading". |
+| Loading | Add feed and Import buttons stay; two skeleton cards below (`aria-busy`, label "Loading feeds"). Built. |
 | Empty | Buttons, then under Folders "No folders yet. Use New folder to group your feeds." and under Feeds "You aren't following any feeds yet." |
 | Error | `role=alert` card, `bg-danger-subtle text-danger-subtle-fg`: "Couldn't load your feeds. Check your connection." with **Try again** (44 px). Buttons above stay |
-| Offline | Shell banner. The lists show from cache. Actions that need the server fail with the toast "You're offline. That change wasn't saved." Proposed banner copy on this route: "You're offline. Changes can't be saved." |
+| Offline | Shell banner. The lists show from cache. Actions that need the server fail with the toast "You're offline. That change wasn't saved." Banner copy on this route and on Add feed, Import and Settings: "You're offline. Changes can't be saved." |
 | Long names | Folder and feed names truncate to one line; sheets show the full title (wrapping) |
 | Large text (200%) | Header actions may wrap to two lines. Folder rows wrap as above. Sheets scroll inside themselves |
 

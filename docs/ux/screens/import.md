@@ -37,7 +37,7 @@ Steps (one component, four stages): choose, preview, sending, progress.
 ```
 | Found 250 feeds in 18 folders         |  h2
 | 248 already subscribed                |
-| 1 invalid                             |
+| 1 can't be imported                   |
 | 1 feed in more than one folder. Each  |  only when > 0
 | goes in the first folder it appears in.
 | Everything in this file is already in |  only when nothing is new
@@ -50,7 +50,7 @@ Steps (one component, four stages): choose, preview, sending, progress.
 +---------------------------------------+
 ```
 
-- Counts use thousands separators. "N already subscribed" and "N invalid" always show, including 0.
+- Counts use thousands separators. "N already subscribed" and "N can't be imported" (addresses the server would refuse) always show, including 0.
 - Primary reads **Import N feeds** (N = feeds not yet followed, singular "1 feed") or, when N is 0, a disabled **Nothing new to import**. Offline: the button is disabled (`aria-disabled`, still focusable) and "You're offline" with an icon sits below it, tied by `aria-describedby`.
 - Known gap (review item 2): the preview's N can be higher than what the server accepts.
 

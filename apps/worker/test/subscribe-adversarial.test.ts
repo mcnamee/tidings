@@ -318,14 +318,29 @@ describe('the limit is enforced in the insert too, not only in the pre-check', (
 });
 
 describe('sniffing', () => {
-  // DEF-031: a feed served as text/plain whose root element comes after 4 KB of prolog is read as
-  // "not a feed" because only the first 4 KB are sniffed. Remove `.fails` when it is fixed.
-  it.fails('a text/plain feed with a long comment before <rss> is still subscribed', async () => {
+  // DEF-031: a feed served as text/plain whose root element comes after 4 KB of prolog is not
+  // placed by the 4 KB sniff, so the refresher decides.
+  it('a text/plain feed with a long comment before <rss> is still subscribed', async () => {
     fx.fake.route(FEED, {
       headers: { 'Content-Type': 'text/plain' },
       body: `<?xml version="1.0"?><!--${'x'.repeat(5000)}-->${rss(items(1, 3))}`,
     });
     const { res } = await subscribe('u1', { url: FEED });
     expect(res.status).toBe(201);
+  });
+
+  it('an unplaceable content type is subscribed and the refresher records parse_error', async () => {
+    fx.fake.route(FEED, {
+      headers: { 'Content-Type': 'application/octet-stream' },
+      body: 'not a feed at all',
+    });
+    const { res } = await subscribe('u1', { url: FEED });
+    expect(res.status).toBe(201);
+  });
+
+  it('plain prose served as text/plain is still no_feed_found', async () => {
+    fx.fake.route(FEED, { headers: { 'Content-Type': 'text/plain' }, body: 'just some text' });
+    const { res } = await subscribe('u1', { url: FEED });
+    expect(res.status).toBe(422);
   });
 });

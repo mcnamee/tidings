@@ -124,17 +124,14 @@ describe('hostile titles and folder names are stored as inert, bounded text', ()
     expect(row!.t).toBeNull();
   });
 
-  it.fails(
-    'DEF-060: a zero-width-only folder name does not create an invisible folder',
-    async () => {
-      await post(one('https://a.example.com/f', undefined, '​‌‍'));
-      expect(await db.first<{ n: number }>(sql('SELECT COUNT(*) n FROM folders'))).toEqual({
-        n: 0,
-      });
-    },
-  );
+  it('DEF-060: a zero-width-only folder name does not create an invisible folder', async () => {
+    await post(one('https://a.example.com/f', undefined, '​‌‍'));
+    expect(await db.first<{ n: number }>(sql('SELECT COUNT(*) n FROM folders'))).toEqual({
+      n: 0,
+    });
+  });
 
-  it.fails('DEF-060: a zero-width-only title is not stored as the custom title', async () => {
+  it('DEF-060: a zero-width-only title is not stored as the custom title', async () => {
     await post(one('https://a.example.com/f', '​‌‍'));
     const row = await db.first<{ t: string | null }>(
       sql('SELECT title_override t FROM subscriptions'),
@@ -142,7 +139,7 @@ describe('hostile titles and folder names are stored as inert, bounded text', ()
     expect(row!.t).toBeNull();
   });
 
-  it.fails('DEF-061: clipping never leaves half of a surrogate pair', async () => {
+  it('DEF-061: clipping never leaves half of a surrogate pair', async () => {
     await post(
       one('https://a.example.com/f', 'a'.repeat(199) + '\u{1F600}', 'a'.repeat(63) + '\u{1F600}'),
     );

@@ -5,6 +5,8 @@ import {
   type ImportFeed,
   type ImportOpmlRequest,
 } from '@tidings/shared';
+import { checkUrl } from '@tidings/shared/address';
+import { cleanName } from '@tidings/shared/text';
 import { canonicalizeHttpUrl } from '@tidings/shared/url';
 
 /**
@@ -27,7 +29,7 @@ export interface OpmlEntry extends ImportFeed {
 export interface ParsedOpml {
   /** Valid feeds, de-duplicated by canonical URL; the first folder wins. */
   entries: OpmlEntry[];
-  /** Feed addresses that are not usable http(s) URLs, as written in the file. */
+  /** Feed addresses the server would refuse (not http(s), or a private or internal address). */
   invalid: string[];
   /** Folders that hold at least one kept feed. */
   folderCount: number;
@@ -47,7 +49,14 @@ const outlineChildren = (el: Element) => Array.from(el.children).filter(isOutlin
 const label = (el: Element) => attr(el, 'title') || attr(el, 'text');
 const folderKey = (name: string) => name.toLowerCase();
 
-export function parseOpml(text: string): ParsedOpml {
+/**
+ * `appOrigin` feeds the "app's own host" rule of the server's address check, so the preview
+ * rejects exactly what `POST /api/import/opml` rejects (invalid_url and blocked_address).
+ */
+export function parseOpml(
+  text: string,
+  appOrigin: string = globalThis.location?.origin ?? '',
+): ParsedOpml {
   const doc = new DOMParser().parseFromString(text, 'text/xml');
   const root = doc.documentElement;
   if (
@@ -77,7 +86,7 @@ export function parseOpml(text: string): ParsedOpml {
   for (const top of outlineChildren(body)) {
     if (attr(top, 'xmlurl')) walk(top, null);
     else {
-      const name = label(top).slice(0, FOLDER_NAME_MAX).trim();
+      const name = cleanName(label(top), FOLDER_NAME_MAX);
       for (const child of outlineChildren(top)) walk(child, name === '' ? null : name);
     }
   }
@@ -90,7 +99,7 @@ export function parseOpml(text: string): ParsedOpml {
   const spelling = new Map<string, string>(); // folder key -> first spelling
   for (const f of found) {
     const canonical = canonicalizeHttpUrl(f.xmlUrl);
-    if (!canonical.ok) {
+    if (!canonical.ok || !checkUrl(canonical.url, appOrigin, []).ok) {
       invalid.push(f.xmlUrl);
       continue;
     }
@@ -106,7 +115,8 @@ export function parseOpml(text: string): ParsedOpml {
     if (index.has(canonical.url)) continue;
     index.add(canonical.url);
     const entry: OpmlEntry = { xmlUrl: canonical.url, folder };
-    if (f.title) entry.title = f.title.slice(0, SUBSCRIPTION_TITLE_MAX);
+    const title = cleanName(f.title, SUBSCRIPTION_TITLE_MAX);
+    if (title) entry.title = title;
     if (f.htmlUrl) entry.htmlUrl = f.htmlUrl;
     entries.push(entry);
   }
