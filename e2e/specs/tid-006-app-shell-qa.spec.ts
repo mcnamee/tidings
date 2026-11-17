@@ -286,8 +286,11 @@ test.describe('TID-006 storage edge cases', () => {
   test('"/" accepts each valid list shape and an article route is never remembered', async ({
     page,
   }) => {
-    await page.goto('/settings');
     for (const ok of ['/all', '/folders/f_1-x', '/feeds/s1']) {
+      // Set the value from a non-list page. A list page records itself as the last list once the
+      // session check resolves (TID-008), which could overwrite the value set here on a slow runner.
+      await page.goto('/settings');
+      await expect(page.getByRole('heading', { level: 1 })).toBeVisible();
       await page.evaluate((v) => localStorage.setItem('tidings.lastList', v), ok);
       await page.goto('/');
       await expect(page).toHaveURL(new RegExp(`${ok}$`));
