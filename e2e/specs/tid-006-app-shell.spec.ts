@@ -1,6 +1,6 @@
 import type { Page } from '@playwright/test';
 import { expectNoSeriousA11yViolations } from '../support/axe.ts';
-import { expect, test } from '../support/test.ts';
+import { expect, signedInTest as test } from '../support/test.ts';
 
 // TID-006 app shell and theming. Projects: mobile-light, mobile-dark, desktop-light, desktop-dark.
 
@@ -207,6 +207,8 @@ test.describe('TID-006 routes, accessibility and headers', () => {
 
   test('offline shows the banner and online hides it', async ({ page, context }) => {
     await page.goto('/all');
+    // The session check must have finished before the network goes away.
+    await expect(page.getByRole('heading', { level: 1, name: 'All articles' })).toBeVisible();
     await context.setOffline(true);
     await expect(page.getByText("You're offline. Showing saved articles.")).toBeVisible();
     await context.setOffline(false);

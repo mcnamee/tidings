@@ -1,5 +1,5 @@
 import { expectNoSeriousA11yViolations } from '../support/axe.ts';
-import { expect, test } from '../support/test.ts';
+import { expect, signedInTest as test } from '../support/test.ts';
 
 // TID-005 AC2: every project runs a smoke test against the local app, plus an axe check.
 // Projects: mobile-light, mobile-dark (375x812), desktop-light, desktop-dark (1280x800).
@@ -48,9 +48,14 @@ test.describe('smoke', () => {
     const response = await page.goto('/some/client/route');
     expect(response?.status()).toBe(200);
     await expect(page.getByRole('heading', { level: 1, name: 'Page not found' })).toBeVisible();
-    const api = await request.get('/api/nope');
+    // Signed in (page.request shares the context's cookie): a JSON 404. Signed out: a 401, because
+    // every /api path needs a session unless it is Public (TID-008).
+    const api = await page.request.get('/api/nope');
     expect(api.status()).toBe(404);
     expect((await api.json()).error.code).toBe('not_found');
+    const anonymous = await request.get('/api/nope');
+    expect(anonymous.status()).toBe(401);
+    expect((await anonymous.json()).error.code).toBe('unauthenticated');
   });
 
   test('fixture server is reachable from the test process', async ({ fixtureServer, request }) => {

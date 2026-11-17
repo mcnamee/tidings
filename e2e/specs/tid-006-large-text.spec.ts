@@ -1,7 +1,7 @@
 import { fileURLToPath } from 'node:url';
 import { createServer, type ViteDevServer } from 'vite';
 import type { Page } from '@playwright/test';
-import { expect, test } from '../support/test.ts';
+import { expect, mockSignedInSession, signedInTest as test } from '../support/test.ts';
 
 // TID-006 UX review findings M1-M3: shell layout at 200% text, 375x812, light and dark.
 // 200% text is emulated as the UX review did: html { font-size: 200% }.
@@ -93,6 +93,8 @@ test.describe('TID-006 large text (M1-M3) and toast offset (m2)', () => {
     });
 
     test('M3: undo toast message is not clipped at 200% text', async ({ page }) => {
+      // The throwaway Vite server has no Worker behind it, so the session check is answered here.
+      await mockSignedInSession(page);
       await page.goto(`${devUrl}/all`);
       await expect(page.getByRole('heading', { level: 1 })).toBeVisible();
       await zoom200(page);
@@ -146,6 +148,7 @@ test.describe('TID-006 large text (M1-M3) and toast offset (m2)', () => {
     test('m2: toast sits exactly 12px above a bottom bar taller than the minimum', async ({
       page,
     }) => {
+      await mockSignedInSession(page);
       await page.goto(`${devUrl}/all`);
       await expect(page.getByRole('heading', { level: 1 })).toBeVisible();
       const harness = `/@fs${fileURLToPath(new URL('../support/bottom-bar-harness.ts', import.meta.url))}`;

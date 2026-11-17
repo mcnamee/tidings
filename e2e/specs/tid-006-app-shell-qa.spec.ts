@@ -1,6 +1,6 @@
 import type { BrowserContext, Page } from '@playwright/test';
 import { expectNoSeriousA11yViolations } from '../support/axe.ts';
-import { expect, test } from '../support/test.ts';
+import { expect, signedInTest as test } from '../support/test.ts';
 
 // TID-006 QA suite (tester-owned): independent strengthening of the engineer's specs in
 // tid-006-app-shell.spec.ts. Projects: mobile-light, mobile-dark (375x812), desktop-light, desktop-dark.
@@ -653,6 +653,7 @@ test.describe('TID-006 routes and axe extras', () => {
 
   test('AC5: axe stays clean on the offline banner', async ({ page, context }) => {
     await page.goto('/all');
+    await expect(page.getByRole('heading', { level: 1, name: 'All articles' })).toBeVisible();
     await context.setOffline(true);
     await expect(page.getByRole('status').filter({ hasText: "You're offline" })).toBeVisible();
     await expectNoSeriousA11yViolations(page);
@@ -841,8 +842,9 @@ test.describe('TID-006 AC6 headers and CSP', () => {
   }) => {
     const res = await request.get('/api/health');
     expect(res.headers()['content-type']).toContain('application/json');
+    // Signed out, every /api path needs a session (TID-008), so an unknown one is a JSON 401.
     const nope = await request.get('/api/does/not/exist');
-    expect(nope.status()).toBe(404);
+    expect(nope.status()).toBe(401);
     expect(nope.headers()['content-type']).toContain('application/json');
   });
 });
