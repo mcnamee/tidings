@@ -368,5 +368,6 @@ Worker tests in `apps/worker/test/folders.test.ts` (workerd, local D1, nothing f
 | Isolation (ADR 0012) | pass | five new `isolation-cases.ts` rows, each with a B-against-A test in `folders.test.ts` |
 | Rate limit (spec 10.7) | pass | `api-guard.test.ts` AC11: every non-public row of the route table gets `429` |
 | `health.warning` | pass | `folders.test.ts` "health.warning comes from feeds.warning_code" |
-| DEF-030 | fixed, pending tester close | `subscribe-adversarial.test.ts` (flipped from `it.fails`, plus two candidate-filter tests) |
+| DEF-030 | closed (tester) | `subscribe-adversarial.test.ts` (flipped from `it.fails`, plus two candidate-filter tests) |
 
+Tester additions (TID-014): `apps/worker/test/folders-adversarial.test.ts` (49 tests: malformed names and bodies, path-ID abuse, wildcard IDs, mass assignment, racing creates and the 200 limit; DEF-040 and DEF-041 are `it.fails`) and `e2e/specs/tid-014-folders.spec.ts` (golden path: add, folder, duplicate refused, move, drawer, unsubscribe). Guard mutations run and caught: scoping of rename, folder delete, subscription edit and read, `folderId` ownership check, `user_entries` delete, park-only-last-subscriber (both directions), folder unlink on delete, FOLDER_LIMIT, name max, NOCASE collation and sort, DEF-030 `checkUrl` and `blocked`. Two survivors are equivalent: the `AND user_id` on the final `DELETE FROM subscriptions` (the scoped read before it already refuses) and the explicit unlink in `deleteFolder` (the `ON DELETE SET NULL` foreign key does it too).

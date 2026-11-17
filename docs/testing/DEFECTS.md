@@ -32,15 +32,6 @@ Entry template:
 - Actual: an identical-body refresh (tested; a 304 takes the same unchanged path, not separately tested) does not run the code that clears the warning, so "This feed publishes too many new items" stays until the feed next changes, possibly weeks.
 - Suggested fix: PM decision. Either accept it (reword AC3 to "first changed fetch") or clear the warning in the existing 304/unchanged `UPDATE` when `new_entries_day` is before today (no extra statement; that update already runs).
 
-### DEF-030: A feed link discovered on a page skips the address check, so a private-address feed is subscribed
-- Story: TID-013 (AC6, spec 10.6)
-- Severity: S3. Owner: SE.
-- Status: Fixed (pending tester close). `resolve.ts` canonicalises and runs `checkUrl` on every discovered URL; a private one returns `blocked` and is dropped from a `feed_choice_required` list. `it.fails` flipped to a passing test.
-- Found by: `apps/worker/test/subscribe-adversarial.test.ts` > "a page whose only feed link points at a private address must not create a subscription" (`it.fails`).
-- Steps to reproduce: `POST /api/subscriptions` with a public page URL whose only `<link rel="alternate" type="application/rss+xml">` has `href="http://169.254.169.254/latest/meta-data"` (or `http://127.0.0.1/`).
-- Expected: `422 blocked_address`, no feed row and no subscription (AC6: "a private-address URL ... nothing is created"). For `feed_choice_required`, candidates should not carry such URLs either.
-- Actual: `201`; a `feeds` row and a subscription for the private URL are created. Only the typed URL goes through `checkUrl`; `resolveFeedUrl` returns the discovered URL and `routes.ts` uses it without `checkUrl` or `canonicalizeUrl`. No request leaves the Worker (companion test: the private address is never requested, because the refresher's `safeFetch` refuses it), so this is junk data and a failing subscription, not SSRF.
-- Suggested fix: run `checkUrl` (and canonicalise) on the discovered URL in `resolve.ts` and return `blocked`; drop private candidates from a choice.
 
 ### DEF-031: A text/plain feed with more than 4 KB of prolog before the root element is "no_feed_found"
 - Story: TID-013 (FR-SU-1, discovery sniff)
@@ -134,7 +125,38 @@ Entry template:
 - Fix: each gated window needs at least max(`--runs`, 200) measured calls (else INCOMPLETE); `overall` requires every gated scenario of the full plan (10, not 8: 4 changed, 4 unchanged, 2 too_large). Empty, partial or `--only` runs print "PARTIAL: not a gate result". The old engineer assertion `overall([rowPass]) === 'PASS'` in `bench.test.ts` was wrong and now expects INCOMPLETE.
 - Closure (tester, 522b2bb): the two DEF-017 tests differ only by marker removal. The engineer also changed `bench.test.ts` `overall([rowPass])` from PASS to INCOMPLETE; that is right: the old assertion encoded the vacuous-truth bug (one row of ten gated scenarios is not a gate result), and the test keeps its intent via `overall([rowPass], { expectedIds: ['changed:rss-typical'] })` returning PASS. Gate review: PASS needs every gated id in the plan present (10), every row PASS (so NO DATA, PROVISIONAL, INFO-for-gated and NEEDS PM rows cannot pass), at least max(runs, 200) calls, no runner warnings, and an empty list is INCOMPLETE. I found no remaining vacuous path other than the S4 notes under DEF-016. Note the first worker run after `npm install` once showed 4 failures in setup.test.ts and setup-attack.test.ts (409 instead of 201); it did not recur in 6 solo runs, and 3 runs in parallel reproduce it, so it is shared local storage between concurrent vitest processes, not a product defect. Recorded for TID-038.
 
+### DEF-040: Folder names are case-insensitive for ASCII only, so "Étude" and "étude" can both exist
+- Story: TID-014 (AC2, FR-FO-1)
+- Severity: S4. Owner: SE.
+- Status: Open
+- Found by: `apps/worker/test/folders-adversarial.test.ts` > "names differing only by non-ASCII case conflict" (`it.fails`).
+- Steps to reproduce: `POST /api/folders {"name":"Étude"}`, then `{"name":"étude"}`.
+- Expected: `409 conflict` (AC2 says duplicates are case-insensitive).
+- Actual: `201`. The column is `COLLATE NOCASE`, which folds only A-Z. The drawer sort has the same limit.
+- Suggested fix: PM decision. Either accept it (reword AC2 to "ASCII case") or compare a JS-lowercased `name_key` column (a migration).
+
+### DEF-041: A folder name made only of zero-width characters is accepted
+- Story: TID-014 (AC3)
+- Severity: S4. Owner: SE.
+- Status: Open
+- Found by: `apps/worker/test/folders-adversarial.test.ts` > "a name made only of zero-width characters is rejected as blank" (`it.fails`).
+- Steps to reproduce: `POST /api/folders {"name":"\u200b\u200b"}`.
+- Expected: `400 validation_failed` (blank).
+- Actual: `201`; the folder shows as an empty-looking row in the drawer. `trim()` does not remove U+200B/U+200C/U+200D/U+2060/U+FEFF. Same for feed titles.
+- Suggested fix: strip those code points before the length check, in `folderRequestSchema` and the title schemas.
+
+
 ## Closed
+
+### DEF-030: A feed link discovered on a page skips the address check, so a private-address feed is subscribed
+- Story: TID-013 (AC6, spec 10.6)
+- Severity: S3. Owner: SE.
+- Status: Closed (tester, tip a3228bb). Verified by mutation: removing `checkUrl` from `safeCandidateUrl` fails 3 tests; turning `blocked` into `none` fails the `blocked_address` test. `resolve.ts` canonicalises and runs `checkUrl` on every discovered URL; a private one returns `blocked` and is dropped from a `feed_choice_required` list. `it.fails` flipped to a passing test.
+- Found by: `apps/worker/test/subscribe-adversarial.test.ts` > "a page whose only feed link points at a private address must not create a subscription" (`it.fails`).
+- Steps to reproduce: `POST /api/subscriptions` with a public page URL whose only `<link rel="alternate" type="application/rss+xml">` has `href="http://169.254.169.254/latest/meta-data"` (or `http://127.0.0.1/`).
+- Expected: `422 blocked_address`, no feed row and no subscription (AC6: "a private-address URL ... nothing is created"). For `feed_choice_required`, candidates should not carry such URLs either.
+- Actual: `201`; a `feeds` row and a subscription for the private URL are created. Only the typed URL goes through `checkUrl`; `resolveFeedUrl` returns the discovered URL and `routes.ts` uses it without `checkUrl` or `canonicalizeUrl`. No request leaves the Worker (companion test: the private address is never requested, because the refresher's `safeFetch` refuses it), so this is junk data and a failing subscription, not SSRF.
+- Suggested fix: run `checkUrl` (and canonicalise) on the discovered URL in `resolve.ts` and return `blocked`; drop private candidates from a choice.
 
 ### DEF-011: Stripping HTML tags from plain-text fields in one pass re-forms a tag
 
