@@ -12,9 +12,10 @@ const ALL_ROUTES = [
   '/login',
   '/recover',
   ...LIST_ROUTES,
-  '/all/a/e1',
-  '/folders/f1/a/e1',
-  '/feeds/s1/a/e1',
+  // A real entry ID (TID-019): the AC6 console test seeds it, so the API answers 200, not 404.
+  '/all/a/9101001',
+  '/folders/f1/a/9101001',
+  '/feeds/s1/a/9101001',
   '/manage',
   '/manage/add',
   '/manage/import',
@@ -823,7 +824,8 @@ test.describe('TID-006 AC6 headers and CSP', () => {
     // (AC8), which the browser logs as a console error. Seed the two IDs ALL_ROUTES uses.
     seedListData({
       folders: [{ id: 'f1', name: 'Folder one' }],
-      subs: [{ id: 's1', feedId: 9101, title: 'Feed one' }],
+      subs: [{ id: 's1', feedId: 9101, folderId: 'f1', title: 'Feed one' }],
+      entries: [{ id: 9101001, feedId: 9101, title: 'Article one', publishedAt: 1_700_000_000 }],
     });
     try {
       for (const route of ALL_ROUTES) {

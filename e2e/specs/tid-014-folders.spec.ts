@@ -95,7 +95,8 @@ test.describe('TID-014 folders and subscription management', () => {
     await expect(feedLink).toBeVisible();
     const folderBox = await folderLink.boundingBox();
     const feedBox = await feedLink.boundingBox();
-    expect(feedBox && folderBox && feedBox.y > folderBox.y && feedBox.x > folderBox.x).toBe(true);
+    // Beneath the folder (the folder link sits after its expand button, so x isn't compared).
+    expect(feedBox && folderBox && feedBox.y > folderBox.y).toBe(true);
     await closeDrawer(page, mobile);
 
     // The server agrees, so it is not only optimistic UI state.
