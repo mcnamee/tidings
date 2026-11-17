@@ -53,12 +53,14 @@ The user pays for Inoreader to read a few hundred RSS/Atom feeds, mostly on a ph
 | Milestone | Theme | Contents |
 |---|---|---|
 | **M0 Foundations** | De-risk and scaffold | Monorepo, CI, test harness, D1 schema, design system and app shell, two time-boxed spikes (parser CPU, fan-out isolation). |
-| **M1 MVP: "switch from Inoreader"** | Everything needed to cancel Inoreader | Passkey auth with recovery codes; subscribe by URL with autodiscovery; folders; OPML import and export; background refresh with caching, conditional GET and backoff; article lists for All, Folder and Feed with unread-only filter and cursor pagination; unread counts; article view with sanitised content; mark read on open, toggle unread, mark all as read; feed health and manual refresh; retention cleanup; settings (theme, passkeys, recovery codes, sign out); persisted client cache and installable PWA shell; production deploy. |
+| **MVP** (release 1) | Read my feeds on my phone, as soon as possible | Passkey sign-in (done); background refresh with caching, conditional GET and backoff (done); GUID churn guard; subscribe by URL with autodiscovery; folders and subscription management; OPML import; article lists for All, Folder and Feed with unread-only filter, cursor pagination and unread counts; article view with sanitised content; mark read on open, toggle unread, mark all as read; production deploy and runbook. |
+| **R2** (about 1 week after MVP) | Safe to cancel Inoreader | Sign in with a recovery code; OPML export; feed health and "Refresh now"; settings (theme, reading, passkeys, recovery codes, sign out); retention cleanup; post-launch budget and CPU check against real use (TID-047). |
+| **R3** (about 2 weeks after MVP) | Polish and hardening | Persisted client cache and installable PWA shell; SSRF guard hardening; design-token and contrast check in CI; E2E harness stability. |
 | **M2 Comfort** | Inoreader parity for daily use | Star / "Saved" view; mark-read-on-scroll; swipe to next/previous article; oldest-first sort; "mark older than X as read"; adaptive refresh interval (honour `ttl`, `sy:updatePeriod`, back off quiet feeds); feed favicons; desktop keyboard shortcuts; active sessions list; reorder folders. |
 | **M3 Later** | Nice to have | Offline reading of article bodies; full-text search (D1 FTS5, after a budget check); invite-only multi-user; multiple folders per feed (tags); filter rules; update-in-place for edited articles. |
 | **Won't do** | | Native apps, Inoreader API sync, social, readability extraction, AI features, image proxying (see open question Q9). |
 
-MVP is deliberately tight. Starring is M2 even though the `is_starred` column exists from the first migration, so adding it later is UI and API work only.
+The MVP, R2 and R3 together were previously "M1"; they were split on 2026-11-17 so the owner can use the product early (ADR 0014). The MVP is deliberately tight. Starring is M2 even though the `is_starred` column exists from the first migration, so adding it later is UI and API work only.
 
 ---
 
@@ -1072,9 +1074,8 @@ The user accepted every recommended default on 2026-11-16 and chose the hostname
 | Q9 | Article images load directly from publishers' servers (they see your IP, not what you read, thanks to `no-referrer`). Proxy them instead? | **Load directly.** Proxying would cost a Worker request per image and blow the request budget. |
 | Q10 | Inoreader lets a feed sit in several folders. OK to allow only one folder per feed in MVP? | **Yes, one folder**; on import the first folder wins. Multi-folder (tags) in M3. |
 | Q11 | First fetch of a new feed: OK to bring in the 10 newest items, with items older than 7 days pre-marked read? | **Yes.** |
+| Q12 | TID-039 deployed CPU gate before production? | **Deferred** (user, 2026-11-17). Production deploys without it; CPU and budgets are checked against real use in TID-047 (R2). TID-039 runs only if that check shows trouble (ADR 0014). |
 
 ### 16.1 Open questions (pending the user)
 
-| # | Question | Recommended default |
-|---|---|---|
-| Q12 | TID-039 (the deployed CPU gate moved out of TID-012) deploys three throwaway Workers (`tidings-bench`, `tidings-bench-origin`, `tidings-bench-driver`) and a throwaway D1 database on your Cloudflare account for about 30 minutes, then deletes them. It uses about 5% of a day's Worker requests and up to about 45,000 D1 rows written (account-wide, before production exists). It needs a Cloudflare API token with only "Account Analytics: Read". Approve the run? | **Approve**, and run it before TID-024. Nothing touches the real `tidings` Worker or database, and production can't be deployed until this gate passes. |
+None at the moment.

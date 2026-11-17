@@ -1,8 +1,9 @@
 # Tidings Backlog
 
-Owner: product-manager. Last updated 2026-11-17 (decision round 4).
+Owner: product-manager. Last updated 2026-11-17 (reorganised into releases: MVP, R2, R3; ADR 0014).
 
-- Stories are in priority order within each milestone. Build top to bottom unless dependencies allow parallel work.
+- **Releases (ADR 0014):** MVP gets the owner reading their feeds on their phone as soon as possible; R2 and R3 follow over the next couple of weeks. Old "M1" stories are split across MVP, R2 and R3; M2 and M3 are unchanged.
+- Stories are in priority order within each release. Build top to bottom unless dependencies allow parallel work.
 - Each acceptance criterion (AC) must map to at least one automated test unless it is marked *(manual)*.
 - "Agents" lists who works on the story: **SE** software-engineer, **QA** tester, **UX** ux-engineer, **PM** product-manager.
 - References like FR-RD-8 or §7.3 point to `docs/PRODUCT_SPEC.md`.
@@ -11,7 +12,7 @@ Owner: product-manager. Last updated 2026-11-17 (decision round 4).
 
 ## Summary
 
-| ID | Title | Milestone | Status | Depends on |
+| ID | Title | Release | Status | Depends on |
 |---|---|---|---|---|
 | TID-001 | Monorepo scaffolding, tooling and CI | M0 | Done | – |
 | TID-002 | Spike: feed parse CPU on Workers Free | M0 | Done | TID-001 |
@@ -19,30 +20,31 @@ Owner: product-manager. Last updated 2026-11-17 (decision round 4).
 | TID-004 | D1 schema v1 and data-access layer | M0 | Done | TID-001 |
 | TID-005 | Test infrastructure and fixture corpus | M0 | Done | TID-001 |
 | TID-006 | Design system and app shell with theming | M0 | Done | TID-001 |
-| TID-007 | First-run setup with a passkey and recovery codes | M1 | Done | TID-003, 004, 005, 006 |
-| TID-008 | Passkey sign-in, sessions, sign-out and API security middleware | M1 | Done | TID-007 |
-| TID-009 | Sign in with a recovery code | M1 | Ready | TID-008 |
-| TID-010 | SSRF-safe fetcher | M1 | Done | TID-004 |
-| TID-011 | Feed parser and normalisation | M1 | Done | TID-002 |
-| TID-012 | Background refresh pipeline | M1 | Done (AC13 moved to TID-039) | TID-003, 010, 011 |
-| TID-013 | Subscribe to a feed | M1 | Ready | TID-008, 012 |
-| TID-014 | Folders and subscription management | M1 | Blocked | TID-013 |
-| TID-015 | Feed health and "Refresh now" | M1 | Blocked | TID-014 |
-| TID-016 | Import subscriptions from OPML | M1 | Blocked | TID-014 |
-| TID-017 | Export subscriptions as OPML | M1 | Blocked | TID-014 |
-| TID-018 | Article lists, navigation and unread counts | M1 | Blocked | TID-013 |
-| TID-019 | Article view and read state | M1 | Blocked | TID-018 |
-| TID-020 | Mark all as read | M1 | Blocked | TID-018 |
-| TID-021 | Retention and maintenance job | M1 | Ready | TID-012 |
-| TID-022 | Settings: theme, reading, account | M1 | Blocked | TID-008, 009 |
-| TID-023 | Persisted client cache and installable PWA shell | M1 | Blocked | TID-018, 019 |
-| TID-024 | Production deployment, runbook and budget check | M1 | Blocked | all M1, including TID-039 |
-| TID-036 | SSRF guard hardening (TID-010 follow-up) | M1 | Ready | TID-010 |
-| TID-037 | Design-token drift and contrast check in CI (TID-006 follow-up) | M1 | Ready | TID-006 |
-| TID-038 | E2E harness stability: host sleep and shared local state | M1 | Ready (**next**; small, tester) | TID-005 |
-| TID-039 | Deployed CPU gate (TID-012 AC13) | M1 | Blocked (user approval, Q12) | TID-012 |
-| TID-046 | GUID churn guard and per-feed daily cap (DEF-013) | M1 | Ready | TID-012 |
-| TID-025 … TID-035 | Comfort features | M2 | Later | M1 |
+| TID-007 | First-run setup with a passkey and recovery codes | MVP | Done | TID-003, 004, 005, 006 |
+| TID-008 | Passkey sign-in, sessions, sign-out and API security middleware | MVP | Done | TID-007 |
+| TID-010 | SSRF-safe fetcher | MVP | Done | TID-004 |
+| TID-011 | Feed parser and normalisation | MVP | Done | TID-002 |
+| TID-012 | Background refresh pipeline | MVP | Done (AC13 moved to TID-039) | TID-003, 010, 011 |
+| TID-013 | Subscribe to a feed | MVP | Ready (**next**) | TID-008, 012 |
+| TID-046 | GUID churn guard and per-feed daily cap (DEF-013) | MVP | Ready (**next**, parallel with TID-013) | TID-012 |
+| TID-014 | Folders and subscription management | MVP | Blocked | TID-013 |
+| TID-018 | Article lists, navigation and unread counts | MVP | Blocked | TID-013 |
+| TID-016 | Import subscriptions from OPML | MVP | Blocked | TID-014, 046 |
+| TID-019 | Article view and read state | MVP | Blocked | TID-018 |
+| TID-020 | Mark all as read | MVP | Blocked | TID-018 |
+| TID-024 | Production deployment and runbook (MVP scope, ADR 0014) | MVP | Blocked | all MVP stories |
+| TID-009 | Sign in with a recovery code | R2 | Ready | TID-008 |
+| TID-017 | Export subscriptions as OPML | R2 | Blocked | TID-014 |
+| TID-015 | Feed health and "Refresh now" | R2 | Blocked | TID-014 |
+| TID-022 | Settings: theme, reading, account | R2 | Blocked | TID-008, 009 |
+| TID-021 | Retention and maintenance job | R2 | Ready | TID-012 |
+| TID-047 | Post-launch budget and CPU check (TID-024 AC3, AC4, AC6, AC7; replaces TID-039 as a gate) | R2 | Blocked | TID-024 |
+| TID-023 | Persisted client cache and installable PWA shell | R3 | Blocked | TID-018, 019 |
+| TID-036 | SSRF guard hardening (TID-010 follow-up) | R3 | Ready | TID-010 |
+| TID-037 | Design-token drift and contrast check in CI (TID-006 follow-up) | R3 | Ready | TID-006 |
+| TID-038 | E2E harness stability: host sleep and shared local state | R3 | Ready | TID-005 |
+| TID-039 | Deployed CPU gate (TID-012 AC13) | Later | Deferred (ADR 0014; run only if TID-047 shows CPU trouble) | TID-012 |
+| TID-025 … TID-035 | Comfort features | M2 | Later | R3 |
 | TID-040 … TID-045 | Later features | M3 | Later | M2 |
 
 ---
@@ -201,7 +203,9 @@ Owner: product-manager. Last updated 2026-11-17 (decision round 4).
 
 ---
 
-## M1: MVP, "switch from Inoreader"
+## MVP, R2 and R3 (formerly M1, "switch from Inoreader")
+
+Story details below keep their original order. The summary table gives each story's release and build order (ADR 0014).
 
 ### TID-007: First-run setup with a passkey and recovery codes
 
@@ -724,7 +728,8 @@ Known risks: (a) a Worker fetching another workers.dev Worker on the same accoun
 ### TID-024: Production deployment, runbook and budget check
 
 - **Agents:** SE, QA, PM
-- **Depends on:** all other M1 stories, including TID-039 (the deployed CPU gate must pass before production)
+- **Depends on:** all other MVP stories. TID-039 is no longer a gate (ADR 0014).
+- **MVP scope (ADR 0014):** AC1, AC2, AC5 and AC8 only. AC3, AC4, AC6 and AC7 move to TID-047 (post-launch check, R2).
 - **Spec:** §9, §14.3, §10.1 break-glass, Q2
 
 **User story:** As the owner, I want Tidings deployed on my Cloudflare account with automatic deploys and a runbook, so that I can rely on it daily and fix it if something goes wrong.
@@ -744,7 +749,7 @@ Known risks: (a) a Worker fetching another workers.dev Worker on the same accoun
 - Cloudflare's per-account `workers.dev` TLS certificate can take about 10 minutes to provision after the first deploy. Allow for it before the first smoke check, and don't treat early TLS errors as a failed deploy.
 - The TID-003 spike Worker `tidings-spike-fanout` was deleted on 2026-11-16 after AC3 was read. Check the account's Workers list holds no `tidings-spike-*` scripts before the production deploy.
 
-**M1 exit criteria:** every M1 story Done; full suite green; real-iPhone manual pass in both themes; budget measured; the owner confirms they can cancel Inoreader.
+**MVP exit criteria:** every MVP story Done; full suite green; one UX review of all MVP screens at 375 px in both themes; the owner can sign in, import their OPML and read on their phone. Budget measurement and "cancel Inoreader" confirmation move to R2 (TID-047).
 
 ---
 
@@ -804,6 +809,19 @@ Known risks: (a) a Worker fetching another workers.dev Worker on the same accoun
 6. Given CI, then E2E retries stay at the current setting or lower, so flakiness isn't hidden, and any retry that passes is reported as flaky in the run summary.
 
 **Out of scope:** per-worker databases for parallel E2E (a later story if run time demands it); retrying tests locally after a clock jump (the gap note is enough).
+
+---
+
+### TID-047: Post-launch budget and CPU check
+
+- **Agents:** PM (owner), QA
+- **Depends on:** TID-024
+- **Release:** R2
+- **Status:** Blocked
+
+**User story:** As the owner, I want to confirm that real use fits the free tier, so that I can cancel Inoreader with confidence.
+
+**Acceptance criteria:** TID-024 AC3, AC4, AC6 and AC7 as written, run against production after 48 hours of real use with the owner's OPML imported. If `exceededCpu` is 1% of refresh invocations or more, or any budget is above 70% of its free limit, the PM schedules TID-039 or applies ADR 0006's ladder before R3.
 
 ---
 
