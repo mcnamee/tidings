@@ -43,7 +43,8 @@ export default defineConfig({
   webServer: {
     command:
       'rm -rf .wrangler-state && ' +
-      'npm run build -w @tidings/web && ' +
+      // The OPML preview mirrors the server's ALLOW_FETCH_HOSTS (TID-016 fix batch).
+      `VITE_ALLOW_FETCH_HOSTS=127.0.0.1:${FIXTURE_PORT} npm run build -w @tidings/web && ` +
       'npm run db:migrate:local -w @tidings/worker -- --persist-to ../../e2e/.wrangler-state && ' +
       'cd ../apps/worker && ' +
       // Resting state: an owner exists, so only the setup specs see a fresh instance (auth-state.ts).

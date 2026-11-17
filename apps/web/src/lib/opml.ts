@@ -6,6 +6,17 @@ import {
   type ImportOpmlRequest,
 } from '@tidings/shared';
 import { checkUrl } from '@tidings/shared/address';
+
+/**
+ * Hosts the server's `ALLOW_FETCH_HOSTS` lets through (local dev and E2E only, never production),
+ * so the preview counts what the server will save. Comma-separated, set at build time.
+ */
+const PREVIEW_ALLOW_HOSTS: readonly string[] = String(
+  (import.meta.env as Record<string, unknown>).VITE_ALLOW_FETCH_HOSTS ?? '',
+)
+  .split(',')
+  .map((h) => h.trim())
+  .filter(Boolean);
 import { cleanName } from '@tidings/shared/text';
 import { canonicalizeHttpUrl } from '@tidings/shared/url';
 
@@ -99,7 +110,7 @@ export function parseOpml(
   const spelling = new Map<string, string>(); // folder key -> first spelling
   for (const f of found) {
     const canonical = canonicalizeHttpUrl(f.xmlUrl);
-    if (!canonical.ok || !checkUrl(canonical.url, appOrigin, []).ok) {
+    if (!canonical.ok || !checkUrl(canonical.url, appOrigin, PREVIEW_ALLOW_HOSTS).ok) {
       invalid.push(f.xmlUrl);
       continue;
     }

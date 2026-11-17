@@ -69,7 +69,7 @@ export function Manage() {
         <button
           type="button"
           onClick={() => setModal({ kind: 'newFolder' })}
-          className="inline-flex min-h-11 items-center gap-2 whitespace-nowrap rounded-md px-3 text-base font-medium text-fg active:bg-sunken"
+          className="inline-flex min-h-11 items-center gap-2 rounded-md px-3 text-base font-medium text-fg active:bg-sunken"
         >
           <FolderPlus aria-hidden="true" className="size-5" strokeWidth={1.75} />
           New folder

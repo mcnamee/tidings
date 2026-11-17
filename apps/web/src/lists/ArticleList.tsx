@@ -293,7 +293,7 @@ export function ArticleList({ view, id }: { view: EntryListView; id: string | nu
           type="button"
           aria-pressed={state === 'unread'}
           onClick={() => setState(state === 'unread' ? 'all' : 'unread')}
-          className="inline-flex min-h-11 items-center gap-2 whitespace-nowrap rounded-md px-3 text-base font-medium text-fg active:bg-sunken aria-pressed:bg-accent-subtle aria-pressed:text-accent-subtle-fg"
+          className="inline-flex min-h-11 items-center gap-2 rounded-md px-3 text-base font-medium text-fg active:bg-sunken aria-pressed:bg-accent-subtle aria-pressed:text-accent-subtle-fg"
         >
           {state === 'unread' ? (
             <Check aria-hidden="true" className="size-5" strokeWidth={2.25} />
