@@ -6,7 +6,7 @@
  * CPU comes from Cloudflare GraphQL Analytics (`workersInvocationsAdaptive`, CPU in microseconds),
  * never from `performance.now()`.
  */
-import type { Scenario } from './scenarios';
+import { scenarios as planScenarios, type Scenario } from './scenarios';
 
 /** One measured window: calls made to one scenario between `from` and `to` (RFC 3339, UTC). */
 export interface Window {
@@ -25,6 +25,27 @@ export interface RunRecord {
   newItems: number;
   scenarios: Scenario[];
   windows: Window[];
+  /** Measured calls per scenario that the runner was asked for (`--runs`). Absent in old files: 200. */
+  runs?: number;
+  /** The runner's warnings (a call that did not behave as its scenario expects). Any blocks a PASS. */
+  warnings?: string[];
+}
+
+/** AC13: at least this many measured calls per fixture, whatever `--runs` says. */
+export const GATE_MIN_CALLS = 200;
+/** Share of the calls made that Analytics must show for a window to be trusted. */
+export const COVERAGE_MIN = 0.98;
+
+/** Ids of every gated scenario in the full plan (the ones with a p95 ceiling). */
+export function gatedScenarioIds(): string[] {
+  return planScenarios()
+    .filter((sc) => sc.p95Ms !== undefined)
+    .map((sc) => sc.id);
+}
+
+/** Measured calls a gated window must have: the planned `--runs`, and never below AC13's 200. */
+export function requiredCalls(run: Pick<RunRecord, 'runs'>): number {
+  return Math.max(run.runs ?? GATE_MIN_CALLS, GATE_MIN_CALLS);
 }
 
 export const GRAPHQL_URL = 'https://api.cloudflare.com/client/v4/graphql';
@@ -152,7 +173,16 @@ export function parseWindow(res: GraphqlResponse): WindowStats {
   return { requests, byStatus, exceededCpu: byStatus['exceededCpu'] ?? 0, quantilesMs };
 }
 
-export type Verdict = 'PASS' | 'FAIL' | 'PROVISIONAL' | 'INFO' | 'NO DATA';
+export type Verdict =
+  | 'PASS'
+  | 'FAIL'
+  | 'PROVISIONAL'
+  | 'INFO'
+  | 'NO DATA'
+  /** Too few measured calls: not a gate result. */
+  | 'INCOMPLETE'
+  /** Analytics saw too few of the calls, so the numbers cannot be trusted: the PM decides. */
+  | 'NEEDS PM';
 
 export interface Row {
   window: Window;
@@ -165,15 +195,21 @@ export interface Row {
 }
 
 /**
- * The gate (ADR 0006 item 6): zero `exceededCpu` and p95 <= the scenario's ceiling. Analytics does
- * not necessarily expose p95, so in order: an exact `cpuTimeP95`; else the share of invocations above
- * the ceiling (<= 5% is p95 <= ceiling); else a provisional read from p90 that the PM must judge.
+ * The gate (ADR 0006 item 6, AC13). In a gated window, in order:
+ *  - any invocation whose status is not `success` (`exceededCpu`, `exceededResources`,
+ *    `exceededMemory`, `scriptThrewException`, `internalError`, anything unknown) is a FAIL;
+ *  - fewer measured calls than `minCalls` is INCOMPLETE;
+ *  - then p95 <= the scenario's ceiling: an exact `cpuTimeP95`; else the share of invocations above
+ *    the ceiling (<= 5% is p95 <= ceiling); else a provisional read from p90 that the PM must judge;
+ *  - a window where Analytics saw under 98% of the calls cannot PASS (NEEDS PM): the numbers may
+ *    leave out exactly the invocations that were killed.
  */
 export function evaluate(
   window: Window,
   scenario: Scenario | undefined,
   stats: WindowStats,
   aboveCeiling: number | null,
+  minCalls: number = GATE_MIN_CALLS,
 ): Row {
   const base = { window, scenario, stats, aboveCeiling };
   if (stats.requests === 0)
@@ -181,18 +217,24 @@ export function evaluate(
   const ceiling = scenario?.p95Ms;
   const gated = window.role === 'measure' && ceiling !== undefined;
   const notes: string[] = [];
-  if (stats.requests < window.calls * 0.98) {
+  const lowCoverage = stats.requests < window.calls * COVERAGE_MIN;
+  if (lowCoverage) {
     notes.push(
       `analytics saw ${stats.requests} of ${window.calls} calls (adaptive sampling or delay)`,
     );
   }
   if (!gated) return { ...base, verdict: 'INFO', note: notes.join('; ') };
-  if (stats.exceededCpu > 0) {
+  const bad = nonSuccess(stats);
+  if (bad.length > 0) {
     return {
       ...base,
       verdict: 'FAIL',
-      note: [`${stats.exceededCpu} exceededCpu`, ...notes].join('; '),
+      note: [`not success: ${bad.map(([k, n]) => `${n} ${k}`).join(', ')}`, ...notes].join('; '),
     };
+  }
+  if (window.calls < minCalls) {
+    notes.push(`${window.calls} measured calls, at least ${minCalls} required`);
+    return { ...base, verdict: 'INCOMPLETE', note: notes.join('; ') };
   }
   const q = stats.quantilesMs;
   let verdict: Verdict;
@@ -212,20 +254,31 @@ export function evaluate(
     verdict = 'PROVISIONAL';
     notes.push('p95 not exposed by Analytics; PM to judge from p90 and p99');
   }
+  if (lowCoverage && verdict !== 'FAIL') verdict = 'NEEDS PM';
   return { ...base, verdict, note: notes.join('; ') };
 }
+
+/** `[status, count]` for every status other than `success` that has invocations. */
+function nonSuccess(stats: WindowStats): [string, number][] {
+  return Object.entries(stats.byStatus).filter(([k, n]) => k !== 'success' && n > 0);
+}
+
+const statuses = (stats: WindowStats) =>
+  Object.entries(stats.byStatus)
+    .map(([k, n]) => `${k} ${n}`)
+    .join(', ') || '-';
 
 const fmt = (n: number | undefined) => (n === undefined ? '-' : n.toFixed(2));
 
 /** The table that goes into ADR 0006 under "Results (TID-012)". CPU in ms. */
 export function toMarkdown(rows: readonly Row[]): string {
   const head =
-    '| Scenario | Role | Calls | Seen | exceededCpu | p50 | p75 | p90 | p95 | p99 | p99.9 | Ceiling | Verdict | Note |\n' +
+    '| Scenario | Role | Calls | Seen | Statuses | p50 | p75 | p90 | p95 | p99 | p99.9 | Ceiling | Verdict | Note |\n' +
     '|---|---|---|---|---|---|---|---|---|---|---|---|---|---|';
   const lines = rows.map((r) => {
     const q = r.stats.quantilesMs;
     return (
-      `| ${r.window.id} | ${r.window.role} | ${r.window.calls} | ${r.stats.requests} | ${r.stats.exceededCpu} ` +
+      `| ${r.window.id} | ${r.window.role} | ${r.window.calls} | ${r.stats.requests} | ${statuses(r.stats)} ` +
       `| ${fmt(q.cpuTimeP50)} | ${fmt(q.cpuTimeP75)} | ${fmt(q.cpuTimeP90)} | ${fmt(q.cpuTimeP95)} ` +
       `| ${fmt(q.cpuTimeP99)} | ${fmt(q.cpuTimeP999)} | ${r.scenario?.p95Ms ?? '-'} | ${r.verdict} | ${r.note || ''} |`
     );
@@ -233,10 +286,30 @@ export function toMarkdown(rows: readonly Row[]): string {
   return [head, ...lines].join('\n');
 }
 
-/** True only when every gated row passed (provisional rows need the PM). */
-export function overall(rows: readonly Row[]): 'PASS' | 'FAIL' | 'NEEDS PM' {
+export type Overall = 'PASS' | 'FAIL' | 'NEEDS PM' | 'INCOMPLETE';
+
+/**
+ * PASS only when every gated scenario in the full plan has a row, every one of those rows passed,
+ * and the runner reported no warnings. Any FAIL wins. Missing scenarios or rows with too few calls
+ * (an empty list, or a deliberate `--only` run) are INCOMPLETE: not a gate result. Provisional,
+ * no-data and low-coverage rows, and runner warnings, need the PM.
+ */
+export function overall(
+  rows: readonly Row[],
+  opts: { expectedIds?: readonly string[]; warnings?: readonly string[] } = {},
+): Overall {
+  const expected = opts.expectedIds ?? gatedScenarioIds();
   const gated = rows.filter((r) => r.window.role === 'measure' && r.scenario?.p95Ms !== undefined);
   if (gated.some((r) => r.verdict === 'FAIL')) return 'FAIL';
+  const present = new Set(gated.map((r) => r.window.id));
+  if (expected.some((id) => !present.has(id)) || gated.some((r) => r.verdict === 'INCOMPLETE'))
+    return 'INCOMPLETE';
+  if ((opts.warnings?.length ?? 0) > 0) return 'NEEDS PM';
   if (gated.every((r) => r.verdict === 'PASS')) return 'PASS';
   return 'NEEDS PM';
+}
+
+/** The line printed under the table. A partial run never says PASS. */
+export function overallLine(verdict: Overall): string {
+  return verdict === 'INCOMPLETE' ? 'PARTIAL: not a gate result' : `Overall: ${verdict}`;
 }

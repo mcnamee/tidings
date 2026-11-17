@@ -168,16 +168,13 @@ describe('hostile and broken responses', () => {
     else expect(row.next_fetch_at).toBe(NOW() + 3600); // plain backoff, 1800 x 2^1
   });
 
-  it(
-    'a 304 for a feed that has never been fetched does not claim success (DEF-014)',
-    async () => {
-      const id = await seedFeed({ url: FEED_URL, state: 'pending', lastSuccessAt: null });
-      fx.fake.route(FEED_URL, { status: 304 });
-      await refresh(id);
-      const row = await feedRow(id);
-      expect(row.last_success_at).toBeNull();
-    },
-  );
+  it('a 304 for a feed that has never been fetched does not claim success (DEF-014)', async () => {
+    const id = await seedFeed({ url: FEED_URL, state: 'pending', lastSuccessAt: null });
+    fx.fake.route(FEED_URL, { status: 304 });
+    await refresh(id);
+    const row = await feedRow(id);
+    expect(row.last_success_at).toBeNull();
+  });
 
   it('a 304 with no validators sent is http_304 with backoff and the feed is failing', async () => {
     const id = await seedFeed({ url: FEED_URL, state: 'pending', lastSuccessAt: null });

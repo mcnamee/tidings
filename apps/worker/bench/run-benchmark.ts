@@ -149,6 +149,8 @@ async function main(): Promise<void> {
     newItems,
     scenarios: all,
     windows,
+    runs,
+    warnings,
   };
   const dir = join(dirname(fileURLToPath(import.meta.url)), 'results');
   mkdirSync(dir, { recursive: true });

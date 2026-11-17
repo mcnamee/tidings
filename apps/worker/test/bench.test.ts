@@ -224,7 +224,10 @@ describe('analysis', () => {
       parseWindow(response({ success: 200, exceededCpu: 1 }, {})),
       null,
     );
-    expect(overall([rowPass])).toBe('PASS');
+    // One passing row is not a gate result: 9 of the 10 gated scenarios never ran (DEF-017). The
+    // earlier assertion that overall([rowPass]) is PASS was wrong: [].every() is vacuously true.
+    expect(overall([rowPass])).toBe('INCOMPLETE');
+    expect(overall([rowPass], { expectedIds: ['changed:rss-typical'] })).toBe('PASS');
     expect(overall([rowPass, rowFail])).toBe('FAIL');
     expect(toMarkdown([rowPass, rowFail])).toContain(
       '| changed:rss-typical | measure | 200 | 200 |',

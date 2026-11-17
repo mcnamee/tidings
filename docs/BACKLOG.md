@@ -399,7 +399,7 @@ Owner: product-manager. Last updated 2026-11-17 (decision round 3).
 
 What it deploys, all under throwaway names, all deleted afterwards: `tidings-bench-origin` (serves `e2e/fixtures/generate-feeds.ts` over HTTPS), `tidings-bench` (the production `FeedRefresher` as its own Worker; its only extra is a benchmark-only body cap for the 2 MiB case), `tidings-bench-driver` (calls `tidings-bench` through a service binding, 20 sequential calls per request), and a D1 database `tidings-bench`. The real `tidings` Worker and its database are never touched. Files: `apps/worker/bench/` (`*.wrangler.jsonc`, `origin-worker.ts`, `bench-worker.ts`, `driver-worker.ts`, `run-benchmark.ts`, `analyze.ts`). Every analytics row for the script `tidings-bench` is one `refresh()` invocation.
 
-What it measures: 12 scenarios, 200 measured calls each plus one `first` call, after one `cold` call (the first refresh after deploy). `changed:*` (rss-small, rss-typical, atom-typical, rdf-typical): gate zero `exceededCpu` and p95 <= 8 ms. `unchanged:*` for the same four, and `too_large:rss-large` and `too_large:rss-huge`: zero `exceededCpu` and p95 <= 2 ms. `info:body-1mib` and `info:body-2mib` (read + SHA-256 only): recorded. p50, p99, p99.9 and cold are in the table, not gated.
+What it measures: 12 scenarios, 200 measured calls each plus one `first` call, after one `cold` call (the first refresh after deploy). `changed:*` (rss-small, rss-typical, atom-typical, rdf-typical): gate: every invocation `success` (any other status fails) and p95 <= 8 ms. `unchanged:*` for the same four, and `too_large:rss-large` and `too_large:rss-huge`: every invocation `success` and p95 <= 2 ms (10 gated scenarios in all, not 8). `info:body-1mib` and `info:body-2mib` (read + SHA-256 only): recorded. p50, p99, p99.9 and cold are in the table, not gated.
 
 Decisions for the PM before running:
 1. **New items per `changed` call default to 3** (47 known), AC4's typical case, not "every item new". Reason: D1's 100,000 rows written/day is account-wide. 3 new items cost 25 rows per call, so the whole run writes about 25,000 rows (25% of a day). All-new items (`--new-items 50`) cost about 400 rows per call, so 200 calls of one fixture would use 80% of the day. The parse, hash, dedup-lookup and statement-building work is the same either way except the insert chunking. Say if you want a heavier run, for example `--new-items 50 --only changed:rss-typical --runs 100` on another UTC day.
@@ -426,12 +426,19 @@ npx wrangler deploy --config bench/driver.wrangler.jsonc --var BENCH_TOKEN:$BENC
 cd ../..
 node apps/worker/bench/run-benchmark.ts --driver https://tidings-bench-driver.<sub>.workers.dev \
   --origin https://tidings-bench-origin.<sub>.workers.dev --token "$BENCH_TOKEN"
-#    It exits 1 and lists WARNINGs if any call did not do what its scenario expects.
+#    It exits 1 and lists WARNINGs if any call did not do what its scenario expects. The warnings
+#    and --runs are saved in the run file; analyze.ts will not PASS a run that has warnings.
+#    Use the defaults (200 runs, all scenarios) for the gate: --only or --runs below 200 gives
+#    a PARTIAL result.
 
 # 4. Wait at least 5 minutes, then read CPU. The token needs only "Account Analytics: Read".
 CLOUDFLARE_API_TOKEN=<token> CLOUDFLARE_ACCOUNT_ID=<account id> \
   node apps/worker/bench/analyze.ts apps/worker/bench/results/run-<time>.json
-#    Prints the table and "Overall: PASS | FAIL | NEEDS PM"; writes run-<time>.md beside the JSON.
+#    Prints the table (with per-status counts) and "Overall: PASS | FAIL | NEEDS PM", or
+#    "PARTIAL: not a gate result" when a gated scenario is missing or has under 200 calls (or the
+#    recorded --runs, if higher). FAIL = any non-success status or a p95 over the ceiling.
+#    NEEDS PM = provisional p95, runner warnings, or Analytics saw under 98% of a window's calls.
+#    Writes run-<time>.md beside the JSON.
 #    node apps/worker/bench/analyze.ts --introspect shows which quantile fields exist.
 
 # 5. Delete everything.
@@ -445,7 +452,7 @@ git checkout bench/bench.wrangler.jsonc bench/driver.wrangler.jsonc
 
 Then paste the table into ADR 0006 under "Results (TID-012)". If any gated row fails, stop: the PM applies ADR 0006's ladder; do not tune the benchmark.
 
-Known risks: (a) a Worker fetching another workers.dev Worker on the same account can get error 1042, which `tidings-bench` avoids with the `global_fetch_strictly_public` flag; if `run-benchmark.ts` still reports `network_error`, serve the fixtures from any other public HTTPS host instead (the scenario paths are fixed). (b) The first call to `rss-huge` on the origin builds a 3 MB string and may be CPU-killed once; the runner warms every URL first. (c) Analytics lags, and the adaptive dataset may sample at high volume; `analyze.ts` flags a window that shows fewer than 98% of its calls.
+Known risks: (a) a Worker fetching another workers.dev Worker on the same account can get error 1042, which `tidings-bench` avoids with the `global_fetch_strictly_public` flag; if `run-benchmark.ts` still reports `network_error`, serve the fixtures from any other public HTTPS host instead (the scenario paths are fixed). (b) The first call to `rss-huge` on the origin builds a 3 MB string and may be CPU-killed once; the runner warms every URL first. (c) Analytics lags, and the adaptive dataset may sample at high volume; a window showing fewer than 98% of its calls makes the result NEEDS PM, not PASS.
 
 ---
 

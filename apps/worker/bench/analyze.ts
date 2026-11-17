@@ -25,6 +25,8 @@ import {
   GRAPHQL_URL,
   INTROSPECT_QUERY,
   overall,
+  overallLine,
+  requiredCalls,
   parseSchema,
   parseWindow,
   pickQuantileFields,
@@ -111,12 +113,16 @@ async function main(): Promise<void> {
       );
       above = over.requests;
     }
-    rows.push(evaluate(w, scenario, stats, above));
+    rows.push(evaluate(w, scenario, stats, above, requiredCalls(run)));
   }
 
   const table = toMarkdown(rows);
-  const verdict = overall(rows);
-  const out = `${table}\n\nOverall: ${verdict}\n`;
+  const warnings = run.warnings ?? [];
+  const verdict = overall(rows, { warnings });
+  const warned = warnings.length
+    ? `\n\nRunner warnings (a run with warnings cannot PASS):\n${warnings.map((w) => `- ${w}`).join('\n')}`
+    : '';
+  const out = `${table}${warned}\n\n${overallLine(verdict)}\n`;
   console.log(`\n${out}`);
   writeFileSync(runFile.replace(/\.json$/, '.md'), out);
   console.log(`wrote ${runFile.replace(/\.json$/, '.md')}`);

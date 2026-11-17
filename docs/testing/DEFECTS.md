@@ -34,7 +34,7 @@ Entry template:
 ### DEF-014: A 304 on a never-fetched feed marks it ok and sets last_success_at
 - Story: TID-012 (AC2, spec 7.3 step 2)
 - Severity: S3. Owner: SE.
-- Status: Fixed (commit SHA14), awaiting tester closure
+- Status: Fixed (commit a1f854c), awaiting tester closure
 - Found by: `apps/worker/test/refresh-adversarial.test.ts` > "a 304 for a feed that has never been fetched does not claim success (DEF-014)" (marker removed)
 - Steps to reproduce: a `pending` feed with `last_success_at NULL` and no etag; origin answers 304 (a buggy origin or proxy; no validators were sent).
 - Expected: not a success: the feed stays `pending` (or fails) with no `last_success_at`.
@@ -54,20 +54,22 @@ Entry template:
 ### DEF-016: AC13 gate ignores invocations that died for any reason other than exceededCpu
 - Story: TID-012 (AC13), `apps/worker/bench/analysis.ts`
 - Severity: S2 for the gate's validity (it could pass vacuously). Owner: SE.
-- Status: Open
-- Found by: `apps/worker/test/bench-gate.test.ts` > "a window with killed or crashed invocations is not a PASS" and "analytics seeing far fewer invocations..." (`it.fails`)
+- Status: Fixed (SHA), awaiting tester closure
+- Found by: `apps/worker/test/bench-gate.test.ts` > "a window with killed or crashed invocations is not a PASS" and "analytics seeing far fewer invocations..." (markers removed)
 - Expected: any non-`success` status in a measured window (`exceededResources`, `exceededMemory`, `scriptThrewException`, `internalError`) fails the gate, and a window where Analytics saw less than 98% of the calls is not a PASS.
 - Actual: only the literal status `exceededCpu` fails. Quantiles come from the `success` group only, so killed invocations drop out of the p95 (survivorship), and the 98% coverage check only adds a note. I could not check offline which status Cloudflare reports for a CPU kill, so the literal may never match.
 - Suggested fix: FAIL on any non-success request count; NEEDS PM when coverage is under 98%. The runner's warnings (including `rejected` calls) are also not saved in the run file, so `analyze.ts` cannot enforce them; save them and fail the analysis when present.
+- Fix: any non-`success` status in a gated window fails (per-status counts are in the table); coverage under 98% gives NEEDS PM; the runner saves its warnings in the run file and `analyze.ts` refuses to PASS with any (NEEDS PM). The tester's CPU-kill status question is moot: no status other than `success` can pass.
 
 ### DEF-017: AC13 gate can PASS on too few calls or on a subset of the scenarios
 - Story: TID-012 (AC13), `apps/worker/bench/analysis.ts`
 - Severity: S3. Owner: SE.
-- Status: Open
-- Found by: `apps/worker/test/bench-gate.test.ts` > "fewer than 200 measured calls cannot PASS..." and "overall is not PASS with no gated rows..." (`it.fails`)
+- Status: Fixed (SHA), awaiting tester closure
+- Found by: `apps/worker/test/bench-gate.test.ts` > "fewer than 200 measured calls cannot PASS..." and "overall is not PASS with no gated rows..." (markers removed)
 - Expected: AC13 requires at least 200 calls per fixture and all 8 gated scenarios.
 - Actual: `evaluate` ignores `window.calls` (5 calls can PASS, for example `--runs 5`), and `overall` returns PASS for an empty list or for one row (`[].every(...)` is true; the existing test even asserts `overall([rowPass]) === 'PASS'`). The engineer's suggested `--only changed:rss-typical` run would print "Overall: PASS".
 - Suggested fix: require `calls >= 200` in measure windows, and have `overall` check that all 8 gated scenario ids are present.
+- Fix: each gated window needs at least max(`--runs`, 200) measured calls (else INCOMPLETE); `overall` requires every gated scenario of the full plan (10, not 8: 4 changed, 4 unchanged, 2 too_large). Empty, partial or `--only` runs print "PARTIAL: not a gate result". The old engineer assertion `overall([rowPass]) === 'PASS'` in `bench.test.ts` was wrong and now expects INCOMPLETE.
 
 
 
