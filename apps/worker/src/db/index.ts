@@ -11,7 +11,14 @@ export {
   type EntryView,
   type ListEntriesParams,
 } from './entries';
-export { getEntry, parseEntryId, setRead, setReadMany, type EntryRow } from './readstate';
+export {
+  getEntry,
+  markAllRead,
+  parseEntryId,
+  setRead,
+  setReadMany,
+  type EntryRow,
+} from './readstate';
 export {
   feedIdForSubscription,
   labelsForFeeds,

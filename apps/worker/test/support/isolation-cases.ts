@@ -33,6 +33,11 @@ export const ISOLATION_CASES: Readonly<Record<string, IsolationCase>> = {
     file: 'entry-read.test.ts',
     test: 'with another user’s IDs in the list, only mine change',
   },
+  // TID-020: the folder or subscription ID in a mark-all-read body.
+  'POST /api/entries/mark-all-read body:id': {
+    file: 'mark-all-read.test.ts',
+    test: 'B posting A’s folder or subscription ID gets 404 not_found, and nothing changes',
+  },
   'POST /api/subscriptions body:folderId': {
     file: 'subscribe.test.ts',
     test: 'B posting A’s folderId gets 404 not_found, and nothing is created or changed',

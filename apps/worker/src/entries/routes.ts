@@ -1,6 +1,6 @@
 /**
  * `GET /api/entries`, `GET /api/counts` (TID-018) and the single-entry read and read-state writes
- * (TID-019), spec 8.5, 8.6. None of them fetches a feed (FR-RD-11). Mark all as read is TID-020.
+ * (TID-019) and mark all as read (TID-020), spec 8.5, 8.6. None of them fetches a feed (FR-RD-11).
  */
 import { Hono, type Context } from 'hono';
 import type {
@@ -9,13 +9,16 @@ import type {
   EntriesResponse,
   Entry,
   EntrySummary,
+  MarkAllReadResponse,
   ReadStateResponse,
 } from '@tidings/shared';
 import {
   entriesQuerySchema,
+  markAllReadRequestSchema,
   patchEntryRequestSchema,
   readStateRequestSchema,
 } from '@tidings/shared/schemas';
+import { MARK_ALL_UNDO_MAX } from '@tidings/shared';
 import { parseBody } from '../auth/routes';
 import { fail } from '../api/respond';
 import type { AppEnv } from '../api/security';
@@ -23,9 +26,11 @@ import {
   Db,
   feedIdForSubscription,
   folderBelongsToUser,
+  fromIso,
   getEntry,
   labelsForFeeds,
   listEntries,
+  markAllRead,
   nowSeconds,
   parseEntryId,
   setRead,
@@ -171,6 +176,38 @@ export function createEntryRoutes(deps?: Partial<EntryDeps>): Hono<AppEnv> {
         ? { updated: 0 }
         : await setReadMany(new Db(c.env.DB), user.id, ids, body.isRead, nowSeconds(clock));
     return c.json<ReadStateResponse>({ updated });
+  });
+
+  // FR-RD-9: one UPDATE scoped to the caller, the view and `published_at <= before`, touching only
+  // unread rows (spec 9.4). A folder or subscription that is not the caller's is "not found".
+  app.post('/mark-all-read', async (c) => {
+    const body = await parseBody(c, markAllReadRequestSchema);
+    if (body instanceof Response) return body;
+    const { user } = c.get('session');
+    const db = new Db(c.env.DB);
+    let id: string | number | undefined;
+    if (body.view === 'folder') {
+      if (!(await folderBelongsToUser(db, user.id, body.id ?? ''))) {
+        return fail(c, 404, 'not_found', 'Not found');
+      }
+      id = body.id;
+    } else if (body.view === 'feed') {
+      const feedId = await feedIdForSubscription(db, user.id, body.id ?? '');
+      if (feedId === null) return fail(c, 404, 'not_found', 'Not found');
+      id = feedId;
+    }
+    const { entryIds } = await markAllRead(
+      db,
+      user.id,
+      body.view,
+      id,
+      fromIso(body.before),
+      nowSeconds(clock),
+    );
+    return c.json<MarkAllReadResponse>({
+      updated: entryIds.length,
+      entryIds: entryIds.length <= MARK_ALL_UNDO_MAX ? entryIds.map(String) : null,
+    });
   });
 
   return app;

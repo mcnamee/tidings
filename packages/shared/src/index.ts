@@ -300,6 +300,23 @@ export interface ReadStateResponse {
   updated: number;
 }
 
+/** `POST /api/entries/mark-all-read` (spec 8.5, FR-RD-9). `id` is a folder ID or subscription ID. */
+export interface MarkAllReadRequest {
+  view: EntryListView;
+  id?: string;
+  /** The list's `asOf`: only entries published at or before it are marked. */
+  before: string;
+}
+export interface MarkAllReadResponse {
+  updated: number;
+  /** The entries that changed, for Undo; null when more than `MARK_ALL_UNDO_MAX` changed. */
+  entryIds: string[] | null;
+}
+/** Above this many entries the SPA asks first (FR-RD-9). */
+export const MARK_ALL_CONFIRM_OVER = 20;
+/** Above this many entries no Undo is offered; it is also the read-state batch limit. */
+export const MARK_ALL_UNDO_MAX = READ_STATE_MAX_IDS;
+
 export interface EntriesResponse {
   items: EntrySummary[];
   nextCursor: string | null;
