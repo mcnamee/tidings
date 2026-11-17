@@ -627,6 +627,9 @@ test.describe('TID-006 tap targets and reflow (mobile)', () => {
         for (const el of document.querySelectorAll<HTMLElement>('a[href], button, [role=button]')) {
           const r = el.getBoundingClientRect();
           if (r.width === 0 && r.height === 0) continue;
+          // Not a tap target: hidden from assistive tech and out of the tab order (e.g. AddFeed's
+          // sr-only submit button that keeps Enter working).
+          if (el.getAttribute('aria-hidden') === 'true' && el.tabIndex === -1) continue;
           if (r.width < 43.5 || r.height < 43.5) {
             out.push(
               `${el.tagName} "${el.getAttribute('aria-label') ?? el.textContent?.trim()}" ${r.width}x${r.height}`,
@@ -790,6 +793,8 @@ test.describe('TID-006 AC6 headers and CSP', () => {
   }, testInfo) => {
     const problems: string[] = [];
     page.on('console', (m) => {
+      // Requests made while the test has the browser offline are expected to fail.
+      if (m.text().includes('net::ERR_INTERNET_DISCONNECTED')) return;
       if (m.type() === 'error' || m.type() === 'warning') problems.push(m.text());
     });
     page.on('pageerror', (e) => problems.push(String(e)));
