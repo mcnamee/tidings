@@ -12,9 +12,8 @@
     {
       "binding": "DB",
       "database_name": "tidings",
-      // PLACEHOLDER: replace the all-zero UUID on the next line with the "database_id" printed by
-      // `wrangler d1 create tidings` (README, first-time setup). This is the only place it lives.
-      "database_id": "00000000-0000-0000-0000-000000000000",
+      // Production D1 (Oceania), created 2026-11-17 for TID-024. Not a secret.
+      "database_id": "7ed435d8-85d0-4a7c-b149-985649f40849",
       "migrations_dir": "migrations",
     },
   ],
