@@ -31,6 +31,7 @@ export type ErrorCode =
   | 'invalid_setup_token'
   | 'webauthn_failed'
   | 'invalid_recovery_code'
+  | 'invalid_link'
   | 'last_passkey'
   | 'internal'
   | 'config_error';
@@ -55,7 +56,19 @@ export interface SessionResponse {
   user: User | null;
   setupRequired: boolean;
   mustAddPasskey: boolean;
+  /** TID-053: true when emailed sign-in links are configured and usable (ADR 0016). */
+  emailSignIn: boolean;
 }
+
+/** TID-053. The same `202 {}` is returned whatever the address. */
+export interface EmailRequestRequest {
+  email: string;
+}
+export interface EmailVerifyRequest {
+  token: string;
+}
+export const EMAIL_MAX = 254;
+export const MAGIC_LINK_TTL_SECONDS = 15 * 60;
 
 /** Spec 8.3: a display name is 1 to 64 characters after trimming. */
 export const DISPLAY_NAME_MAX = 64;

@@ -14,6 +14,7 @@ export interface RouteMeta {
 export const ROUTES: RouteMeta[] = [
   { path: '/setup', title: 'Set up Tidings', kind: 'auth' },
   { path: '/login', title: 'Sign in', kind: 'auth' },
+  { path: '/login/email', title: 'Sign in', kind: 'auth' },
   { path: '/recover', title: 'Use a recovery code', kind: 'auth' },
   { path: '/all', title: 'All articles', kind: 'list' },
   { path: '/folders/:folderId', title: 'Folder', kind: 'list' },

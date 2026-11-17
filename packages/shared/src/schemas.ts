@@ -167,3 +167,7 @@ export const markAllReadRequestSchema = z
     message: 'id is required unless view=all',
     path: ['id'],
   });
+
+/** TID-053. Any string up to 254 characters is well formed; the server trims and lower-cases before comparing. */
+export const emailRequestSchema = z.object({ email: z.string().max(254) });
+export const emailVerifyRequestSchema = z.object({ token: z.string().min(1).max(256) });

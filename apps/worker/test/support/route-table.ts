@@ -37,6 +37,8 @@ export const ROUTE_TABLE: readonly RouteRow[] = [
   pub('POST', '/api/auth/login/options'),
   pub('POST', '/api/auth/login/verify'),
   pub('POST', '/api/auth/recover'),
+  pub('POST', '/api/auth/email/request'),
+  pub('POST', '/api/auth/email/verify'),
   session('POST', '/api/auth/logout'),
   session('POST', '/api/auth/logout-all'),
   session('GET', '/api/auth/passkeys'),

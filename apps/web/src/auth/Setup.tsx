@@ -120,6 +120,7 @@ export function Setup() {
           user: null,
           setupRequired: false,
           mustAddPasskey: false,
+          emailSignIn: false,
         });
         setAlreadySetUp(true);
       }}

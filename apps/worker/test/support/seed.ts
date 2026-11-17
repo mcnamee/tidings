@@ -63,6 +63,7 @@ const COUNT_SQL = {
   sessions: 'SELECT COUNT(*) AS n FROM sessions',
   webauthn_challenges: 'SELECT COUNT(*) AS n FROM webauthn_challenges',
   rate_limits: 'SELECT COUNT(*) AS n FROM rate_limits',
+  magic_links: 'SELECT COUNT(*) AS n FROM magic_links',
 } as const;
 
 export async function countRows(table: keyof typeof COUNT_SQL): Promise<number> {

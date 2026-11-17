@@ -142,7 +142,12 @@ test.describe('AC1: a fresh instance routes to /setup', () => {
   test('GET /api/auth/session reports {user:null, setupRequired:true}', async ({ request }) => {
     const res = await request.get('/api/auth/session');
     expect(res.status()).toBe(200);
-    expect(await res.json()).toEqual({ user: null, setupRequired: true, mustAddPasskey: false });
+    expect(await res.json()).toEqual({
+      user: null,
+      setupRequired: true,
+      mustAddPasskey: false,
+      emailSignIn: false,
+    });
     expect(res.headers()['cache-control']).toBe('no-store');
   });
 

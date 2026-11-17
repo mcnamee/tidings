@@ -9,6 +9,7 @@ export const SIGNED_OUT: SessionResponse = {
   user: null,
   setupRequired: false,
   mustAddPasskey: false,
+  emailSignIn: false,
 };
 
 /** `GET /api/auth/session`: who is signed in, and whether first-run setup is still open. */
@@ -36,5 +37,6 @@ export function publishSignedIn(client: QueryClient, user: NonNullable<SessionRe
     user,
     setupRequired: false,
     mustAddPasskey: false,
+    emailSignIn: false,
   });
 }

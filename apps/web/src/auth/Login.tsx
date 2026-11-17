@@ -11,6 +11,7 @@ import { resetExplicitSignOut } from '../lib/signOut';
 import { useDocumentTitle } from '../shell/useDocumentTitle';
 import { detectPasskeySupport, waitText } from './helpers';
 import { safeReturnPath } from './returnPath';
+import { EmailLinkForm } from './EmailLink';
 import { BannerSlot, PrimaryButton, type BannerContent } from './ui';
 
 /**
@@ -107,6 +108,7 @@ export function Login() {
 
   return (
     <LoginForm
+      emailSignIn={session.data.emailSignIn === true}
       initialBanner={arrivalBanner(state)}
       onSignedIn={(user) => {
         const target = safeReturnPath(state?.from) ?? readLastList();
@@ -118,11 +120,12 @@ export function Login() {
 }
 
 interface LoginFormProps {
+  emailSignIn: boolean;
   initialBanner: BannerContent | null;
   onSignedIn(user: LoginVerifyResponse['user']): void;
 }
 
-function LoginForm({ initialBanner, onSignedIn }: LoginFormProps) {
+function LoginForm({ emailSignIn, initialBanner, onSignedIn }: LoginFormProps) {
   const online = useOnline();
   const support = useMemo(() => detectPasskeySupport(), []);
   const [phase, setPhase] = useState<Phase>('idle');
@@ -131,6 +134,7 @@ function LoginForm({ initialBanner, onSignedIn }: LoginFormProps) {
   const buttonRef = useRef<HTMLButtonElement>(null);
   const rateTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
   const inFlight = useRef(false);
+  const [emailOpen, setEmailOpen] = useState(false);
 
   useEffect(() => () => clearTimeout(rateTimer.current), []);
 
@@ -256,6 +260,20 @@ function LoginForm({ initialBanner, onSignedIn }: LoginFormProps) {
     }
   }
 
+  if (emailOpen) return <EmailLinkForm onBack={() => setEmailOpen(false)} />;
+
+  const emailLink = emailSignIn ? (
+    <div className="flex justify-center">
+      <button
+        type="button"
+        onClick={() => setEmailOpen(true)}
+        className="inline-flex min-h-11 items-center text-base text-accent underline underline-offset-2"
+      >
+        Email me a sign-in link
+      </button>
+    </div>
+  ) : null;
+
   if (support !== 'ok') {
     const insecure = support === 'insecure';
     return (
@@ -279,6 +297,7 @@ function LoginForm({ initialBanner, onSignedIn }: LoginFormProps) {
         >
           Use a recovery code
         </Link>
+        {emailLink}
       </div>
     );
   }
@@ -341,6 +360,7 @@ function LoginForm({ initialBanner, onSignedIn }: LoginFormProps) {
             Lost your passkey?
           </Link>
         </div>
+        {emailLink}
       </div>
     </form>
   );

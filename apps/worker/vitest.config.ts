@@ -22,6 +22,8 @@ export default defineConfig(async () => {
             SEED_SQL: (buildSeedSql as () => string)(),
             // A throwaway value for tests only; production sets the real secret with wrangler.
             SETUP_TOKEN: 'test-setup-token-0123456789abcdef-xyz',
+            // A fake address for tests only (TID-053). The real one is a wrangler secret.
+            MAGIC_LINK_EMAIL: 'owner@example.test',
           },
         },
       }),

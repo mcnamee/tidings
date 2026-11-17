@@ -1,4 +1,4 @@
-const AUTH_PATHS = new Set(['/setup', '/login', '/recover']);
+const AUTH_PATHS = new Set(['/setup', '/login', '/login/email', '/recover']);
 // eslint-disable-next-line no-control-regex -- rejecting control characters is the point
 const CONTROL_CHARS = /[\u0000-\u001f\u007f]/;
 

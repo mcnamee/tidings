@@ -377,6 +377,7 @@ CREATE TABLE magic_links (
   expires_at  INTEGER NOT NULL,               -- created_at + 15 min
   used_at     INTEGER
 );
+CREATE INDEX magic_links_user ON magic_links(user_id);
 
 CREATE TABLE rate_limits (                    -- fixed-window counters for auth endpoints
   key           TEXT PRIMARY KEY,             -- e.g. 'recover:ip:203.0.113.9'
@@ -614,7 +615,7 @@ type ErrorCode =
   | 'validation_failed' | 'rate_limited' | 'limit_reached' | 'conflict'
   | 'already_subscribed' | 'feed_choice_required' | 'no_feed_found' | 'fetch_failed'
   | 'blocked_address' | 'setup_unavailable' | 'invalid_setup_token'
-  | 'webauthn_failed' | 'invalid_recovery_code' | 'last_passkey' | 'internal' | 'config_error';
+  | 'webauthn_failed' | 'invalid_recovery_code' | 'invalid_link' | 'last_passkey' | 'internal' | 'config_error';
 ```
 
   `validation_failed` → 400 with zod issues in `details`; `rate_limited` → 429 with `Retry-After`; `conflict`/`already_subscribed` → 409; `limit_reached`, `feed_choice_required`, `no_feed_found`, `fetch_failed`, `blocked_address` → 422; `setup_unavailable` → 409; `internal` → 500; `config_error` → 500, returned by every `/api/*` route when the Worker's configuration is unsafe (§10.6, `ALLOW_FETCH_HOSTS` guard), and by the setup endpoints when `SETUP_TOKEN` is missing or shorter than 32 characters (§10.1), with the fixed message "Server configuration error". An unhandled exception returns `500 internal` with the fixed message "Internal error" and never the exception text. `packages/shared` matches this list exactly (a test compares them).
