@@ -28,7 +28,7 @@ export const POLL_MS = 5000;
 export const COPY = {
   notOpml: "That file doesn't look like an OPML export",
   instructions:
-    'In Inoreader, open Preferences, then Import / Export, and export your subscriptions as an OPML file. Then choose that file here.',
+    'In Inoreader, open Preferences, then Account, then Export and Backup, and choose Download OPML file. Then choose that file here.',
   offline: "You're offline",
   network: "Couldn't reach Tidings. Check your connection and try again.",
   rateLimited: 'Too many requests. Try again in a minute.',

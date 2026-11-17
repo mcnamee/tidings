@@ -92,7 +92,7 @@ Approved as built unless a correction is shown.
 | We couldn't load it just now (The server returned 500 ...). Tidings will keep trying in the background. | Add feed, partial success | Approved. The capital letter inside the brackets is fixed text from `feedErrorMessage`; leave it |
 | We found 3 feeds on this site / Choose the one you want to follow. / Not supported yet / Try a different address | Choice list | Approved |
 | Added Feed title (toast and heading) | Add feed | Approved |
-| Choose your file / In Inoreader, open Preferences, then Import / Export, and export your subscriptions as an OPML file. Then choose that file here. | Import | Approved. Verify the Inoreader menu names once against the live app |
+| Choose your file / In Inoreader, open Preferences, then Account, then Export and Backup, and choose Download OPML file. Then choose that file here. (Menu path confirmed by the owner, 2026-11-17.) | Import | Approved. Verify the Inoreader menu names once against the live app |
 | That file doesn't look like an OPML export | Import | Approved |
 | Found 250 feeds in 18 folders / 248 already subscribed / 1 invalid | Import preview | Approved; "1 invalid" should say "1 can't be imported" if item 2 is fixed with reasons |
 | Everything in this file is already in Tidings. | Import | Approved |
