@@ -99,6 +99,11 @@ export async function refreshFeed(job: RefreshJob, deps: RefreshDeps): Promise<R
     }
 
     case 'not_modified':
+      // A 304 answers a conditional request. With no validator sent it means nothing (a broken
+      // origin or proxy): never a success, or a pending feed would lose its first-fetch limit.
+      if (job.etag === null && job.lastModified === null) {
+        return fail({ code: httpErrorCode(304), status: 304, retryAfterS: null });
+      }
       return unchanged(res, 304);
 
     case 'ok':

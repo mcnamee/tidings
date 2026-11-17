@@ -34,12 +34,13 @@ Entry template:
 ### DEF-014: A 304 on a never-fetched feed marks it ok and sets last_success_at
 - Story: TID-012 (AC2, spec 7.3 step 2)
 - Severity: S3. Owner: SE.
-- Status: Open
-- Found by: `apps/worker/test/refresh-adversarial.test.ts` > "a 304 for a feed that has never been fetched does not claim success (DEF-014)" (`it.fails`; remove the marker when fixed)
+- Status: Fixed (commit SHA14), awaiting tester closure
+- Found by: `apps/worker/test/refresh-adversarial.test.ts` > "a 304 for a feed that has never been fetched does not claim success (DEF-014)" (marker removed)
 - Steps to reproduce: a `pending` feed with `last_success_at NULL` and no etag; origin answers 304 (a buggy origin or proxy; no validators were sent).
 - Expected: not a success: the feed stays `pending` (or fails) with no `last_success_at`.
 - Actual: `unchanged()` sets `state='ok'`, `last_success_at=now`. The feed has no content, and its first real 200 then links every item (the FR-SU-3 10-item limit is lost because that rule keys on `last_success_at IS NULL`).
 - Suggested fix: in `unchanged`, treat a 304 as success only when the job sent a validator (`etag` or `lastModified` not null) or `bodyHash` is not null; otherwise record a failure.
+- Fix: a 304 when the job sent no `etag` and no `lastModified` is a failure `http_304` (existing `http_<status>` family; added the reason phrase 'Not Modified' so the fixed message reads "The server returned 304 Not Modified"), with normal backoff and no `last_success_at`. PM note: no new code type was added; confirm that message wording is acceptable.
 
 ### DEF-015: Spec 9.8 understates the cost of a first fetch and of an OPML import
 - Story: TID-012 (FR-SU-3, spec 9.8 item 2)

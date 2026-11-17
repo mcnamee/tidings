@@ -168,8 +168,7 @@ describe('hostile and broken responses', () => {
     else expect(row.next_fetch_at).toBe(NOW() + 3600); // plain backoff, 1800 x 2^1
   });
 
-  // DEF-014 is open: it.fails passes while the bug exists and errors once it is fixed.
-  it.fails(
+  it(
     'a 304 for a feed that has never been fetched does not claim success (DEF-014)',
     async () => {
       const id = await seedFeed({ url: FEED_URL, state: 'pending', lastSuccessAt: null });
@@ -179,6 +178,27 @@ describe('hostile and broken responses', () => {
       expect(row.last_success_at).toBeNull();
     },
   );
+
+  it('a 304 with no validators sent is http_304 with backoff and the feed is failing', async () => {
+    const id = await seedFeed({ url: FEED_URL, state: 'pending', lastSuccessAt: null });
+    fx.fake.route(FEED_URL, { status: 304 });
+    const out = await refresh(id);
+    expect(out).toMatchObject({ result: 'failed', errorCode: 'http_304' });
+    const row = await feedRow(id);
+    expect(row.state).toBe('failing');
+    expect(row.error_count).toBe(1);
+    expect(row.last_error_code).toBe('http_304');
+    expect(row.next_fetch_at).toBeGreaterThan(NOW());
+    expect(feedErrorMessage('http_304')).toBe('The server returned 304 Not Modified');
+  });
+
+  it('a 304 after we sent an ETag is still a success', async () => {
+    const id = await seedFeed({ url: FEED_URL });
+    fx.fake.serveFeed(FEED_URL, rss(items(1, 2)), { etag: '"v1"' });
+    await refresh(id);
+    fx.fake.route(FEED_URL, { status: 304 });
+    expect((await refresh(id)).result).toBe('unchanged');
+  });
 
   it('a very long ETag round-trips and does not wedge the feed', async () => {
     const id = await seedFeed({ url: FEED_URL });
