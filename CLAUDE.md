@@ -7,6 +7,7 @@ A personal, mobile-first RSS reader that replaces Inoreader. Runs on the Cloudfl
 - **Architecture decisions:** `docs/decisions/NNNN-title.md` (ADRs)
 - **UX:** `docs/ux/`
 - **Test strategy and reports:** `docs/testing/`
+- **Where we're up to, and how the orchestrator runs the team:** `docs/HANDOFF.md`
 
 ## Hard constraints
 
