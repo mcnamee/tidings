@@ -1,8 +1,9 @@
 name: CI
 
 on:
+  # Owner decision 2026-11-17: run only for pushes to main, to save Actions minutes.
   push:
-  pull_request:
+    branches: [main]
 
 permissions:
   contents: read
