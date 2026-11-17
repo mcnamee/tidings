@@ -253,7 +253,7 @@ describe('tester: adversarial XSS', () => {
 
 // DEF-071: an image with no alt text fails WCAG 1.1.1 (axe image-alt, critical). Feed images
 // usually have none, so the sanitiser should add alt="" (decorative) when it is missing.
-it.fails('DEF-071: an image with no alt attribute gets alt=""', () => {
+it('DEF-071: an image with no alt attribute gets alt=""', () => {
   const img = clean('<img src="/a.png">').querySelector('img');
   expect(img?.getAttribute('alt')).toBe('');
 });

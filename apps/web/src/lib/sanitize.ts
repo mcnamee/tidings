@@ -77,6 +77,9 @@ function installHooks(): void {
       node.setAttribute('target', '_blank');
       node.setAttribute('rel', 'noopener noreferrer nofollow');
     } else if (tag === 'img') {
+      // Feed images rarely have alt text; treat them as decorative rather than unlabelled (DEF-071).
+      // Set first so a second pass leaves the attribute order unchanged.
+      if (!node.hasAttribute('alt')) node.setAttribute('alt', '');
       node.setAttribute('loading', 'lazy');
       node.setAttribute('decoding', 'async');
       node.setAttribute('referrerpolicy', 'no-referrer');

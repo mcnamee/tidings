@@ -143,25 +143,24 @@ test('AC2, AC4: opening marks read (optimistic), Mark as unread undoes it', asyn
   await expect(page.getByRole('button', { name: 'Mark as unread' })).toBeVisible();
 });
 
-// DEF-070: Next crashes the screen in Chromium (window.scrollTo returns a Promise). Remove `.fail` when fixed.
-test.fail(
-  'AC7: Next and Previous replace, and Back returns to the list in one step',
-  async ({ page }) => {
-    const pageErrors: string[] = [];
-    page.on('pageerror', (e) => pageErrors.push(e.message));
-    await page.goto('/all');
-    await page.getByRole('link', { name: /Corpus/ }).click();
-    await page.getByRole('button', { name: 'Next' }).click();
-    await expect(page.getByRole('heading', { level: 2, name: 'Relative' })).toBeVisible();
-    await page.waitForTimeout(700); // the failing effect cleanup runs after paint
-    expect(pageErrors).toEqual([]);
-    await page.getByRole('button', { name: 'Next' }).click();
-    await page.getByRole('button', { name: 'Previous' }).click();
-    await page.getByRole('button', { name: 'Back' }).click();
-    await expect(page).toHaveURL(/\/all$/);
-    await expect(page.getByRole('link', { name: /Corpus/ })).toBeVisible();
-  },
-);
+// DEF-070 (fixed): Next used to crash the screen in Chromium (window.scrollTo returns a Promise).
+test('AC7: Next and Previous replace, and Back returns to the list in one step', async ({
+  page,
+}) => {
+  const pageErrors: string[] = [];
+  page.on('pageerror', (e) => pageErrors.push(e.message));
+  await page.goto('/all');
+  await page.getByRole('link', { name: /Corpus/ }).click();
+  await page.getByRole('button', { name: 'Next' }).click();
+  await expect(page.getByRole('heading', { level: 2, name: 'Relative' })).toBeVisible();
+  await page.waitForTimeout(700); // the failing effect cleanup runs after paint
+  expect(pageErrors).toEqual([]);
+  await page.getByRole('button', { name: 'Next' }).click();
+  await page.getByRole('button', { name: 'Previous' }).click();
+  await page.getByRole('button', { name: 'Back' }).click();
+  await expect(page).toHaveURL(/\/all$/);
+  await expect(page.getByRole('link', { name: /Corpus/ })).toBeVisible();
+});
 
 test('axe is clean on an article', async ({ page }) => {
   await page.goto('/all/a/9303');
@@ -171,7 +170,7 @@ test('axe is clean on an article', async ({ page }) => {
 
 // DEF-071: feed images usually have no alt text, and the sanitiser leaves them as they are, so axe
 // reports a critical image-alt violation. Remove `.fail` when the sanitiser adds alt="".
-test.fail('DEF-071: axe is clean on an article whose feed image has no alt', async ({ page }) => {
+test('DEF-071: axe is clean on an article whose feed image has no alt', async ({ page }) => {
   await page.goto('/all/a/9302');
   await expect(page.getByRole('article')).toBeVisible();
   await expectNoSeriousA11yViolations(page);
@@ -223,41 +222,39 @@ test('AC3: a failing PATCH rolls the state and counts back and shows a toast', a
   }
 });
 
-// DEF-070, as above.
-test.fail(
-  'AC7: Back returns to the list at the same scroll position after Next and Previous',
-  async ({ page }) => {
-    const many = Array.from({ length: 40 }, (_, i) => ({
-      id: 9400 + i,
-      feedId: 9201,
-      title: `Scroll row ${String(i).padStart(2, '0')}`,
-      contentHtml: `<p>Body ${i}</p>`,
-      publishedAt: NOW - 100 - i,
-    }));
-    const pageErrors: string[] = [];
-    page.on('pageerror', (e) => pageErrors.push(e.message));
-    seedListData({ entries: many });
-    await page.goto('/all');
-    const row = page.getByRole('link', { name: /Scroll row 25/ });
-    await row.scrollIntoViewIfNeeded();
-    const before = await page.evaluate(() => window.scrollY);
-    expect(before).toBeGreaterThan(200);
-    await row.click();
-    await expect(page.getByRole('heading', { level: 2, name: 'Scroll row 25' })).toBeVisible();
-    await page.getByRole('button', { name: 'Next' }).click();
-    await expect(page.getByRole('heading', { level: 2, name: 'Scroll row 26' })).toBeVisible();
-    await page.waitForTimeout(700); // the failing effect cleanup runs after paint
-    expect(pageErrors).toEqual([]);
-    await page.getByRole('button', { name: 'Next' }).click();
-    await page.getByRole('button', { name: 'Previous' }).click();
-    await page.getByRole('button', { name: 'Previous' }).click();
-    await page.getByRole('button', { name: 'Back' }).click();
-    await expect(page).toHaveURL(/\/all$/);
-    await expect(page.getByRole('link', { name: /Scroll row 25/ })).toBeVisible();
-    await expect.poll(() => page.evaluate(() => window.scrollY)).toBeGreaterThan(before - 150);
-    expect(await page.evaluate(() => window.scrollY)).toBeLessThan(before + 150);
-  },
-);
+test('AC7: Back returns to the list at the same scroll position after Next and Previous', async ({
+  page,
+}) => {
+  const many = Array.from({ length: 40 }, (_, i) => ({
+    id: 9400 + i,
+    feedId: 9201,
+    title: `Scroll row ${String(i).padStart(2, '0')}`,
+    contentHtml: `<p>Body ${i}</p>`,
+    publishedAt: NOW - 100 - i,
+  }));
+  const pageErrors: string[] = [];
+  page.on('pageerror', (e) => pageErrors.push(e.message));
+  seedListData({ entries: many });
+  await page.goto('/all');
+  const row = page.getByRole('link', { name: /Scroll row 25/ });
+  await row.scrollIntoViewIfNeeded();
+  const before = await page.evaluate(() => window.scrollY);
+  expect(before).toBeGreaterThan(200);
+  await row.click();
+  await expect(page.getByRole('heading', { level: 2, name: 'Scroll row 25' })).toBeVisible();
+  await page.getByRole('button', { name: 'Next' }).click();
+  await expect(page.getByRole('heading', { level: 2, name: 'Scroll row 26' })).toBeVisible();
+  await page.waitForTimeout(700); // the failing effect cleanup runs after paint
+  expect(pageErrors).toEqual([]);
+  await page.getByRole('button', { name: 'Next' }).click();
+  await page.getByRole('button', { name: 'Previous' }).click();
+  await page.getByRole('button', { name: 'Previous' }).click();
+  await page.getByRole('button', { name: 'Back' }).click();
+  await expect(page).toHaveURL(/\/all$/);
+  await expect(page.getByRole('link', { name: /Scroll row 25/ })).toBeVisible();
+  await expect.poll(() => page.evaluate(() => window.scrollY)).toBeGreaterThan(before - 150);
+  expect(await page.evaluate(() => window.scrollY)).toBeLessThan(before + 150);
+});
 
 const HOSTILE = [
   '<p>Hostile marker</p>',
@@ -387,7 +384,7 @@ test('hostile entry IDs in the URL show "not found" and send no write', async ({
 
 // DEF-072: a 404 is retried three times with back-off, so "We couldn't find that article" appears
 // after about 7 s and the skeleton shows meanwhile. Remove `.fail` when a 4xx is not retried.
-test.fail('DEF-072: a missing article says so within 2 s', async ({ page }) => {
+test('DEF-072: a missing article says so within 2 s', async ({ page }) => {
   await page.goto('/all/a/999999');
   await expect(page.getByRole('heading', { name: /couldn't find that article/ })).toBeVisible({
     timeout: 2000,

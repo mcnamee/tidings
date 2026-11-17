@@ -25,7 +25,7 @@ Entry template:
 
 - Story: TID-019 (AC7), `apps/web/src/reader/ArticleView.tsx` (`useEffect(() => window.scrollTo(0, 0), [])`)
 - Severity: S1 (the article view cannot be left or stepped through in a current browser; Back from an article is affected the same way).
-- Owner: SE. Status: Open
+- Owner: SE. Status: Fixed 2026-11-17 by the orchestrator on `tid-019-article-view`; the known-defect markers are now normal tests and pass (unit and Chromium E2E).
 - Found by: `e2e/specs/tid-019-article-view.spec.ts` > "AC7: Next and Previous replace..." and "AC7: Back returns ... same scroll position..." (`test.fail`); unit `ArticleView.test.tsx` > "DEF-070: Next works when window.scrollTo returns a Promise" (`it.fails`). Both flip red when fixed: remove the markers then.
 - Steps to reproduce: open `/all`, tap an article, tap Next (Chromium used by Playwright 1.65).
 - Expected: the next article opens.
@@ -35,7 +35,7 @@ Entry template:
 ### DEF-071: Images in article content with no alt text fail axe `image-alt` (critical)
 
 - Story: TID-019 (AC6 and the a11y bar of §NFR-5), `apps/web/src/lib/sanitize.ts`
-- Severity: S3. Owner: SE. Status: Open
+- Severity: S3. Owner: SE. Status: Fixed 2026-11-17 by the orchestrator on `tid-019-article-view`; the known-defect markers are now normal tests and pass (unit and Chromium E2E).
 - Found by: `tid-019-article-view.spec.ts` > "DEF-071: axe is clean on an article whose feed image has no alt" (`test.fail`) and `sanitize.test.ts` > "DEF-071: an image with no alt attribute gets alt=\"\"" (`it.fails`).
 - Steps to reproduce: open an article whose `contentHtml` has `<img src="/img/big.png">`, run axe.
 - Expected: no serious or critical violation.
@@ -45,7 +45,7 @@ Entry template:
 ### DEF-072: A missing or foreign article shows a skeleton for about 7 s before "We couldn't find that article"
 
 - Story: TID-019 (AC9 in the UI), `apps/web/src/lib/queries.ts` (`useEntry`) with the app's default query retry
-- Severity: S3. Owner: SE. Status: Open
+- Severity: S3. Owner: SE. Status: Fixed 2026-11-17 by the orchestrator on `tid-019-article-view`; the known-defect markers are now normal tests and pass (unit and Chromium E2E).
 - Found by: `tid-019-article-view.spec.ts` > "DEF-072: a missing article says so within 2 s" (`test.fail`). The unit test passes because it sets `retry: false`.
 - Steps to reproduce: open `/all/a/999999` (or another user's entry ID, or a stale link to a purged article).
 - Expected: the not-found message at once; a 404 will not change on retry.

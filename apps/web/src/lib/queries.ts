@@ -14,7 +14,7 @@ import {
   type FoldersResponse,
   type SubscriptionsResponse,
 } from '@tidings/shared';
-import { apiGet } from '../api';
+import { ApiRequestError, apiGet } from '../api';
 
 // Query keys and cache rules from spec 11.3.
 export const FOLDERS_KEY = ['folders'] as const;
@@ -116,5 +116,8 @@ export function useEntry(id: string, placeholder: () => Entry | undefined) {
     queryFn: ({ signal }) => apiGet<Entry>(`/api/entries/${encodeURIComponent(id)}`, { signal }),
     staleTime: 30 * SECOND,
     placeholderData: placeholder,
+    // A 4xx (not found, not yours) won't change on retry; show it at once (DEF-072).
+    retry: (count, err) =>
+      !(err instanceof ApiRequestError && err.status >= 400 && err.status < 500) && count < 3,
   });
 }

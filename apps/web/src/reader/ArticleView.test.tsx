@@ -311,7 +311,7 @@ describe('AC7: Next and Previous', () => {
 
   // DEF-070: current Chromium's window.scrollTo returns a Promise; the article's mount effect
   // returned it, so React treated it as a cleanup and threw when the article was replaced.
-  it.fails('DEF-070: Next works when window.scrollTo returns a Promise', async () => {
+  it('DEF-070: Next works when window.scrollTo returns a Promise', async () => {
     vi.spyOn(window, 'scrollTo').mockImplementation((() => Promise.resolve()) as never);
     const user = userEvent.setup();
     renderApp('/all');

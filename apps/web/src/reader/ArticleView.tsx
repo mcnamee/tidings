@@ -134,7 +134,11 @@ function ArticleScreen({
   const loaded = !!entry && !detail.isPlaceholderData;
 
   // A new article starts at the top (FLOWS 2.6 step 3).
-  useEffect(() => window.scrollTo(0, 0), []);
+  // A block body: in current Chromium scrollTo returns a Promise, which React would call as a
+  // cleanup function on unmount (DEF-070).
+  useEffect(() => {
+    window.scrollTo(0, 0);
+  }, []);
 
   // FR-RD-8: opening an unread article marks it read, once. "Mark as unread" then sticks.
   const attempted = useRef(false);
