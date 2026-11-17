@@ -28,10 +28,12 @@ export interface EmailDeps {
 /** Daily cap on emails actually sent (ADR 0016). Keyed by UTC date so the day boundary is exact. */
 export const EMAIL_SEND_DAILY_LIMIT = 10;
 
-/** The three configuration items. The user count is checked separately (one read). */
+/** The configuration items (API key, recipient, sender). The user count is checked separately (one read). */
 export function emailConfigured(env: Env): boolean {
   return (
-    !!env.SIGNIN_EMAIL && isSafeAddress(env.MAGIC_LINK_EMAIL) && isSafeAddress(env.MAGIC_LINK_FROM)
+    !!env.RESEND_API_KEY &&
+    isSafeAddress(env.MAGIC_LINK_EMAIL) &&
+    isSafeAddress(env.MAGIC_LINK_FROM)
   );
 }
 
@@ -107,7 +109,6 @@ async function issueAndSend(env: Env, deps: EmailDeps, db: Db, typed: string): P
     to: recipient,
     link: `${env.APP_ORIGIN}/login/email#token=${token}`,
     now: new Date(now * 1000),
-    messageIdLocal: randomToken(16),
   });
   await deps.sendEmail(env, mail);
 }

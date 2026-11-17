@@ -20,7 +20,7 @@ export const APP_VERSION = '0.0.0';
 export interface AppDeps extends AuthDeps {
   /** Stub for the `API_RL` binding in tests; production uses `env.API_RL`. */
   apiRateLimit: ApiRateLimiter;
-  /** TID-053: sends the sign-in email; tests inject a fake, production uses the `SIGNIN_EMAIL` binding. */
+  /** TID-053: sends the sign-in email; tests inject a fake, production posts to Resend. */
   sendEmail: EmailSender;
   /** Subscribe and discovery dependencies (TID-013); production uses the real ones. */
   subscriptions: Partial<SubscriptionDeps>;

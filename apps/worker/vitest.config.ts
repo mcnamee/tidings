@@ -24,6 +24,7 @@ export default defineConfig(async () => {
             SETUP_TOKEN: 'test-setup-token-0123456789abcdef-xyz',
             // A fake address for tests only (TID-053). The real one is a wrangler secret.
             MAGIC_LINK_EMAIL: 'owner@example.test',
+            RESEND_API_KEY: 're_test_not_a_real_key',
           },
         },
       }),

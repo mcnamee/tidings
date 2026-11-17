@@ -20,8 +20,6 @@
   "ratelimits": [
     { "name": "API_RL", "namespace_id": "1001", "simple": { "limit": 600, "period": 60 } },
   ],
-  // TID-053: no fixed destination; the recipient is the MAGIC_LINK_EMAIL secret (ADR 0016).
-  "send_email": [{ "name": "SIGNIN_EMAIL" }],
   "triggers": { "crons": ["* * * * *", "17 * * * *"] },
   "routes": [{ "pattern": "tidings.mcn.am", "custom_domain": true }],
   "vars": {
@@ -30,5 +28,5 @@
     "RP_NAME": "Tidings",
     "MAGIC_LINK_FROM": "signin@tidings.mcn.am",
   },
-  // secrets: SETUP_TOKEN, MAGIC_LINK_EMAIL (wrangler secret put)
+  // secrets: SETUP_TOKEN, RESEND_API_KEY, MAGIC_LINK_EMAIL (wrangler secret put; TID-053, ADR 0016)
 }

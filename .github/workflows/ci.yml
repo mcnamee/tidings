@@ -68,10 +68,29 @@ jobs:
           accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
           workingDirectory: apps/worker
           command: d1 migrations apply tidings --remote
+      # TID-053: pick the sign-in email secrets that are set in GitHub. wrangler-action fails on a
+      # named secret that is empty, so only set ones are listed. Values are never printed.
+      - name: Choose Worker secrets to sync
+        id: worker-secrets
+        env:
+          RESEND_API_KEY: ${{ secrets.RESEND_API_KEY }}
+          MAGIC_LINK_EMAIL: ${{ secrets.MAGIC_LINK_EMAIL }}
+        run: |
+          {
+            echo 'names<<EOF'
+            [ -n "$RESEND_API_KEY" ] && echo RESEND_API_KEY
+            [ -n "$MAGIC_LINK_EMAIL" ] && echo MAGIC_LINK_EMAIL
+            echo 'EOF'
+          } >> "$GITHUB_OUTPUT"
+          exit 0
       - name: Deploy the Worker
         uses: cloudflare/wrangler-action@v3.14.1
+        env:
+          RESEND_API_KEY: ${{ secrets.RESEND_API_KEY }}
+          MAGIC_LINK_EMAIL: ${{ secrets.MAGIC_LINK_EMAIL }}
         with:
           apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
           workingDirectory: apps/worker
+          secrets: ${{ steps.worker-secrets.outputs.names }}
           command: deploy

@@ -1,15 +1,15 @@
-import { EmailMessage } from 'cloudflare:email';
 import type { Env } from '../../env';
 
 /**
- * Outgoing sign-in mail (TID-053, ADR 0016). The MIME message is built by hand: it is one fixed
- * plain-text template, so a MIME library (and its bundle and CPU cost) is not needed.
+ * Outgoing sign-in mail (TID-053, ADR 0016, amended 2026-11-17). One fixed plain-text template,
+ * sent through Resend's HTTP API with one `fetch` (no MIME, no library).
  */
 export interface OutgoingMail {
   from: string;
   to: string;
-  /** The complete RFC 5322 message, CRLF line endings. */
-  raw: string;
+  subject: string;
+  /** Plain text only; the one URL in it is the sign-in link. */
+  text: string;
 }
 
 /** Injected in tests. Production uses `defaultSender`. */
@@ -25,43 +25,21 @@ export function isSafeAddress(value: unknown): value is string {
   return typeof value === 'string' && value.length <= 254 && SAFE_ADDRESS.test(value);
 }
 
-const DAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
-const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
-const pad = (n: number) => String(n).padStart(2, '0');
-
-/** RFC 5322 date, always UTC. */
-export function formatMailDate(d: Date): string {
-  return (
-    `${DAYS[d.getUTCDay()]}, ${pad(d.getUTCDate())} ${MONTHS[d.getUTCMonth()]} ${d.getUTCFullYear()} ` +
-    `${pad(d.getUTCHours())}:${pad(d.getUTCMinutes())}:${pad(d.getUTCSeconds())} +0000`
-  );
-}
-
 export interface MagicLinkMailInput {
   from: string;
   to: string;
   /** `APP_ORIGIN + "/login/email#token=" + token`, the only URL in the message. */
   link: string;
   now: Date;
-  /** Random, unguessable part of the Message-ID (the domain is taken from `from`). */
-  messageIdLocal: string;
 }
 
-/** Plain text only: no HTML and no remote images (AC4). The token never appears in a header. */
+const pad = (n: number) => String(n).padStart(2, '0');
+
+/** Plain text only: no HTML and no remote images (AC4). The token never appears in the subject. */
 export function buildMagicLinkMail(input: MagicLinkMailInput): OutgoingMail {
-  const domain = input.from.slice(input.from.lastIndexOf('@') + 1);
-  const requested = `${input.now.getUTCFullYear()}-${pad(input.now.getUTCMonth() + 1)}-${pad(input.now.getUTCDate())} ${pad(input.now.getUTCHours())}:${pad(input.now.getUTCMinutes())} UTC`;
-  const headers = [
-    `From: Tidings <${input.from}>`,
-    `To: ${input.to}`,
-    `Subject: ${MAGIC_LINK_SUBJECT}`,
-    `Date: ${formatMailDate(input.now)}`,
-    `Message-ID: <${input.messageIdLocal}@${domain}>`,
-    'MIME-Version: 1.0',
-    'Content-Type: text/plain; charset=utf-8',
-    'Content-Transfer-Encoding: 7bit',
-  ];
-  const body = [
+  const d = input.now;
+  const requested = `${d.getUTCFullYear()}-${pad(d.getUTCMonth() + 1)}-${pad(d.getUTCDate())} ${pad(d.getUTCHours())}:${pad(d.getUTCMinutes())} UTC`;
+  const text = [
     'Use this link to sign in to Tidings:',
     '',
     input.link,
@@ -70,8 +48,8 @@ export function buildMagicLinkMail(input: MagicLinkMailInput): OutgoingMail {
     '',
     "If you didn't ask for this, ignore this email. Nobody can sign in without the link.",
     '',
-  ];
-  return { from: input.from, to: input.to, raw: [...headers, '', ...body].join('\r\n') };
+  ].join('\n');
+  return { from: input.from, to: input.to, subject: MAGIC_LINK_SUBJECT, text };
 }
 
 /**
@@ -88,12 +66,56 @@ async function capture(env: Env, mail: OutgoingMail): Promise<void> {
     'CREATE TABLE IF NOT EXISTS e2e_outbox (id INTEGER PRIMARY KEY AUTOINCREMENT, to_addr TEXT, raw TEXT)',
   );
   await env.DB.prepare('INSERT INTO e2e_outbox (to_addr, raw) VALUES (?, ?)')
-    .bind(mail.to, mail.raw)
+    .bind(mail.to, `Subject: ${mail.subject}\n\n${mail.text}`)
     .run();
 }
 
+export const RESEND_URL = 'https://api.resend.com/emails';
+export const RESEND_TIMEOUT_MS = 5000;
+
+/** Thrown for a non-2xx answer. The caller logs only its name; the status is logged here. */
+export class ResendError extends Error {
+  constructor() {
+    super('Resend rejected the request');
+    this.name = 'ResendError';
+  }
+}
+
+/**
+ * One POST to Resend. The address, token and key never reach a log line: failures are logged by
+ * status or error class only, and the response body (which may echo the address) is not read.
+ */
+export function createResendSender(
+  fetchFn: typeof fetch = (input, init) => fetch(input, init),
+  timeoutMs: number = RESEND_TIMEOUT_MS,
+): EmailSender {
+  return async (env, mail) => {
+    if (!env.RESEND_API_KEY) throw new Error('RESEND_API_KEY missing');
+    const res = await fetchFn(RESEND_URL, {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${env.RESEND_API_KEY}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        from: `Tidings <${mail.from}>`,
+        to: [mail.to],
+        subject: mail.subject,
+        text: mail.text,
+      }),
+      signal: AbortSignal.timeout(timeoutMs),
+    });
+    await res.body?.cancel();
+    if (!res.ok) {
+      console.error('email_send_rejected', JSON.stringify({ status: res.status }));
+      throw new ResendError();
+    }
+  };
+}
+
+const resendSender = createResendSender();
+
 export const defaultSender: EmailSender = async (env, mail) => {
   if (captureEnabled(env)) return capture(env, mail);
-  if (!env.SIGNIN_EMAIL) throw new Error('SIGNIN_EMAIL binding missing');
-  await env.SIGNIN_EMAIL.send(new EmailMessage(mail.from, mail.to, mail.raw));
+  return resendSender(env, mail);
 };

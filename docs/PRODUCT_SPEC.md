@@ -80,7 +80,7 @@ Decision: **passkeys (WebAuthn) with single-use recovery codes**, opaque server-
 - **FR-AU-6 Passkey management.** In settings the user can list passkeys (name, created, last used), add another, rename one, and remove one. Removing the last passkey is refused.
 - **FR-AU-7 Regenerate recovery codes.** Replaces all codes. Requires a sign-in within the last 15 minutes, otherwise the API returns `reauth_required` and the UI runs a passkey sign-in first.
 - **FR-AU-8 Closed sign-up.** There is no public registration. Additional users are M3 (invites).
-- **FR-AU-9 Email sign-in link** (TID-053, ADR 0016). When it is configured (the `SIGNIN_EMAIL` `send_email` binding, the `MAGIC_LINK_EMAIL` secret and the `MAGIC_LINK_FROM` var, with exactly one user), `/login` offers "Email me a sign-in link". The owner types their address. If it matches `MAGIC_LINK_EMAIL`, Tidings emails a single-use link from `signin@tidings.mcn.am` that expires after 15 minutes. The response never reveals whether the address matched. Opening the link shows a "Sign in" button. Tapping it (a POST, never the GET) creates a session with `auth_method = 'email'`. Email sessions can't add or remove passkeys or regenerate recovery codes (`reauth_required`). Without the configuration, the option is hidden and the routes return `404`.
+- **FR-AU-9 Email sign-in link** (TID-053, ADR 0016). When it is configured (the `RESEND_API_KEY` and `MAGIC_LINK_EMAIL` secrets and the `MAGIC_LINK_FROM` var, with exactly one user), `/login` offers "Email me a sign-in link". The owner types their address. If it matches `MAGIC_LINK_EMAIL`, Tidings emails a single-use link from `signin@tidings.mcn.am`, sent through Resend's HTTP API, that expires after 15 minutes. The response never reveals whether the address matched. Opening the link shows a "Sign in" button. Tapping it (a POST, never the GET) creates a session with `auth_method = 'email'`. Email sessions can't add or remove passkeys or regenerate recovery codes (`reauth_required`). Without the configuration, the option is hidden and the routes return `404`.
 
 ### 3.2 Subscriptions (SU)
 
@@ -292,9 +292,8 @@ No other runtime libraries without PM approval (state management, UI kits, date 
   "triggers": { "crons": ["* * * * *", "17 * * * *"] },
   "ratelimits": [{ "name": "API_RL", "namespace_id": "1001", "simple": { "limit": 600, "period": 60 } }],
   "routes": [{ "pattern": "tidings.mcn.am", "custom_domain": true }],
-  "send_email": [{ "name": "SIGNIN_EMAIL" }], // TID-053; no address in the repo (ADR 0016)
   "vars": { "APP_ORIGIN": "https://tidings.mcn.am", "RP_ID": "tidings.mcn.am", "RP_NAME": "Tidings", "MAGIC_LINK_FROM": "signin@tidings.mcn.am" }
-  // secrets: SETUP_TOKEN, MAGIC_LINK_EMAIL (owner's verified address; optional, deleting it disables email sign-in)
+  // secrets: SETUP_TOKEN, RESEND_API_KEY and MAGIC_LINK_EMAIL (TID-053, ADR 0016: the Resend key, and the owner's address; both optional, deleting either disables email sign-in). No email binding.
 }
 ```
 
@@ -785,7 +784,7 @@ Sources: [Workers limits](https://developers.cloudflare.com/workers/platform/lim
 | Queues | 10,000 operations / day; ≈ 3 ops per message; 24 h retention | Verified (not used) |
 | Rate Limiting binding on Free | Available; `period` 10 or 60 s | **Verified 2026-11-16** (TID-003): deploys and enforces; approximate (can allow about one over within a burst; per location) |
 | `_headers` | 100 rules, 2,000 chars/line; not applied to Worker responses | Verified |
-| `send_email` binding (Email Routing) | Free; delivers only to destination addresses verified in the account's Email Routing; sender must be on a domain with Email Routing enabled (`tidings.mcn.am`) | **Unverified** (docs unreachable from the session 2026-11-17); checked in production by TID-053 AC15. Our own cap: 10 emails/day |
+| Resend HTTP API (`POST https://api.resend.com/emails`, from a Worker) | Free tier 3,000 emails/month and 100/day (our own cap is 10/day); one `fetch` subrequest per sign-in email, inside `ctx.waitUntil`, with a 5 s timeout; counts against the Worker's 50 subrequests, negligible | **Unverified** (vendor limits from the owner's research 2026-11-17); checked in production by TID-053 AC15. Replaces the `send_email` binding (ADR 0016 amendment) |
 | PBKDF2 iterations in Workers | 100,000 max (workerd issue #1346, 2023) | Unverified for 2026 production; relevant only to the rejected password option |
 
 ### 9.2 Assumed load
@@ -895,7 +894,7 @@ Parameters: `rpID = RP_ID` (the production hostname), expected origin `APP_ORIGI
 
 **Recovery codes:** 10 codes, each 80 random bits rendered as `XXXX-XXXX-XXXX-XXXX` (Crockford base32). Stored as SHA-256 of the normalised code. Normalisation: trim, remove spaces and dashes, upper-case, then map the Crockford confusables `O→0`, `I→1`, `L→1` (ADR 0010). A fast hash is acceptable because the codes are high-entropy random values, not user-chosen passwords; this avoids needing a KDF in a 10 ms budget. Single use.
 
-**Email sign-in links (ADR 0016):** 32-byte random token (256 bits), base64url, stored only as SHA-256 in `magic_links`. Expires in 15 minutes, single use (atomic conditional `UPDATE`), and at most one live link per user. The link is `APP_ORIGIN/login/email#token=…`. The token sits in the fragment, so a GET (including corporate mail scanners) never sends it to the server or consumes it. The landing page strips the fragment and consumes the token only on a POST from the "Sign in" button. The request endpoint answers `202 {}` whatever the address, and it sends after the response so the timing doesn't reveal a match. Recipient: the `MAGIC_LINK_EMAIL` secret only. Email Routing is enabled on `tidings.mcn.am` only, never on the `mcn.am` apex (Google Workspace MX).
+**Email sign-in links (ADR 0016):** 32-byte random token (256 bits), base64url, stored only as SHA-256 in `magic_links`. Expires in 15 minutes, single use (atomic conditional `UPDATE`), and at most one live link per user. The link is `APP_ORIGIN/login/email#token=…`. The token sits in the fragment, so a GET (including corporate mail scanners) never sends it to the server or consumes it. The landing page strips the fragment and consumes the token only on a POST from the "Sign in" button. The request endpoint answers `202 {}` whatever the address, and it sends after the response so the timing doesn't reveal a match. Recipient: the `MAGIC_LINK_EMAIL` secret only. Sent with one `fetch` to Resend's API (`Authorization: Bearer RESEND_API_KEY`, a Workers secret; plain text, fixed subject, one link). Resend sees the owner's address and the link. The sending domain `tidings.mcn.am` is verified in Resend with DNS records under that subdomain only; nothing is added to the `mcn.am` apex (Google Workspace MX), and Cloudflare Email Routing is not used.
 
 **Break-glass:** if the owner loses every passkey and code, they run a documented `wrangler d1 execute` command (README) that deletes their passkeys; setup is then *not* re-opened (a user exists), so the runbook instead inserts a one-time recovery code hash generated locally. Documented in the README (TID-024 AC2). The sign-in screens don't link to it (ADR 0010).
 
@@ -1110,7 +1109,7 @@ The user accepted every recommended default on 2026-11-16 and chose the hostname
 | Q10 | Inoreader lets a feed sit in several folders. OK to allow only one folder per feed in MVP? | **Yes, one folder**; on import the first folder wins. Multi-folder (tags) in M3. |
 | Q11 | First fetch of a new feed: OK to bring in the 10 newest items, with items older than 7 days pre-marked read? | **Yes.** |
 | Q12 | TID-039 deployed CPU gate before production? | **Deferred** (user, 2026-11-17). Production deploys without it; CPU and budgets are checked against real use in TID-047 (R2). TID-039 runs only if that check shows trouble (ADR 0014). |
-| Q15 | Email sign-in for the work computer (no phone or password safe there)? | **Yes, as an extra method** (owner's request, 2026-11-17). Passkeys stay primary; recovery codes stay. Sent with the free `send_email` binding from `signin@tidings.mcn.am`, with Email Routing on `tidings.mcn.am` only (owner's choice; the apex stays on Google Workspace). The recipient is the `MAGIC_LINK_EMAIL` secret, kept out of the repo. TID-053, ADR 0016. |
+| Q15 | Email sign-in for the work computer (no phone or password safe there)? | **Yes, as an extra method** (owner's request, 2026-11-17). Passkeys stay primary; recovery codes stay. Sent from `signin@tidings.mcn.am` through Resend's free tier (owner's decision 2026-11-17, replacing the `send_email` binding: Workers Free would have needed Email Routing on the apex, replacing Google Workspace MX). DNS records go on subdomains of `tidings.mcn.am` only. The recipient is the `MAGIC_LINK_EMAIL` secret and the key is the `RESEND_API_KEY` secret, both kept out of the repo. TID-053, ADR 0016. |
 
 ### 16.1 Open questions (pending the user)
 
