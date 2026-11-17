@@ -134,6 +134,10 @@ test.describe('TID-006 navigation drawer (mobile)', () => {
     expect(box?.height).toBeGreaterThanOrEqual(44);
     await menu.click();
     await expect(page.getByRole('dialog')).toBeVisible();
+    // The tree loads its subscriptions (TID-018); the empty state's two links arrive with them.
+    await expect(
+      page.getByRole('dialog').getByRole('heading', { name: 'No feeds yet' }),
+    ).toBeVisible();
     const controls = await page.getByRole('dialog').locator('a, button').all();
     expect(controls.length).toBeGreaterThanOrEqual(7);
     for (const el of controls) {
@@ -205,6 +209,8 @@ test.describe('TID-006 routes, accessibility and headers', () => {
       await page.goto('/');
       await expect(page).toHaveURL(/\/all$/);
       await page.goto('/folders/f9');
+      // The list records itself once the session check resolves; wait for the folder header.
+      await expect(page.getByRole('heading', { level: 1, name: 'Nine' })).toBeVisible();
       await page.goto('/');
       await expect(page).toHaveURL(/\/folders\/f9$/);
     } finally {

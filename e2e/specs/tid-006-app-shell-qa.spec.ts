@@ -306,7 +306,10 @@ test.describe('TID-006 storage edge cases', () => {
       clearListData();
     }
     await page.goto('/feeds/s7');
+    // A list records itself once the session check resolves, so wait for the shell to render.
+    await expect(page.getByRole('heading', { level: 1 })).toBeVisible();
     await page.goto('/feeds/s7/a/e1');
+    await expect(page.getByRole('heading', { level: 1 })).toBeVisible();
     await page.goto('/settings');
     expect(await page.evaluate(() => localStorage.getItem('tidings.lastList'))).toBe('/feeds/s7');
   });
@@ -811,9 +814,19 @@ test.describe('TID-006 AC6 headers and CSP', () => {
         ),
       );
     });
-    for (const route of ALL_ROUTES) {
-      await page.goto(route);
-      await expect(page.getByRole('heading', { level: 1 })).toBeVisible();
+    // TID-018: a list route for a folder or subscription that doesn't exist is a 404 from the API
+    // (AC8), which the browser logs as a console error. Seed the two IDs ALL_ROUTES uses.
+    seedListData({
+      folders: [{ id: 'f1', name: 'Folder one' }],
+      subs: [{ id: 's1', feedId: 9101, title: 'Feed one' }],
+    });
+    try {
+      for (const route of ALL_ROUTES) {
+        await page.goto(route);
+        await expect(page.getByRole('heading', { level: 1 })).toBeVisible();
+      }
+    } finally {
+      clearListData();
     }
     await page.goto('/all');
     if (isMobile(testInfo.project.name)) {

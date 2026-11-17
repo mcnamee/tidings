@@ -298,3 +298,14 @@ Entry template:
 - Cause: the plan is `SEARCH ue USING INDEX ue_unread_all (user_id=?)` with the folder test as a filter. It walks the user's unread rows newest first, with a primary-key lookup per row to read `feed_id`, until it has 51 matches. Cost follows the whole view and the folder's density (a sparse folder in a large view reads about 2x the whole view), not M.
 - Tried: a keys-only subquery over `ue_unread_feed` / `ue_feed` reads about M + 63 (188 for M=125), but joining back for `is_read`, `is_starred` and the `entries` columns adds about 102, so M + 165. That is cheaper than today for sparse folders and dearer for dense ones, and still over the bound. Meeting the bound as written needs `is_starred` (and `is_read` in all-mode) in a covering index, i.e. a migration and extra writes (ADR 0008 option 1 territory).
 - Suggested: PM to choose between (a) restating NFR-7b as `M + 2 x (limit + 1) + S + 10 + 51` and switching to the keys-then-join query, (b) the denormalised folder index of ADR 0008 option 1, or (c) accepting today's cost with a revised ceiling. At the spec's scale (up to 1,000 unread, 50 pages/day) all three are inside the daily read quota; this is a bound-versus-implementation mismatch, not a quota risk.
+
+### DEF-051: Feed tree rows with unread counts fail axe `label-content-name-mismatch` (WCAG 2.5.3 Label in Name)
+
+- Story: TID-018 (AC6, AC10), `apps/web/src/shell/FeedTree.tsx` (`label()`) and `FeedNav.tsx` ("All articles" link)
+- Severity: S3. Owner: SE.
+- Status: Open
+- Found by: `e2e/specs/tid-018-article-lists.spec.ts` > "AC10: axe is clean on /all", "/folders/f1", "/feeds/s1" (desktop projects, where the sidebar is always visible) and "AC10: axe is clean on the drawer with folders, feeds and counts" (all projects). All are `test.fail`, so they turn red when fixed and the markers must come out then.
+- Steps to reproduce: seed one folder "Tech" with 2 unread articles, open `/all` at 1280 x 800 (or open the drawer at 375 x 812), run axe.
+- Expected: no serious or critical violations (AC10).
+- Actual: `label-content-name-mismatch` on the current-row link and on the folder and feed rows. The link's visible text is "Tech 2" but its `aria-label` is "Tech, 2 unread", so the visible text is not a contiguous part of the accessible name. Voice-control users who say "click Tech 2" cannot activate it.
+- Suggested: drop the `aria-label` and give the count a visually hidden suffix (`<span aria-hidden>2</span><span class="sr-only">2 unread</span>`), or make the name start with the exact visible text ("Tech 2 unread").

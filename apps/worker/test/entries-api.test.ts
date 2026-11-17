@@ -414,6 +414,19 @@ describe('AC8 and ADR 0012: isolation of the id inputs', () => {
     expect(aFolder.json).toEqual(noFolder.json);
   });
 
+  it('the folder query is scoped in SQL, not only by the route: B reading A’s folder ID directly gets nothing', async () => {
+    // B subscribes to feed 1, which A also has in seed-folder-1, so only the subscription filter
+    // inside the query keeps B's own rows for feed 1 out of A's folder.
+    const page = await listEntries(db, B, {
+      view: 'folder',
+      id: 'seed-folder-1',
+      unreadOnly: false,
+      limit: 50,
+      cursor: null,
+    });
+    expect(page.items).toEqual([]);
+  });
+
   it('B’s own views contain only B’s rows, and A’s data is unchanged', async () => {
     const beforeA = await entries(A, 'view=all&state=all&limit=100');
     const all = await entries(B, 'view=all&state=all');
@@ -430,8 +443,21 @@ describe('AC9: reading lists never fetches a feed (FR-RD-11)', () => {
   it('entries and counts calls make no fetch and no refresh', async () => {
     fetchSpy.mockClear();
     refreshSpy.mockClear();
-    await entries(A, 'view=all');
-    await get(A, '/api/counts');
+    // The two spies above are the subscribe service's seams and the list routes never receive them,
+    // so on their own they cannot fail. The real guard is the runtime's global fetch (any outbound
+    // subrequest) and the feeds table (nothing is scheduled or stamped as fetched).
+    const outbound = vi.spyOn(globalThis, 'fetch');
+    const feedsBefore = await db.all(sql('SELECT * FROM feeds ORDER BY id'));
+    try {
+      for (const q of ['view=all', 'view=folder&id=seed-folder-1', 'view=feed&id=seed-sub-1']) {
+        await entries(A, q + '&state=all');
+      }
+      await get(A, '/api/counts');
+      expect(outbound).not.toHaveBeenCalled();
+    } finally {
+      outbound.mockRestore();
+    }
+    expect((await db.all(sql('SELECT * FROM feeds ORDER BY id'))).rows).toEqual(feedsBefore.rows);
     expect(fetchSpy).not.toHaveBeenCalled();
     expect(refreshSpy).not.toHaveBeenCalled();
   });
