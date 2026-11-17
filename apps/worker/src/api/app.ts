@@ -45,7 +45,7 @@ export function createApp(deps?: Partial<AppDeps>): Hono<AppEnv> {
   app.use('*', apiGuard({ clock: deps?.clock ?? systemClock, apiRateLimit: deps?.apiRateLimit }));
 
   app.route('/auth', createAuthRoutes(deps));
-  app.route('/folders', createFolderRoutes());
+  app.route('/folders', createFolderRoutes({ clock: deps?.clock }));
   app.route(
     '/subscriptions',
     createSubscriptionRoutes({ clock: deps?.clock, ...deps?.subscriptions }),

@@ -102,3 +102,7 @@ export const apiGet = <T>(path: string, opts: RequestOptions = {}) =>
   request<T>('GET', path, undefined, opts);
 export const apiPost = <T>(path: string, body: unknown, opts: RequestOptions = {}) =>
   request<T>('POST', path, body, opts);
+export const apiPatch = <T>(path: string, body: unknown, opts: RequestOptions = {}) =>
+  request<T>('PATCH', path, body, opts);
+export const apiDelete = (path: string, opts: RequestOptions = {}) =>
+  request<void>('DELETE', path, undefined, opts);

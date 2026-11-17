@@ -96,8 +96,10 @@ describe('routing placeholders (spec 11.1)', () => {
     expect(screen.getByRole('heading', { level: 1 })).toHaveTextContent(title);
     expect(document.title).toBe(`${title} - Tidings`);
     expect(screen.getByRole('banner')).toBeInTheDocument();
-    // /manage/add is built (TID-013); every other route is still a placeholder.
-    if (route === '/manage/add') {
+    // /manage/add (TID-013) and /manage (TID-014) are built; every other route is still a placeholder.
+    if (route === '/manage') {
+      expect(screen.getByRole('main')).not.toHaveTextContent("This screen isn't built yet.");
+    } else if (route === '/manage/add') {
       expect(screen.getByLabelText('Feed or website address')).toBeInTheDocument();
     } else {
       expect(screen.getByRole('main')).toHaveTextContent("This screen isn't built yet.");

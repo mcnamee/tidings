@@ -349,3 +349,25 @@ Worker tests run in workerd with local D1 and a fake network; the UI tests are j
 | 12 | pass | `subscribe.test.ts` AC12 (5), `refresh-adversarial.test.ts` TID-013 AC12 (3) |
 
 Known limit of the guard: it trusts `idInputs` for body and query inputs; only `:path` params are cross-checked against the route pattern.
+
+## TID-014 traceability (folders and subscription management)
+
+Worker tests in `apps/worker/test/folders.test.ts` (workerd, local D1, nothing faked); UI tests in `apps/web/src/manage/Manage.test.tsx` (jsdom, stateful fake API; the desktop sidebar is the drawer's `FeedNav`). No Playwright spec yet (gap). AC9 is deferred to the end-of-MVP UX pass.
+
+| AC | Result | Where |
+|---|---|---|
+| 1 | pass | `folders.test.ts` AC1 (alphabetical, trimmed); `Manage.test.tsx` AC1 (manage list and drawer) |
+| 2 | pass | `folders.test.ts` AC2 (create and rename, 409, per-user); `Manage.test.tsx` AC2 and AC3 (inline error) |
+| 3 | pass | `folders.test.ts` AC3 (0, blank, 65, 1, 64; create and rename); `Manage.test.tsx` (no request sent) |
+| 4 | pass | `folders.test.ts` AC4; `Manage.test.tsx` AC4 (drawer order, rollback on failure) |
+| 5 | pass | `folders.test.ts` AC5 (null, blank, whitespace restore the feed title); `Manage.test.tsx` AC5 |
+| 6 | pass | `folders.test.ts` AC6 (5 feeds stay, `folderId` null, article state kept); `Manage.test.tsx` AC6 (confirm, cancel) |
+| 7 | pass | `folders.test.ts` AC7 (entries deleted, feed parked only for the last subscriber); `Manage.test.tsx` AC7 |
+| 8 | pass | `folders.test.ts` AC8 (200 limit, per-user, slot freed); `Manage.test.tsx` AC8 |
+| 9 | deferred | end-of-MVP UX pass |
+| Isolation (ADR 0012) | pass | five new `isolation-cases.ts` rows, each with a B-against-A test in `folders.test.ts` |
+| Rate limit (spec 10.7) | pass | `api-guard.test.ts` AC11: every non-public row of the route table gets `429` |
+| `health.warning` | pass | `folders.test.ts` "health.warning comes from feeds.warning_code" |
+| DEF-030 | closed (tester) | `subscribe-adversarial.test.ts` (flipped from `it.fails`, plus two candidate-filter tests) |
+
+Tester additions (TID-014): `apps/worker/test/folders-adversarial.test.ts` (49 tests: malformed names and bodies, path-ID abuse, wildcard IDs, mass assignment, racing creates and the 200 limit; DEF-040 and DEF-041 are `it.fails`) and `e2e/specs/tid-014-folders.spec.ts` (golden path: add, folder, duplicate refused, move, drawer, unsubscribe). Guard mutations run and caught: scoping of rename, folder delete, subscription edit and read, `folderId` ownership check, `user_entries` delete, park-only-last-subscriber (both directions), folder unlink on delete, FOLDER_LIMIT, name max, NOCASE collation and sort, DEF-030 `checkUrl` and `blocked`. Two survivors are equivalent: the `AND user_id` on the final `DELETE FROM subscriptions` (the scoped read before it already refuses) and the explicit unlink in `deleteFolder` (the `ON DELETE SET NULL` foreign key does it too).

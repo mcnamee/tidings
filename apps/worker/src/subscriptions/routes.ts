@@ -1,6 +1,6 @@
 /**
- * `/api/folders` (read) and `/api/subscriptions` (list, subscribe), spec §8.4. Folder writes and
- * subscription edit, delete and refresh belong to TID-014 and TID-015.
+ * `/api/folders` and `/api/subscriptions`, spec §8.4: folder list, create, rename and delete;
+ * subscription list, subscribe, edit and unsubscribe (TID-013, TID-014). Refresh is TID-015.
  *
  * Subscribe (spec §7.5, FR-SU-1 to FR-SU-4, FR-SU-7, FR-SU-8): canonicalise, check the address,
  * find the feed, upsert it and the subscription in one batch, then *await* the `FeedRefresher`
@@ -8,16 +8,23 @@
  */
 import { Hono, type Context } from 'hono';
 import {
+  FOLDER_LIMIT,
   SUBSCRIPTION_LIMIT,
   feedErrorMessage,
+  type Folder,
   type AlreadySubscribedDetails,
   type FeedChoiceDetails,
   type FoldersResponse,
   type SubscribeFetchOutcome,
   type SubscribeResponse,
+  type Subscription,
   type SubscriptionsResponse,
 } from '@tidings/shared';
-import { subscribeRequestSchema } from '@tidings/shared/schemas';
+import {
+  folderRequestSchema,
+  subscribeRequestSchema,
+  updateSubscriptionRequestSchema,
+} from '@tidings/shared/schemas';
 import { fail } from '../api/respond';
 import type { AppEnv } from '../api/security';
 import { parseBody } from '../auth/routes';
@@ -26,7 +33,10 @@ import {
   canonicalizeUrl,
   countSubscriptions,
   countUserEntriesForFeed,
+  createFolder,
   createSubscription,
+  deleteFolder,
+  deleteSubscription,
   findFeedByUrl,
   findSubscriptionIdByFeedUrl,
   folderBelongsToUser,
@@ -35,7 +45,9 @@ import {
   listSubscriptions,
   newId,
   nowSeconds,
+  renameFolder,
   systemClock,
+  updateSubscription,
   ValidationError,
   type Clock,
   type FeedRow,
@@ -244,6 +256,34 @@ export function createSubscriptionRoutes(deps?: Partial<SubscriptionDeps>): Hono
     return c.json<SubscribeResponse>({ subscription: row.subscription, fetch: outcome }, 201);
   });
 
+  app.patch('/:id', async (c) => {
+    const userId = c.get('session').user.id;
+    const db = new Db(c.env.DB);
+    const id = c.req.param('id');
+    const body = await parseBody(c, updateSubscriptionRequestSchema);
+    if (body instanceof Response) return body;
+    // Both IDs resolve against the caller's rows only: A's folder is "not found" for B (§10.8).
+    if (body.folderId != null && !(await folderBelongsToUser(db, userId, body.folderId))) {
+      return fail(c, 404, 'not_found', 'Not found');
+    }
+    const found = await updateSubscription(db, userId, id, {
+      ...(body.title === undefined ? {} : { title: body.title }),
+      ...(body.folderId === undefined ? {} : { folderId: body.folderId }),
+    });
+    const row = found ? await getSubscription(db, userId, id) : null;
+    if (!row) return fail(c, 404, 'not_found', 'Not found');
+    return c.json<Subscription>(row.subscription);
+  });
+
+  app.delete('/:id', async (c) => {
+    const deleted = await deleteSubscription(
+      new Db(c.env.DB),
+      c.get('session').user.id,
+      c.req.param('id'),
+    );
+    return deleted ? c.body(null, 204) : fail(c, 404, 'not_found', 'Not found');
+  });
+
   return app;
 }
 
@@ -256,11 +296,51 @@ function limitReached(c: Context<AppEnv>): Response {
   );
 }
 
-export function createFolderRoutes(): Hono<AppEnv> {
+export function createFolderRoutes(deps?: { clock?: Clock }): Hono<AppEnv> {
+  const clock = deps?.clock ?? systemClock;
   const app = new Hono<AppEnv>();
   app.get('/', async (c) => {
     const items = await listFolders(new Db(c.env.DB), c.get('session').user.id);
     return c.json<FoldersResponse>({ items });
   });
+
+  app.post('/', async (c) => {
+    const body = await parseBody(c, folderRequestSchema);
+    if (body instanceof Response) return body;
+    const result = await createFolder(new Db(c.env.DB), c.get('session').user.id, {
+      id: newId(),
+      name: body.name,
+      now: nowSeconds(clock),
+    });
+    if (result.ok) return c.json<Folder>(result.folder, 201);
+    return result.reason === 'limit_reached'
+      ? fail(c, 422, 'limit_reached', `You've reached the limit of ${FOLDER_LIMIT} folders.`)
+      : fail(c, 409, 'conflict', 'A folder with that name already exists');
+  });
+
+  app.patch('/:id', async (c) => {
+    const body = await parseBody(c, folderRequestSchema);
+    if (body instanceof Response) return body;
+    const result = await renameFolder(
+      new Db(c.env.DB),
+      c.get('session').user.id,
+      c.req.param('id'),
+      body.name,
+    );
+    if (result.ok) return c.json<Folder>(result.folder);
+    return result.reason === 'conflict'
+      ? fail(c, 409, 'conflict', 'A folder with that name already exists')
+      : fail(c, 404, 'not_found', 'Not found');
+  });
+
+  app.delete('/:id', async (c) => {
+    const deleted = await deleteFolder(
+      new Db(c.env.DB),
+      c.get('session').user.id,
+      c.req.param('id'),
+    );
+    return deleted ? c.body(null, 204) : fail(c, 404, 'not_found', 'Not found');
+  });
+
   return app;
 }

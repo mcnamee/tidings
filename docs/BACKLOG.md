@@ -27,7 +27,7 @@ Owner: product-manager. Last updated 2026-11-17 (reorganised into releases: MVP,
 | TID-012 | Background refresh pipeline | MVP | Done (AC13 moved to TID-039) | TID-003, 010, 011 |
 | TID-013 | Subscribe to a feed | MVP | Ready (**next**) | TID-008, 012 |
 | TID-046 | GUID churn guard and per-feed daily cap (DEF-013) | MVP | Ready (**next**, parallel with TID-013) | TID-012 |
-| TID-014 | Folders and subscription management | MVP | Blocked | TID-013 |
+| TID-014 | Folders and subscription management | MVP | In verification (AC9 UX review deferred to the end-of-MVP pass) | TID-013 |
 | TID-018 | Article lists, navigation and unread counts | MVP | Blocked | TID-013 |
 | TID-016 | Import subscriptions from OPML | MVP | Blocked | TID-014, 046 |
 | TID-019 | Article view and read state | MVP | Blocked | TID-018 |

@@ -651,6 +651,36 @@ describe('AC11: the API_RL per-user backstop', () => {
     expect(await sessionRow(token)).not.toBeNull();
   });
 
+  it('every session route in the table is limited, including each folder and subscription route (spec 10.7)', async () => {
+    // TID-014: the guard is `app.use('*')`, so a new route is covered without opting in. This
+    // proves it for every row, so a route mounted outside the guard fails here.
+    const { limiter, keys } = stub(false);
+    const limited = createHarness({ apiRateLimit: limiter });
+    const rows = ROUTE_TABLE.filter((r) => !r.public);
+    expect(rows.map((r) => `${r.method} ${r.path}`)).toEqual(
+      expect.arrayContaining([
+        'POST /api/subscriptions',
+        'GET /api/subscriptions',
+        'PATCH /api/subscriptions/:id',
+        'DELETE /api/subscriptions/:id',
+        'GET /api/folders',
+        'POST /api/folders',
+        'PATCH /api/folders/:id',
+        'DELETE /api/folders/:id',
+      ]),
+    );
+    const notLimited: string[] = [];
+    for (const row of rows) {
+      const res = await limited.call(row.method, concretePath(row.path), {
+        body: row.method === 'GET' ? undefined : {}, // spec 10.3: mutations declare JSON
+        cookies: { [SESSION_COOKIE]: token },
+      });
+      if (res.status !== 429) notLimited.push(`${row.method} ${row.path} -> ${res.status}`);
+    }
+    expect(notLimited).toEqual([]);
+    expect(keys).toHaveLength(rows.length);
+  });
+
   it('is keyed per user: a limited user does not limit another', async () => {
     await seedUser('u2');
     const token2 = await seedSession('u2', { now: nowSec() });

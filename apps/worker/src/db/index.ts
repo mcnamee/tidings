@@ -14,7 +14,10 @@ export {
 export {
   countSubscriptions,
   countUserEntriesForFeed,
+  createFolder,
   createSubscription,
+  deleteFolder,
+  deleteSubscription,
   findFeedByUrl,
   findSubscriptionIdByFeedUrl,
   folderBelongsToUser,
@@ -23,5 +26,8 @@ export {
   listSubscriptions,
   NEW_SUBSCRIBER_LINK_LIMIT,
   READ_AFTER_SECONDS,
+  renameFolder,
+  updateSubscription,
+  type FolderWrite,
   type FeedRow,
 } from './subscriptions';

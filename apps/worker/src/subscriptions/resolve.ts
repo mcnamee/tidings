@@ -9,7 +9,8 @@
  */
 import type { FeedCandidate } from '@tidings/shared';
 import { discoverFeeds, type DiscoveredFeed } from '@tidings/feed-parser';
-import { safeFetch, type FetchFn } from '../fetch';
+import { canonicalizeUrl } from '../db';
+import { checkUrl, safeFetch, type FetchFn } from '../fetch';
 
 export interface ResolveDeps {
   fetch: FetchFn;
@@ -70,17 +71,36 @@ export async function resolveFeedUrl(url: string, deps: ResolveDeps): Promise<Re
     headers: { 'Content-Type': res.headers.get('Content-Type') ?? 'text/html' },
   });
   const found = await discover(page, res.url);
-  const supported = found.filter((f) => f.supported);
-  if (supported.length === 0) return { kind: 'none' };
+  // DEF-030: a URL from the page is as untrusted as the typed one. Canonicalise it and run the
+  // address rules; a candidate that fails either is dropped, and never offered or subscribed to.
+  const usable: DiscoveredFeed[] = [];
+  let blocked = false;
+  for (const f of found) {
+    const url = safeCandidateUrl(f.url, deps);
+    if (url === null) blocked = true;
+    else usable.push({ ...f, url });
+  }
+  const supported = usable.filter((f) => f.supported);
+  if (supported.length === 0) return blocked ? { kind: 'blocked' } : { kind: 'none' };
   const only = supported[0];
-  if (found.length === 1 && only) return { kind: 'feed', url: only.url };
+  if (usable.length === 1 && only) return { kind: 'feed', url: only.url };
   return {
     kind: 'choice',
-    candidates: found.map((f) => ({
+    candidates: usable.map((f) => ({
       url: f.url,
       title: f.title === null ? null : f.title.slice(0, CANDIDATE_TITLE_MAX),
       type: f.kind,
       supported: f.supported,
     })),
   };
+}
+
+/** The canonical URL when it is allowed to be fetched, else null. */
+function safeCandidateUrl(url: string, deps: ResolveDeps): string | null {
+  try {
+    const canonical = canonicalizeUrl(url);
+    return checkUrl(canonical, deps.appOrigin, deps.allowHosts).ok ? canonical : null;
+  } catch {
+    return null;
+  }
 }

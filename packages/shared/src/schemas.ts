@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { DISPLAY_NAME_MAX, SUBSCRIPTION_TITLE_MAX } from './index';
+import { DISPLAY_NAME_MAX, FOLDER_NAME_MAX, SUBSCRIPTION_TITLE_MAX } from './index';
 
 /** Request schemas for the auth routes (spec 8.3). Worker only: see the note in index.ts. */
 
@@ -68,3 +68,24 @@ export const subscribeRequestSchema = z.object({
     .transform((t) => (t === '' ? undefined : t))
     .optional(),
 });
+
+/** `POST` and `PATCH /api/folders`: 1 to 64 characters after trimming (FR-FO-1). */
+export const folderRequestSchema = z.object({
+  name: z.string().trim().min(1).max(FOLDER_NAME_MAX),
+});
+
+/** `PATCH /api/subscriptions/:id`: at least one field; a blank title means "use the feed's". */
+export const updateSubscriptionRequestSchema = z
+  .object({
+    title: z
+      .string()
+      .trim()
+      .max(SUBSCRIPTION_TITLE_MAX)
+      .transform((t) => (t === '' ? null : t))
+      .nullable()
+      .optional(),
+    folderId: z.string().min(1).max(64).nullable().optional(),
+  })
+  .refine((v) => v.title !== undefined || v.folderId !== undefined, {
+    message: 'Provide title or folderId',
+  });
