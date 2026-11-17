@@ -1,5 +1,10 @@
 import { z } from 'zod';
-import { DISPLAY_NAME_MAX, FOLDER_NAME_MAX, SUBSCRIPTION_TITLE_MAX } from './index';
+import {
+  DISPLAY_NAME_MAX,
+  FOLDER_NAME_MAX,
+  READ_STATE_MAX_IDS,
+  SUBSCRIPTION_TITLE_MAX,
+} from './index';
 
 /** Request schemas for the auth routes (spec 8.3). Worker only: see the note in index.ts. */
 
@@ -103,3 +108,14 @@ export const entriesQuerySchema = z
     message: 'id is required unless view=all',
     path: ['id'],
   });
+
+/** `PATCH /api/entries/:id` (spec 8.5). Unknown keys, including `isStarred` until M2, are rejected. */
+export const patchEntryRequestSchema = z.object({ isRead: z.boolean() }).strict();
+
+/** `POST /api/entries/read-state` (spec 8.5): 1 to 1,000 IDs. */
+export const readStateRequestSchema = z
+  .object({
+    entryIds: z.array(z.string().min(1).max(32)).min(1).max(READ_STATE_MAX_IDS),
+    isRead: z.boolean(),
+  })
+  .strict();

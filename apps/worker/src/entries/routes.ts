@@ -1,28 +1,62 @@
 /**
- * `GET /api/entries` and `GET /api/counts` (spec 8.5, 8.6). Read only: neither route fetches a
- * feed (FR-RD-11). Read-state writes and `GET /api/entries/:id` belong to TID-019 and TID-020.
+ * `GET /api/entries`, `GET /api/counts` (TID-018) and the single-entry read and read-state writes
+ * (TID-019), spec 8.5, 8.6. None of them fetches a feed (FR-RD-11). Mark all as read is TID-020.
  */
-import { Hono } from 'hono';
-import type { ApiError, Counts, EntriesResponse, EntrySummary } from '@tidings/shared';
-import { entriesQuerySchema } from '@tidings/shared/schemas';
+import { Hono, type Context } from 'hono';
+import type {
+  ApiError,
+  Counts,
+  EntriesResponse,
+  Entry,
+  EntrySummary,
+  ReadStateResponse,
+} from '@tidings/shared';
+import {
+  entriesQuerySchema,
+  patchEntryRequestSchema,
+  readStateRequestSchema,
+} from '@tidings/shared/schemas';
+import { parseBody } from '../auth/routes';
 import { fail } from '../api/respond';
 import type { AppEnv } from '../api/security';
 import {
   Db,
   feedIdForSubscription,
   folderBelongsToUser,
+  getEntry,
   labelsForFeeds,
   listEntries,
   nowSeconds,
+  parseEntryId,
+  setRead,
+  setReadMany,
   systemClock,
   toIso,
   unreadCounts,
   ValidationError,
   type Clock,
+  type EntrySummaryRow,
+  type FeedLabel,
 } from '../db';
 
 export interface EntryDeps {
   clock: Clock;
+}
+
+function summaryOf(r: EntrySummaryRow, label: FeedLabel): EntrySummary {
+  return {
+    id: String(r.entry_id),
+    subscriptionId: label.subscriptionId,
+    feedTitle: label.title,
+    title: r.title,
+    author: r.author,
+    url: r.url,
+    summary: r.summary,
+    imageUrl: r.image_url,
+    publishedAt: toIso(r.published_at),
+    isRead: r.is_read === 1,
+    isStarred: r.is_starred === 1,
+  };
 }
 
 export function createEntryRoutes(deps?: Partial<EntryDeps>): Hono<AppEnv> {
@@ -87,21 +121,56 @@ export function createEntryRoutes(deps?: Partial<EntryDeps>): Hono<AppEnv> {
       const label = labels.get(r.feed_id);
       // A user_entries row whose subscription is gone is not shown (it is cleaned up on unsubscribe).
       if (!label) continue;
-      items.push({
-        id: String(r.entry_id),
-        subscriptionId: label.subscriptionId,
-        feedTitle: label.title,
-        title: r.title,
-        author: r.author,
-        url: r.url,
-        summary: r.summary,
-        imageUrl: r.image_url,
-        publishedAt: toIso(r.published_at),
-        isRead: r.is_read === 1,
-        isStarred: r.is_starred === 1,
-      });
+      items.push(summaryOf(r, label));
     }
     return c.json<EntriesResponse>({ items, nextCursor: page.nextCursor, asOf });
+  });
+
+  // An ID that is not the caller's, or not an ID at all, is "not found" (8.1, 10.8).
+  async function loadEntry(c: Context<AppEnv>, raw: string) {
+    const { user } = c.get('session');
+    const db = new Db(c.env.DB);
+    const id = parseEntryId(raw);
+    const row = id === null ? null : await getEntry(db, user.id, id);
+    const label = row ? (await labelsForFeeds(db, user.id, [row.feed_id])).get(row.feed_id) : null;
+    return row && label ? { row, label } : null;
+  }
+
+  app.get('/:id', async (c) => {
+    const found = await loadEntry(c, c.req.param('id'));
+    if (!found) return fail(c, 404, 'not_found', 'Not found');
+    return c.json<Entry>({
+      ...summaryOf(found.row, found.label),
+      contentHtml: found.row.content_html,
+    });
+  });
+
+  // Costs at most one user_entries row (plus its index rows), and nothing when the state is
+  // already what was asked for (spec 9.4).
+  app.patch('/:id', async (c) => {
+    const body = await parseBody(c, patchEntryRequestSchema);
+    if (body instanceof Response) return body;
+    const { user } = c.get('session');
+    const id = parseEntryId(c.req.param('id'));
+    if (id === null) return fail(c, 404, 'not_found', 'Not found');
+    const db = new Db(c.env.DB);
+    await setRead(db, user.id, id, body.isRead, nowSeconds(clock));
+    const found = await loadEntry(c, c.req.param('id'));
+    if (!found) return fail(c, 404, 'not_found', 'Not found');
+    return c.json<EntrySummary>(summaryOf(found.row, found.label));
+  });
+
+  app.post('/read-state', async (c) => {
+    const body = await parseBody(c, readStateRequestSchema);
+    if (body instanceof Response) return body;
+    const { user } = c.get('session');
+    // IDs that are not integers can match nothing; IDs that are not the caller's change nothing.
+    const ids = body.entryIds.flatMap((raw) => parseEntryId(raw) ?? []);
+    const { updated } =
+      ids.length === 0
+        ? { updated: 0 }
+        : await setReadMany(new Db(c.env.DB), user.id, ids, body.isRead, nowSeconds(clock));
+    return c.json<ReadStateResponse>({ updated });
   });
 
   return app;

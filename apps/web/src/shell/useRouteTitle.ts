@@ -10,15 +10,16 @@ export interface RouteTitle {
 }
 
 /**
- * Header title for a route (docs/ux/screens/app-shell.md 10.1). Folder and feed list routes take
+ * Header title for a route (docs/ux/screens/app-shell.md 10.1). Folder and feed list and article routes take
  * their name from the cached folders and subscriptions, so a warm cache shows it at once and a
  * cold one shows a skeleton, never the word "Folder" or "Feed". A folder or feed that is not in a
  * loaded list is "Page not found". Every other route keeps its static title.
  */
 export function useRouteTitle(route: RouteMeta, pathname: string): RouteTitle {
-  const folderId =
-    route.kind === 'list' ? matchPath('/folders/:id', pathname)?.params.id : undefined;
-  const feedId = route.kind === 'list' ? matchPath('/feeds/:id', pathname)?.params.id : undefined;
+  // Article routes (`/folders/:id/a/:entryId`) are titled by the list they belong to.
+  const named = route.kind === 'list' || route.kind === 'article';
+  const folderId = named ? matchPath('/folders/:id/*', pathname)?.params.id : undefined;
+  const feedId = named ? matchPath('/feeds/:id/*', pathname)?.params.id : undefined;
   const folders = useFolders(folderId !== undefined);
   const subscriptions = useSubscriptions(feedId !== undefined);
 

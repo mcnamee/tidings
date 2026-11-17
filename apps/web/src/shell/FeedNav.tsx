@@ -1,7 +1,7 @@
 import { Link, NavLink } from 'react-router';
 import { Inbox, ListChecks, Plus, Settings } from 'lucide-react';
 import { useCounts } from '../lib/queries';
-import { FeedTree } from './FeedTree';
+import { Count, FeedTree } from './FeedTree';
 
 const ROW =
   'flex min-h-11 items-center gap-3 border-l-[3px] px-4 text-base font-medium text-fg active:bg-sunken';
@@ -20,14 +20,11 @@ export function FeedNav({ replace = false }: { replace?: boolean }) {
         <NavLink
           to="/all"
           replace={replace}
-          aria-label={total ? `All articles, ${total > 999 ? '999+' : total} unread` : undefined}
           className={({ isActive }) => `${ROW} ${isActive ? CURRENT : IDLE}`}
         >
           <Inbox aria-hidden="true" className="size-5 shrink-0" strokeWidth={1.75} />
           <span className="min-w-0 flex-1 truncate">All articles</span>
-          {total ? (
-            <span className="shrink-0 text-sm tabular-nums">{total > 999 ? '999+' : total}</span>
-          ) : null}
+          <Count n={total} />
         </NavLink>
         <FeedTree replace={replace} />
       </div>

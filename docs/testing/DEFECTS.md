@@ -325,7 +325,7 @@ Entry template:
 
 - Story: TID-018 (AC6, AC10), `apps/web/src/shell/FeedTree.tsx` (`label()`) and `FeedNav.tsx` ("All articles" link)
 - Severity: S3. Owner: SE.
-- Status: Open
+- Status: Fixed (pending tester close). TID-019: the `aria-label`s are gone; `Count` in `FeedTree.tsx` renders the visible count plus a visually hidden " unread", so the name is "Tech 2 unread". The `test.fail` markers in `tid-018-article-lists.spec.ts` are removed (not run by the SE).
 - Found by: `e2e/specs/tid-018-article-lists.spec.ts` > "AC10: axe is clean on /all", "/folders/f1", "/feeds/s1" (desktop projects, where the sidebar is always visible) and "AC10: axe is clean on the drawer with folders, feeds and counts" (all projects). All are `test.fail`, so they turn red when fixed and the markers must come out then.
 - Steps to reproduce: seed one folder "Tech" with 2 unread articles, open `/all` at 1280 x 800 (or open the drawer at 375 x 812), run axe.
 - Expected: no serious or critical violations (AC10).

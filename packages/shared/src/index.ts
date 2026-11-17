@@ -253,6 +253,27 @@ export interface EntrySummary {
   isStarred: boolean;
 }
 
+/** `GET /api/entries/:id`. `contentHtml` is raw feed HTML: the client must sanitise it (spec 10.5). */
+export interface Entry extends EntrySummary {
+  contentHtml: string | null;
+}
+
+/** `PATCH /api/entries/:id` (spec 8.5). `isStarred` arrives with M2. */
+export interface PatchEntryRequest {
+  isRead: boolean;
+}
+
+/** `POST /api/entries/read-state`: 1 to 1,000 IDs. */
+export const READ_STATE_MAX_IDS = 1000;
+export interface ReadStateRequest {
+  entryIds: string[];
+  isRead: boolean;
+}
+export interface ReadStateResponse {
+  /** Entries whose state actually changed; IDs that are not the caller's are ignored. */
+  updated: number;
+}
+
 export interface EntriesResponse {
   items: EntrySummary[];
   nextCursor: string | null;
