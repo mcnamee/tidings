@@ -67,7 +67,7 @@ test.describe('AC1: sign in with a passkey', () => {
     // The stored list must exist, or "/" falls back to /all (TID-018 AC11), so give the owner a
     // real folder to come back to.
     runSql(
-      "INSERT INTO folders (id, user_id, name, created_at) SELECT 'f-last', id, 'Last list', 0 FROM users ORDER BY created_at DESC LIMIT 1;",
+      "INSERT INTO folders (id, user_id, name, created_at) SELECT 'f-last', user_id, 'Last list', 0 FROM passkeys ORDER BY rowid DESC LIMIT 1;",
     );
     try {
       await page.evaluate(() => localStorage.setItem('tidings.lastList', '/folders/f-last'));
