@@ -64,9 +64,18 @@ test.describe('AC1: sign in with a passkey', () => {
   test('lands on the last list viewed on this device', async ({ page }) => {
     await registerOwnerSignedOut(page);
     await openLogin(page);
-    await page.evaluate(() => localStorage.setItem('tidings.lastList', '/feeds/abc'));
-    await signInButton(page).click();
-    await expect(page).toHaveURL(/\/feeds\/abc$/);
+    // The stored list must exist, or "/" falls back to /all (TID-018 AC11), so give the owner a
+    // real folder to come back to.
+    runSql(
+      "INSERT INTO folders (id, user_id, name, created_at) SELECT 'f-last', id, 'Last list', 0 FROM users LIMIT 1;",
+    );
+    try {
+      await page.evaluate(() => localStorage.setItem('tidings.lastList', '/folders/f-last'));
+      await signInButton(page).click();
+      await expect(page).toHaveURL(/\/folders\/f-last$/);
+    } finally {
+      runSql("DELETE FROM folders WHERE id = 'f-last';");
+    }
   });
 
   test('a signed-out visit to a shell route comes back to it after sign-in', async ({ page }) => {
