@@ -69,8 +69,13 @@ export async function registerOwner(page: Page): Promise<void> {
  */
 export async function registerOwnerSignedOut(page: Page): Promise<void> {
   await registerOwner(page);
-  await page.context().clearCookies();
+  // Clear this origin's storage, then leave the app before dropping the cookie. Otherwise the
+  // open /all page sees the session end, redirects itself to /login with a "return to /all"
+  // state, and on a slow runner that history state survives the test's own goto('/login')
+  // (same URL), so sign-in returns to /all instead of the stored list.
   await page.evaluate(() => localStorage.clear());
+  await page.goto('about:blank');
+  await page.context().clearCookies();
 }
 
 export { expect };
