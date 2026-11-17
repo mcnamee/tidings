@@ -68,7 +68,7 @@ function rateLimited(c: Ctx, retryAfterSeconds: number): Response {
   return fail(c, 429, 'rate_limited', 'Too many attempts');
 }
 
-async function parseBody<T>(c: Ctx, schema: ZodType<T>): Promise<T | Response> {
+export async function parseBody<T>(c: Ctx, schema: ZodType<T>): Promise<T | Response> {
   let raw: unknown;
   try {
     raw = await c.req.json();

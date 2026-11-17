@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it } from 'vitest';
 import { env } from 'cloudflare:workers';
 import { feedErrorMessage, isFeedErrorCode } from '@tidings/shared';
-import { sql } from '../src/db';
+import { createSubscription, sql } from '../src/db';
 import { PARKED_AT, refreshFeed, runDispatcher } from '../src/refresh';
 import {
   count,
@@ -296,8 +296,38 @@ describe('clock edges', () => {
     expect(seen).toEqual([past]);
   });
 
-  it.todo(
-    'TID-013/014: resubscribing a parked or gone feed resets next_fetch_at to now (spec 7.1)',
+  it.each([
+    ['parked', 'ok', PARKED_AT, 'ok'],
+    ['dead', 'dead', PARKED_AT, 'pending'],
+    ['gone', 'gone', PARKED_AT, 'pending'],
+  ])(
+    'TID-013 AC12: resubscribing a %s feed resets next_fetch_at to now and revives dead or gone ones (spec 7.1)',
+    async (_name, state, parkedAt, expectedState) => {
+      const id = await seedFeed({
+        url: FEED_URL,
+        subscribers: [],
+        state,
+        errorCount: state === 'ok' ? 0 : 20,
+        nextFetchAt: parkedAt,
+      });
+      await db.run(sql("INSERT INTO users (id, display_name, created_at) VALUES ('u9', 'u9', 0)"));
+      const created = await createSubscription(db, {
+        userId: 'u9',
+        subscriptionId: 'sub-u9',
+        feedUrl: FEED_URL,
+        folderId: null,
+        titleOverride: null,
+        now: NOW(),
+        jitterS: 42,
+        limit: 1000,
+      });
+      expect(created).toBe(true);
+      expect(await feedRow(id)).toMatchObject({
+        next_fetch_at: NOW() + 42,
+        state: expectedState,
+        error_count: 0,
+      });
+    },
   );
 });
 

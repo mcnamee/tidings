@@ -3,6 +3,11 @@ import type { ApiError, HealthResponse } from '@tidings/shared';
 import { createAuthRoutes, type AuthDeps } from '../auth/routes';
 import { systemClock } from '../db';
 import { FetchConfigError, resolveFetchPolicy } from '../fetch';
+import {
+  createFolderRoutes,
+  createSubscriptionRoutes,
+  type SubscriptionDeps,
+} from '../subscriptions/routes';
 import { fail } from './respond';
 import { apiGuard, securityHeaders, type ApiRateLimiter, type AppEnv } from './security';
 
@@ -11,6 +16,8 @@ export const APP_VERSION = '0.0.0';
 export interface AppDeps extends AuthDeps {
   /** Stub for the `API_RL` binding in tests; production uses `env.API_RL`. */
   apiRateLimit: ApiRateLimiter;
+  /** Subscribe and discovery dependencies (TID-013); production uses the real ones. */
+  subscriptions: Partial<SubscriptionDeps>;
 }
 
 export function createApp(deps?: Partial<AppDeps>): Hono<AppEnv> {
@@ -38,6 +45,11 @@ export function createApp(deps?: Partial<AppDeps>): Hono<AppEnv> {
   app.use('*', apiGuard({ clock: deps?.clock ?? systemClock, apiRateLimit: deps?.apiRateLimit }));
 
   app.route('/auth', createAuthRoutes(deps));
+  app.route('/folders', createFolderRoutes());
+  app.route(
+    '/subscriptions',
+    createSubscriptionRoutes({ clock: deps?.clock, ...deps?.subscriptions }),
+  );
 
   app.get('/health', (c) => {
     const body: HealthResponse = { ok: true, version: APP_VERSION };

@@ -19,6 +19,7 @@ import {
   setCookies,
   type Harness,
 } from './support/auth-harness';
+import { ISOLATION_CASES } from './support/isolation-cases';
 import { concretePath, ROUTE_TABLE } from './support/route-table';
 import { countRows, seedSession, seedUser, sessionRow } from './support/seed';
 
@@ -566,13 +567,43 @@ describe('AC9: one user never reaches another user’s data', () => {
     expect((await probe(probeApp(), { token })).status).toBe(401);
   });
 
-  it('no registered route takes an ID yet; one that does must be added to the isolation sweep', () => {
-    // Spec 10.8: when a story adds a route with an :id parameter it must add it to the
-    // user-B-against-user-A sweep (TID-008 AC9). This fails until that is done.
-    const withParams = createApp()
-      .routes.filter((r) => r.method !== 'ALL' && r.path.includes(':'))
+  it('every ID input of every registered route has an isolation case, and the case’s test exists', () => {
+    // Spec 10.8 and ADR 0012 (TID-013 AC11). Replaces the "no route takes an ID yet" tripwire.
+    const sources = import.meta.glob('/test/*.test.ts', {
+      query: '?raw',
+      import: 'default',
+      eager: true,
+    }) as Record<string, string>;
+    const table = new Map(ROUTE_TABLE.map((r) => [`${r.method} ${r.path}`, r]));
+    const registered = createApp()
+      .routes.filter((r) => r.method !== 'ALL')
       .map((r) => `${r.method} ${r.path}`);
-    expect(withParams).toEqual([]);
+
+    const problems: string[] = [];
+    for (const key of registered) {
+      const row = table.get(key);
+      if (!row) continue; // the AC6 test reports unlisted routes
+      for (const param of row.path.matchAll(/:([A-Za-z]+)/g)) {
+        if (!row.idInputs.includes(`path:${param[1]}`)) {
+          problems.push(`${key}: path param :${param[1]} is not listed in idInputs`);
+        }
+      }
+      for (const input of row.idInputs) {
+        const found = ISOLATION_CASES[`${key} ${input}`];
+        if (!found) {
+          problems.push(`${key} ${input}: no isolation case`);
+          continue;
+        }
+        const source = sources[`/test/${found.file}`];
+        if (source === undefined || !source.includes(found.test)) {
+          problems.push(`${key} ${input}: test "${found.test}" not found in ${found.file}`);
+        }
+      }
+    }
+    expect(problems).toEqual([]);
+    // The guard must be looking at something: POST /api/subscriptions takes a folderId.
+    expect(registered).toContain('POST /api/subscriptions');
+    expect(table.get('POST /api/subscriptions')?.idInputs).toEqual(['body:folderId']);
   });
 });
 

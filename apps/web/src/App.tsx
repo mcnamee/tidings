@@ -3,6 +3,7 @@ import { Link, Navigate, Outlet, Route, Routes, useLocation } from 'react-router
 import { useQueryClient } from '@tanstack/react-query';
 import { setUnauthenticatedHandler } from './api';
 import { Login } from './auth/Login';
+import { AddFeed } from './manage/AddFeed';
 import { Setup } from './auth/Setup';
 import { BannerSlot } from './auth/ui';
 import { readLastList } from './lib/lastList';
@@ -141,6 +142,12 @@ function SettingsPlaceholder() {
   );
 }
 
+function screenFor(path: string) {
+  if (path === '/settings') return <SettingsPlaceholder />;
+  if (path === '/manage/add') return <AddFeed />;
+  return <Placeholder />;
+}
+
 const authRoutes = ROUTES.filter(
   (r) => r.kind === 'auth' && r.path !== '/setup' && r.path !== '/login',
 );
@@ -169,11 +176,7 @@ export function App() {
         <Route element={<RequireAuth />}>
           <Route element={<AppShell />}>
             {shellRoutes.map((r) => (
-              <Route
-                key={r.path}
-                path={r.path}
-                element={r.path === '/settings' ? <SettingsPlaceholder /> : <Placeholder />}
-              />
+              <Route key={r.path} path={r.path} element={screenFor(r.path)} />
             ))}
             <Route path="*" element={<NotFound />} />
           </Route>

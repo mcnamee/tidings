@@ -138,6 +138,84 @@ export interface LoginVerifyResponse {
   user: User;
 }
 
+// ── Folders and subscriptions (spec 8.2, 8.4) ──────────────────
+
+export interface Folder {
+  id: string;
+  name: string;
+}
+
+export type FeedState = 'pending' | 'ok' | 'failing' | 'dead' | 'gone';
+
+export interface Subscription {
+  id: string;
+  folderId: string | null;
+  /** Custom title, else the feed's title, else the feed URL's host. */
+  title: string;
+  customTitle: string | null;
+  feedUrl: string;
+  siteUrl: string | null;
+  createdAt: string;
+  health: {
+    state: FeedState;
+    lastSuccessAt: string | null;
+    lastAttemptAt: string | null;
+    errorCode: string | null;
+    /** The fixed message for `errorCode` (spec 10.6 rule 8); never anything from the origin. */
+    errorMessage: string | null;
+    nextFetchAt: string;
+    /** Fixed message for `feeds.warning_code` (TID-046); null until a warning exists. */
+    warning: string | null;
+  };
+}
+
+/** FR-SU-7. */
+export const SUBSCRIPTION_LIMIT = 1000;
+export const SUBSCRIPTION_TITLE_MAX = 200;
+
+export interface SubscribeRequest {
+  url: string;
+  folderId?: string | null;
+  title?: string;
+}
+
+/** `newEntries` is how many articles the user has from this feed after the first fetch. */
+export interface SubscribeFetchOutcome {
+  ok: boolean;
+  newEntries: number;
+  errorCode?: string;
+}
+
+export interface SubscribeResponse {
+  subscription: Subscription;
+  fetch: SubscribeFetchOutcome;
+}
+
+/** One `<link rel="alternate">` found on a page. Only the URL and title come from the page. */
+export interface FeedCandidate {
+  url: string;
+  title: string | null;
+  type: 'rss' | 'atom' | 'json';
+  /** False for JSON Feed: shown, but not subscribable in the MVP. */
+  supported: boolean;
+}
+
+export interface FeedChoiceDetails {
+  candidates: FeedCandidate[];
+}
+
+export interface AlreadySubscribedDetails {
+  subscriptionId: string;
+}
+
+export interface FoldersResponse {
+  items: Folder[];
+}
+
+export interface SubscriptionsResponse {
+  items: Subscription[];
+}
+
 export {
   feedErrorMessage,
   httpErrorCode,

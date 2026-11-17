@@ -9,7 +9,10 @@ export function fail<E extends HonoEnv>(
   status: ErrorStatus,
   code: ErrorCode,
   message: string,
+  details?: unknown,
 ): Response {
-  const body: ApiError = { error: { code, message } };
+  const body: ApiError = {
+    error: details === undefined ? { code, message } : { code, message, details },
+  };
   return c.json(body, status);
 }
