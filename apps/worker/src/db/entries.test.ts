@@ -66,14 +66,28 @@ describe('listEntries', () => {
     expect(calls[1]!.sql).toContain('INDEXED BY ue_feed ');
   });
 
-  it('folder view scopes the subscription subquery by user as well', async () => {
+  it('folder view selects keys first, then joins, with every step scoped by user', async () => {
     const { db, calls } = fakeD1();
     await listEntries(db, 'u1', { view: 'folder', id: 'f1', unreadOnly: true, limit: 5 });
     expect(calls[0]!.sql).toContain(
-      'ue.feed_id IN (SELECT feed_id FROM subscriptions WHERE user_id = ? AND folder_id = ?)',
+      'feed_id IN (SELECT feed_id FROM subscriptions WHERE user_id = ? AND folder_id = ?)',
     );
-    expect(calls[0]!.sql).not.toContain('INDEXED BY');
-    expect(calls[0]!.binds).toEqual(['u1', 'u1', 'f1', 6]);
+    expect(calls[0]!.sql).toContain(
+      'FROM user_entries INDEXED BY ue_unread_feed WHERE user_id = ?',
+    );
+    expect(calls[0]!.sql).toContain(
+      'JOIN user_entries ue ON ue.user_id = ? AND ue.entry_id = k.entry_id',
+    );
+    expect(calls[0]!.binds).toEqual(['u1', 'u1', 'f1', 6, 'u1']);
+  });
+
+  it('folder view with a cursor and state=all uses ue_feed and puts the cursor in the key step', async () => {
+    const { db, calls } = fakeD1();
+    const cursor = encodeCursor({ p: 1000, i: 9 });
+    await listEntries(db, 'u1', { view: 'folder', id: 'f1', unreadOnly: false, limit: 5, cursor });
+    expect(calls[0]!.sql).toContain('INDEXED BY ue_feed ');
+    expect(calls[0]!.sql).toContain('(published_at, entry_id) < (?, ?)');
+    expect(calls[0]!.binds).toEqual(['u1', 'u1', 'f1', 1000, 9, 6, 'u1']);
   });
 
   it('applies the cursor as a row-value comparison', async () => {

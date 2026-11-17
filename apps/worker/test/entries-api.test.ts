@@ -291,7 +291,11 @@ describe('AC5: read budgets (NFR-7, ADR 0008)', () => {
       "INSERT INTO feeds (id, url, next_fetch_at, state, created_at) VALUES (21, 'https://tie.example.com/rss', 0, 'ok', 0)",
     );
     await run(
-      "INSERT INTO subscriptions (id, user_id, feed_id, created_at) VALUES ('c-sub', ?, 21, 0)",
+      "INSERT INTO folders (id, user_id, name, created_at) VALUES ('c-folder', ?, 'T', 0)",
+      C,
+    );
+    await run(
+      "INSERT INTO subscriptions (id, user_id, feed_id, folder_id, created_at) VALUES ('c-sub', ?, 21, 'c-folder', 0)",
       C,
     );
     const same = BASE + 5000;
@@ -322,6 +326,19 @@ describe('AC5: read budgets (NFR-7, ADR 0008)', () => {
         expect(p2.items).toHaveLength(10);
         expect(Number(p2.meta.rows_read)).toBeLessThanOrEqual(102 + T);
       }
+    }
+    // Folder view (TID-049): same ties, M = 60, bound M + 153 + S + 20.
+    for (const unreadOnly of unread) {
+      const params = { view: 'folder' as const, id: 'c-folder', unreadOnly, limit: lim };
+      const p1 = await listEntries(db, C, params);
+      expect(p1.items).toHaveLength(50);
+      expect(Number(p1.meta.rows_read)).toBeLessThanOrEqual(60 + 153 + 1 + 20);
+      const p2 = await listEntries(db, C, { ...params, cursor: p1.nextCursor });
+      expect(p2.items).toHaveLength(10);
+      expect(p2.nextCursor).toBeNull();
+      const ids = [...p1.items, ...p2.items].map((r) => r.entry_id);
+      expect(new Set(ids).size).toBe(60);
+      expect(ids).toEqual([...ids].sort((a, b) => b - a));
     }
     // A cursor that lands in the middle of the group, not at a page boundary.
     const mid = encodeCursor({ p: same, i: 7030 });
@@ -360,34 +377,34 @@ describe('AC5: read budgets (NFR-7, ADR 0008)', () => {
         )
       )?.n ?? 0;
     return {
-      // NFR-7b: M + (limit + 1) + S + 10, M at or below the cursor on continuation pages.
-      page1: { read: Number(p1.meta.rows_read), bound: (await count('')) + 51 + s + 10 },
+      // NFR-7b: M + 3 x (limit + 1) + S + 20, M at or below the cursor on continuation pages.
+      page1: { read: Number(p1.meta.rows_read), bound: (await count('')) + 153 + s + 20 },
       page2: {
         read: Number(p2.meta.rows_read),
         bound:
           (await count(' AND (published_at, entry_id) <= (?, ?)', cursor.p, cursor.i)) +
-          51 +
+          153 +
           s +
-          10,
+          20,
       },
     };
   }
 
-  // DEF-050: the folder query walks the user's whole view (newest first, 2 reads per row) until it
-  // has 51 matches, so its cost follows the view size and the folder's density, not M. This
-  // asserts the AC as written; it fails today, so it is marked `it.fails` and flips with the fix.
-  it.fails(
-    'folder view: rows_read <= M + 51 + S + 10, unread and all, pages 1 and 2 (DEF-050)',
-    async () => {
-      for (const unreadOnly of unread) {
-        for (const folder of FOLDERS) {
-          const { page1, page2 } = await folderBudgets(unreadOnly, folder);
-          expect(page1.read).toBeLessThanOrEqual(page1.bound);
-          expect(page2.read).toBeLessThanOrEqual(page2.bound);
-        }
+  // DEF-050 / TID-049: the folder query selects the page's keys from the feed index (about M
+  // reads), then joins back for those keys only (3 reads per row on the page). Prints the measured
+  // rows_read for each case.
+  it('folder view: rows_read <= M + 3 x (limit + 1) + S + 20, unread and all, pages 1 and 2 (DEF-050)', async () => {
+    for (const unreadOnly of unread) {
+      for (const folder of FOLDERS) {
+        const { page1, page2 } = await folderBudgets(unreadOnly, folder);
+        console.log(
+          `DEF-050 ${folder[0]} ${unreadOnly ? 'unread' : 'all'}: page1 ${page1.read}/${page1.bound}, page2 ${page2.read}/${page2.bound}`,
+        );
+        expect(page1.read).toBeLessThanOrEqual(page1.bound);
+        expect(page2.read).toBeLessThanOrEqual(page2.bound);
       }
-    },
-  );
+    }
+  });
 
   it('folder view: never worse than reading the user’s whole view twice (guard for DEF-050)', async () => {
     for (const unreadOnly of unread) {

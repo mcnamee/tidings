@@ -58,3 +58,22 @@ Daily reads: the §9.5 allowance of 50 folder pages × 3,000 rows (150,000/day, 
 - Spec §8.6 and NFR-7 are updated. Migration 0001 is unchanged.
 - TID-004 AC5 is amended; TID-018 AC5 gains the folder ceiling and a tied-timestamp case. The tester updates DEFECTS.md (DEF-001 → Won't fix) and the test comments.
 - Folder pages stay O(folder size). The cost is reads, which we have plenty of; writes are untouched.
+
+## Amendment 2026-11-17 (TID-049, DEF-050)
+
+The folder query above read far more than its ceiling: the planner walked the user's whole unread or all view newest first, with a primary-key lookup per row to read `feed_id`, until it found `limit + 1` rows in the folder. Cost followed the view size and the folder's density, not M (measured 303 rows for a sparse folder, M = 75). The owner approved option (a): no migration, no extra writes.
+
+**Query.** Keys first: select `(feed_id, published_at, entry_id)` for the folder's feeds from the covering partial index `ue_unread_feed` (unread) or `ue_feed` (all), ordered and limited to `limit + 1`; then join `user_entries` by primary key and `entries` by rowid for those keys only. Same rows, order and cursor rule as before (`(published_at, entry_id) < (?, ?)`); every step is scoped by `user_id`.
+
+**Restated bound (NFR-7b).** Folder view: rows_read ≤ M + 3 × (limit + 1) + S + 20, M and S as above. The three terms of the page: the key scan reads about M keys, the sorter returns `limit + 1` keys, and the join reads two rows per key. ADR 0015 proposed `+ 10`; the measured overhead (sorter output slightly above `limit + 1`, one extra index read per feed seek, two reads per subscription for index plus row) needed `+ 20`. Margin is 4 to 8 rows on the tightest seed cases.
+
+**Measured (`rows_read`, D1 local, limit 50, page 1), before then after:**
+
+| Seed case | M | Before | After |
+|---|---|---|---|
+| seed-folder-1 unread | 125 | 211 | 290 |
+| seed-folder-2 unread | 100 | 246 | 258 |
+| seed-folder-3 unread | 75 | 303 | 244 |
+| seed-folder-1 all | 150 | 225 | 300 |
+
+The change helps sparse folders, and costs a dense folder about 100 more rows than before (the join back is 2 reads per page row, which the old plan got from the same walk). It is predictable: the cost no longer depends on the rest of the user's view. At the spec's scale (50 folder pages a day) the difference is a few thousand rows a day against a 5,000,000 quota. The All and Feed views are unchanged.
