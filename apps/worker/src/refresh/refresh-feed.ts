@@ -38,6 +38,8 @@ export interface RefreshDeps {
   appOrigin: string;
   /** From `resolveFetchPolicy`; empty in production. */
   allowHosts: readonly string[];
+  /** Body cap override. Production leaves it unset (1 MiB); only the AC13 benchmark raises it. */
+  maxBodyBytes?: number;
   /** Structured warnings (for example `feed_parse_too_deep`). */
   log: RefreshLog;
 }
@@ -73,6 +75,7 @@ export async function refreshFeed(job: RefreshJob, deps: RefreshDeps): Promise<R
     fetch: deps.fetch,
     appOrigin: deps.appOrigin,
     allowHosts: deps.allowHosts,
+    maxBodyBytes: deps.maxBodyBytes,
     etag: job.etag,
     lastModified: job.lastModified,
   });

@@ -10,3 +10,4 @@ test-results/
 .claude/settings.local.json
 .claude/worktrees/
 e2e/.wrangler-state/
+apps/worker/bench/results/

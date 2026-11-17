@@ -356,7 +356,7 @@ Owner: product-manager. Last updated 2026-11-17 (decision round 3).
 - **Agents:** SE, QA, PM
 - **Depends on:** TID-003, TID-010, TID-011
 - **Spec:** FR-RF-1 to FR-RF-5, §7.1 to §7.4, ADR 0004
-- **Status:** Ready (TID-010 and TID-011 accepted; merge both to `main` first)
+- **Status:** Built on `tid-012-refresh` (SE, 2026-11-17). AC1 to AC12 and AC14 to AC16 have tests; **AC13 is pending deployment** (needs the user's approval, runbook below).
 
 **User story:** As the owner, I want my feeds refreshed in the background every 30 minutes, so that new articles are already there when I open the app.
 
@@ -385,6 +385,67 @@ Owner: product-manager. Last updated 2026-11-17 (decision round 3).
 16. *(Added 2026-11-17.)* Given `ALLOW_FETCH_HOSTS` set with a non-localhost `APP_ORIGIN`, when the `FeedRefresher` entrypoint is invoked directly, then it makes no fetch and logs the configuration error.
 
 **Out of scope:** adaptive intervals (M2), first-fetch-for-user behaviour (TID-013), raising `MAX_BODY_BYTES` (PM decision after AC13).
+
+**Engineer's notes (2026-11-17)**
+
+- Code: `apps/worker/src/refresh/` (`backoff.ts`, `store.ts`, `refresh-feed.ts`, `dispatcher.ts`, `entrypoint.ts`, `scheduled.ts`); the fixed error table is `packages/shared/src/feed-errors.ts` (`feedErrorMessage(code)` is what TID-013 and TID-015 must use). `src/index.ts` only re-exports `FeedRefresher` and calls `handleScheduled`.
+- **Measured D1 numbers (local D1 `meta`, tests in `apps/worker/test/refresh-feed.test.ts`):** a 304 or identical body writes 0 rows and reads 1; a changed fetch with 3 new items, 50 parsed keys and 2 subscribers writes 40 (= 3x3 + 3x5x2 + 1, exactly the AC4 bound) and reads 121. The dedup lookup reads about **2 per key** (D1 counts every key of the `IN` list plus every hit: 97 for 50 keys with 47 known), not the "<= 50" in §9.5. That raises refresh reads per changed fetch from about 51 to about 121: baseline A about +126,000 reads/day (total about 19% of the 5 M quota instead of 17%), heavy B about +226,000 (about 40% instead of 35%). Writes match §9.4. PM to update §9.5.
+- First fetch: a feed that has never succeeded (`last_success_at IS NULL`) stores all parsed items but links only the newest 10 to its subscribers (FR-SU-3). TID-013 still owns linking for a feed row that already has entries.
+- "Failing for 7 days" (FR-RF-3, §7.4) is **not** implemented: no column records when failures began, and `last_success_at` is stale on healthy 304s, so any proxy would mark quiet feeds dead. Only AC8 (20 consecutive failures) is. With the 24 h cap that is about 14 days of failing, not 7. Options for the PM: lower the count to 12 (about 7 days on the backoff schedule) or add a `failing_since` column in a migration.
+- Unsubscribed feeds are parked by the refresher itself (the first thing it checks, one row read), so the lease stays a single statement. Deleting subscriptions (TID-014/015) should still park in the same transaction as §7.1 says.
+- `enable_ctx_exports` in `wrangler.jsonc` now prints a warning in `wrangler dev` and tests (it became the default on 2025-11-17, before our compatibility date). Left as the spec excerpt has it.
+
+**AC13 runbook (not run: needs the user's approval to deploy and a Cloudflare API token for Analytics)**
+
+What it deploys, all under throwaway names, all deleted afterwards: `tidings-bench-origin` (serves `e2e/fixtures/generate-feeds.ts` over HTTPS), `tidings-bench` (the production `FeedRefresher` as its own Worker; its only extra is a benchmark-only body cap for the 2 MiB case), `tidings-bench-driver` (calls `tidings-bench` through a service binding, 20 sequential calls per request), and a D1 database `tidings-bench`. The real `tidings` Worker and its database are never touched. Files: `apps/worker/bench/` (`*.wrangler.jsonc`, `origin-worker.ts`, `bench-worker.ts`, `driver-worker.ts`, `run-benchmark.ts`, `analyze.ts`). Every analytics row for the script `tidings-bench` is one `refresh()` invocation.
+
+What it measures: 12 scenarios, 200 measured calls each plus one `first` call, after one `cold` call (the first refresh after deploy). `changed:*` (rss-small, rss-typical, atom-typical, rdf-typical): gate zero `exceededCpu` and p95 <= 8 ms. `unchanged:*` for the same four, and `too_large:rss-large` and `too_large:rss-huge`: zero `exceededCpu` and p95 <= 2 ms. `info:body-1mib` and `info:body-2mib` (read + SHA-256 only): recorded. p50, p99, p99.9 and cold are in the table, not gated.
+
+Decisions for the PM before running:
+1. **New items per `changed` call default to 3** (47 known), AC4's typical case, not "every item new". Reason: D1's 100,000 rows written/day is account-wide. 3 new items cost 25 rows per call, so the whole run writes about 25,000 rows (25% of a day). All-new items (`--new-items 50`) cost about 400 rows per call, so 200 calls of one fixture would use 80% of the day. The parse, hash, dedup-lookup and statement-building work is the same either way except the insert chunking. Say if you want a heavier run, for example `--new-items 50 --only changed:rss-typical --runs 100` on another UTC day.
+2. **p95 may not be readable from Analytics.** `workersInvocationsAdaptive` is known to offer p25 to p99.9 but possibly no p95. `analyze.ts` introspects the schema, then uses in order: an exact p95; the share of invocations above the ceiling (needs a `cpuTimeUs_gt` filter, <= 5% means p95 <= ceiling); a p90 check that can only fail the gate, otherwise the row says PROVISIONAL and the PM judges from p90 and p99. I could not check the schema offline.
+3. Cost: about 5,000 Worker requests (callee, origin and driver: 5% of a day) and about 25,000 D1 rows written.
+
+Steps (from `apps/worker`; macOS `sed`; Node 22.18+; nothing here reads or prints a credential):
+
+```sh
+export WRANGLER_SEND_METRICS=false
+BENCH_TOKEN=$(openssl rand -hex 16)            # keep it in this shell only
+
+# 1. Throwaway database; paste its id into both configs (do not commit that edit).
+npx wrangler d1 create tidings-bench           # prints database_id
+sed -i '' 's/REPLACE_WITH_DATABASE_ID/<database_id>/' bench/bench.wrangler.jsonc bench/driver.wrangler.jsonc
+npx wrangler d1 migrations apply tidings-bench --remote --config bench/bench.wrangler.jsonc
+
+# 2. Deploy, in this order. Note the three workers.dev URLs it prints.
+npx wrangler deploy --config bench/origin.wrangler.jsonc
+npx wrangler deploy --config bench/bench.wrangler.jsonc
+npx wrangler deploy --config bench/driver.wrangler.jsonc --var BENCH_TOKEN:$BENCH_TOKEN
+
+# 3. Drive the load (about 10 to 20 minutes). It writes bench/results/run-<time>.json.
+cd ../..
+node apps/worker/bench/run-benchmark.ts --driver https://tidings-bench-driver.<sub>.workers.dev \
+  --origin https://tidings-bench-origin.<sub>.workers.dev --token "$BENCH_TOKEN"
+#    It exits 1 and lists WARNINGs if any call did not do what its scenario expects.
+
+# 4. Wait at least 5 minutes, then read CPU. The token needs only "Account Analytics: Read".
+CLOUDFLARE_API_TOKEN=<token> CLOUDFLARE_ACCOUNT_ID=<account id> \
+  node apps/worker/bench/analyze.ts apps/worker/bench/results/run-<time>.json
+#    Prints the table and "Overall: PASS | FAIL | NEEDS PM"; writes run-<time>.md beside the JSON.
+#    node apps/worker/bench/analyze.ts --introspect shows which quantile fields exist.
+
+# 5. Delete everything.
+cd apps/worker
+npx wrangler delete --config bench/driver.wrangler.jsonc
+npx wrangler delete --config bench/bench.wrangler.jsonc
+npx wrangler delete --config bench/origin.wrangler.jsonc
+npx wrangler d1 delete tidings-bench
+git checkout bench/bench.wrangler.jsonc bench/driver.wrangler.jsonc
+```
+
+Then paste the table into ADR 0006 under "Results (TID-012)". If any gated row fails, stop: the PM applies ADR 0006's ladder; do not tune the benchmark.
+
+Known risks: (a) a Worker fetching another workers.dev Worker on the same account can get error 1042, which `tidings-bench` avoids with the `global_fetch_strictly_public` flag; if `run-benchmark.ts` still reports `network_error`, serve the fixtures from any other public HTTPS host instead (the scenario paths are fixed). (b) The first call to `rss-huge` on the origin builds a 3 MB string and may be CPU-killed once; the runner warms every URL first. (c) Analytics lags, and the adaptive dataset may sample at high volume; `analyze.ts` flags a window that shows fewer than 98% of its calls.
 
 ---
 

@@ -2,7 +2,8 @@
   "extends": "../../tsconfig.base.json",
   "compilerOptions": {
     "types": ["@cloudflare/workers-types", "@cloudflare/vitest-plugin/types", "node"],
-    "lib": ["ES2023"]
+    "lib": ["ES2023"],
+    "allowImportingTsExtensions": true
   },
-  "include": ["src", "test", "env.d.ts", "vitest.config.ts"]
+  "include": ["src", "test", "bench", "env.d.ts", "vitest.config.ts"]
 }

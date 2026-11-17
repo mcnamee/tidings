@@ -39,6 +39,31 @@ own throwaway token on the `wrangler dev` command line and never reads `.dev.var
 Never run `wrangler deploy` by hand; production deploys are covered by TID-024. The D1 `database_id` in
 `apps/worker/wrangler.jsonc` is a placeholder until then.
 
+## Checking the background refresh locally (TID-012)
+
+The dispatcher runs from the `* * * * *` cron. Locally you trigger it by hand against the fixture
+feed server. It needs a migrated local D1, `ALLOW_FETCH_HOSTS` (accepted only with a
+`http://localhost` `APP_ORIGIN`), and one feed with a subscriber:
+
+```sh
+node e2e/support/serve-fixtures.ts &        # fixture feeds on http://127.0.0.1:8790 (Node 22.18+)
+npm run db:migrate:local
+cd apps/worker
+npx wrangler d1 execute tidings --local --command "
+  INSERT INTO users (id, display_name, created_at) VALUES ('u1', 'U', 0);
+  INSERT INTO feeds (id, url, next_fetch_at, state, created_at)
+    VALUES (1, 'http://127.0.0.1:8790/feeds/rss2-basic.xml', 0, 'pending', 0);
+  INSERT INTO subscriptions (id, user_id, feed_id, created_at) VALUES ('s1', 'u1', 1, 0);"
+npx wrangler dev --port 8787 --var APP_ORIGIN:http://localhost:8787 \
+  --var ALLOW_FETCH_HOSTS:127.0.0.1:8790 &
+curl "http://localhost:8787/cdn-cgi/local/scheduled?cron=*+*+*+*+*"
+```
+
+The Worker log prints one `refresh_dispatch` line (`leased`, `fulfilled`, `rejected`, rows read and
+written). `SELECT state, last_status FROM feeds` then shows `ok` and `200`, and `entries` holds the
+fixture's three items. Run the `curl` again: nothing is due for 30 minutes, so `leased` is 0. Stop the
+two background processes when done.
+
 ## Layout
 
 `apps/web` (React SPA), `apps/worker` (Hono Worker), `packages/shared` (API types), `packages/feed-parser`, `e2e`.

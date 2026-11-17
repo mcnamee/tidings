@@ -7,7 +7,7 @@ import { WorkerEntrypoint } from 'cloudflare:workers';
 import type { Env } from '../../env';
 import { Db } from '../db';
 import { FetchConfigError, resolveFetchPolicy } from '../fetch';
-import { refreshFeed, type RefreshLog } from './refresh-feed';
+import { refreshFeed, type RefreshDeps, type RefreshLog } from './refresh-feed';
 import type { RefreshJob, RefreshOutcome } from './types';
 
 export const logWarning: RefreshLog = (event, data) => {
@@ -15,6 +15,11 @@ export const logWarning: RefreshLog = (event, data) => {
 };
 
 export class FeedRefresher extends WorkerEntrypoint<Env> {
+  /** Extension point for the AC13 benchmark Worker (apps/worker/bench). Production adds nothing. */
+  protected depsOverrides(): Partial<RefreshDeps> {
+    return {};
+  }
+
   async refresh(job: RefreshJob): Promise<RefreshOutcome> {
     // TID-012 AC16 / spec §10.6: a misconfigured ALLOW_FETCH_HOSTS means no fetch at all.
     let policy;
@@ -40,6 +45,7 @@ export class FeedRefresher extends WorkerEntrypoint<Env> {
       appOrigin: policy.appOrigin,
       allowHosts: policy.allowHosts,
       log: logWarning,
+      ...this.depsOverrides(),
     });
   }
 }
