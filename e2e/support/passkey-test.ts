@@ -76,6 +76,8 @@ export async function registerOwnerSignedOut(page: Page): Promise<void> {
   await page.evaluate(() => localStorage.clear());
   await page.goto('about:blank');
   await page.context().clearCookies();
+  // Back on the app origin with a fresh document, so callers can use storage straight away.
+  await page.goto('/login');
 }
 
 export { expect };
