@@ -134,22 +134,7 @@ describe('duplicates', () => {
     expect((await refresh(b)).newEntries).toBe(1);
     expect(await count('entries')).toBe(2);
   });
-
-  it('CHARACTERISATION: a feed whose guids change every fetch adds 50 entries and about 401 rows each time', async () => {
-    const id = await seedFeed({ url: FEED_URL });
-    let written = 0;
-    for (let n = 0; n < 4; n++) {
-      fx.fake.route(FEED_URL, {
-        status: 200,
-        body: rss(Array.from({ length: 50 }, (_, k) => ({ guid: `churn-${n}-${k}` }))),
-      });
-      const out = await refresh(id);
-      expect(out.newEntries).toBe(50);
-      if (n > 0) written = out.usage.rowsWritten;
-    }
-    expect(written).toBe(50 * 3 + 50 * 5 + 1); // 401 per fetch, 48 fetches/day = 19,248 rows/day
-    expect(await count('entries', 'feed_id = ?', id)).toBe(200); // nothing caps growth (DEF-013)
-  });
+  // DEF-013 (guid churn) is now guarded: see churn-guard.test.ts (TID-046).
 });
 
 describe('hostile and broken responses', () => {

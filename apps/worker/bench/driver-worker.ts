@@ -45,13 +45,18 @@ interface FeedRow {
   state: RefreshJob['state'];
   fetch_interval_s: number;
   last_success_at: number | null;
+  recent_keys: string | null;
+  new_entries_day: number | null;
+  new_entries_count: number;
+  warning_code: string | null;
 }
 
 async function jobFor(db: Db, feedId: number): Promise<RefreshJob> {
   const { rows } = await db.all<FeedRow>(
     sql(
       `SELECT id, url, etag, last_modified, body_hash, error_count, state, fetch_interval_s,
-              last_success_at FROM feeds WHERE id = ?`,
+              last_success_at, recent_keys, new_entries_day, new_entries_count,
+              warning_code FROM feeds WHERE id = ?`,
       feedId,
     ),
   );
@@ -67,6 +72,10 @@ async function jobFor(db: Db, feedId: number): Promise<RefreshJob> {
     state: r.state,
     fetchIntervalS: r.fetch_interval_s,
     lastSuccessAt: r.last_success_at,
+    recentKeys: r.recent_keys,
+    newEntriesDay: r.new_entries_day,
+    newEntriesCount: r.new_entries_count,
+    warningCode: r.warning_code,
   };
 }
 

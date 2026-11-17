@@ -482,7 +482,7 @@ Edited articles (same key, changed content) are **not** updated in MVP. Cross-fe
 **GUID churn guard (ADR 0013, TID-046).** Some feeds change every item's GUID on each fetch (timestamped or random GUIDs), which would make all 50 items look new every 30 minutes. Two guards apply, neither adding D1 reads or rows written:
 
 1. **Secondary key against the previous fetch.** Each parsed item also gets a secondary key: SHA-256 of canonical link + `\n` + title, or of title + published date when there's no link. A secondary key shared by two or more items in the same fetch is ignored. An item that is new by `guid_hash` but whose secondary key appears in `feeds.recent_keys` (the previous fetch's secondary keys, at most 50) is treated as already known and not inserted. Every changed fetch replaces `recent_keys` in the feed `UPDATE` it already makes.
-2. **Daily cap.** At most `MAX_NEW_ENTRIES_PER_FEED_PER_DAY = 200` new entries per feed per UTC day, counted in feed columns on the same `UPDATE`. Items past the cap aren't stored, and the feed's `warning_code` is set to `new_item_cap` (shown in Manage) until a UTC day ends under the cap.
+2. **Daily cap.** At most `MAX_NEW_ENTRIES_PER_FEED_PER_DAY = 200` new entries per feed per UTC day, counted in feed columns on the same `UPDATE`. Items past the cap aren't stored (when a fetch has more candidates than the cap allows, the newest are kept), and the feed's `warning_code` is set to `new_item_cap` (shown in Manage as `health.warning`, fixed text from `feedWarningMessage` in `packages/shared`). The first changed fetch of a later UTC day that stays under the cap clears it. A first fetch (`last_success_at IS NULL`) has no previous keys, so the secondary guard drops nothing, and its inserted entries count towards the cap.
 
 ### 6.4 URL canonicalisation (feeds and links)
 
@@ -500,7 +500,7 @@ Lower-case scheme and host; drop default ports (`:80` for http, `:443` for https
 - Hostile-input bounds: at most 64 nested XML elements (`MAX_DEPTH`). Past that the parser stops and returns the items closed so far, or `parse_error` if there are none. U+0000 is removed and lone surrogates are replaced with U+FFFD in every stored string (ADR 0009).
 - Atom is recognised only with the unprefixed namespace (`<feed xmlns="http://www.w3.org/2005/Atom">`). A prefixed root is `parse_error` (accepted for MVP).
 - Per-user limits: 1,000 subscriptions, 200 folders.
-- **Planned migration `0003_feed_churn_guard.sql` (TID-046):** `feeds` gains `recent_keys TEXT` (JSON array of short hashes), `new_entries_day INTEGER` (UTC day number), `new_entries_count INTEGER NOT NULL DEFAULT 0` and `warning_code TEXT` (null or `new_item_cap`). None is indexed, so they add no rows written.
+- **Migration `0003_feed_churn_guard.sql` (TID-046):** `feeds` gains `recent_keys TEXT` (JSON array of short hashes), `new_entries_day INTEGER` (UTC day number), `new_entries_count INTEGER NOT NULL DEFAULT 0` and `warning_code TEXT` (null or `new_item_cap`). None is indexed, so they add no rows written.
 
 ---
 

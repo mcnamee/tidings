@@ -38,6 +38,10 @@ interface LeaseRow {
   state: FeedState;
   fetch_interval_s: number;
   last_success_at: number | null;
+  recent_keys: string | null;
+  new_entries_day: number | null;
+  new_entries_count: number;
+  warning_code: string | null;
 }
 
 /**
@@ -61,7 +65,8 @@ export async function leaseDueFeeds(
                       ORDER BY next_fetch_at
                       LIMIT ?)
     RETURNING id, url, etag, last_modified, body_hash, error_count, state,
-              fetch_interval_s, last_success_at`,
+              fetch_interval_s, last_success_at, recent_keys, new_entries_day,
+              new_entries_count, warning_code`,
       now,
       now,
       now,
@@ -80,6 +85,10 @@ export async function leaseDueFeeds(
       state: r.state,
       fetchIntervalS: r.fetch_interval_s,
       lastSuccessAt: r.last_success_at,
+      recentKeys: r.recent_keys,
+      newEntriesDay: r.new_entries_day,
+      newEntriesCount: r.new_entries_count,
+      warningCode: r.warning_code,
     }))
     .sort((a, b) => a.feedId - b.feedId);
 }

@@ -26,22 +26,41 @@ function base(name: GeneratedFeedName): string {
 }
 
 /**
- * Gives the newest `count` items fresh identities. Each format's dedup key is the guid / id /
- * rdf:about, so replacing exactly that text makes the item new while the document keeps its size.
+ * Gives the newest `count` items fresh identities: a new guid / id / rdf:about, and a new title
+ * and link too, because the churn guard (TID-046) treats a new guid with an old link and title as
+ * a known item. The document keeps about the same size.
  */
 export function freshen(name: GeneratedFeedName, nonce: string, count: number): string {
   let xml = base(name);
   const format = GENERATED_FEEDS[name].format;
   const n = Math.min(count, GENERATED_FEEDS[name].items);
+  const post = 'https://gen.example.test/posts/';
   for (let k = 0; k < n; k++) {
-    if (format === 'rss') xml = xml.replace(`gen-rss-${k}</guid>`, `gen-rss-${nonce}-${k}</guid>`);
-    else if (format === 'atom')
-      xml = xml.replace(`2026:atom-${k}</id>`, `2026:atom-${nonce}-${k}</id>`);
-    else
-      xml = xml.replace(
-        `rdf:about="https://gen.example.test/posts/${k}"`,
-        `rdf:about="https://gen.example.test/posts/${nonce}-${k}"`,
-      );
+    const swaps: [string, string][] =
+      format === 'rss'
+        ? [
+            [`gen-rss-${k}</guid>`, `gen-rss-${nonce}-${k}</guid>`],
+            [`<title>Generated item ${k}</title>`, `<title>Generated item ${nonce}-${k}</title>`],
+            [`<link>${post}${k}</link>`, `<link>${post}${nonce}-${k}</link>`],
+          ]
+        : format === 'atom'
+          ? [
+              [`2026:atom-${k}</id>`, `2026:atom-${nonce}-${k}</id>`],
+              [
+                `<title>Generated entry ${k}</title>`,
+                `<title>Generated entry ${nonce}-${k}</title>`,
+              ],
+              [`<link href="${post}${k}"/>`, `<link href="${post}${nonce}-${k}"/>`],
+            ]
+          : [
+              [`rdf:about="${post}${k}"`, `rdf:about="${post}${nonce}-${k}"`],
+              [
+                `<title>Generated rdf item ${k}</title>`,
+                `<title>Generated rdf item ${nonce}-${k}</title>`,
+              ],
+              [`<link>${post}${k}</link>`, `<link>${post}${nonce}-${k}</link>`],
+            ];
+    for (const [from, to] of swaps) xml = xml.replace(from, to);
   }
   return xml;
 }

@@ -140,6 +140,8 @@ export interface LoginVerifyResponse {
 
 export {
   feedErrorMessage,
+  feedWarningMessage,
+  type FeedWarningCode,
   httpErrorCode,
   isFeedErrorCode,
   type FeedErrorCode,

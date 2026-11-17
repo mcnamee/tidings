@@ -11,6 +11,7 @@ import { itemGuidHash, parseFeed, type ParsedItem } from '@tidings/feed-parser';
 import { Db, nowSeconds, sql, tryCanonicalizeUrl, type Clock, type Statement } from '../db';
 import { safeFetch, type FetchFn, type SafeFetchResult } from '../fetch';
 import { parseRetryAfter } from './backoff';
+import { MAX_RECENT_KEYS, parseRecentKeys, planDailyCap, secondaryKey, uniqueKeys } from './churn';
 import {
   hasSubscribers,
   markGone,
@@ -131,7 +132,7 @@ export async function refreshFeed(job: RefreshJob, deps: RefreshDeps): Promise<R
     hashed.push({ hash, item });
   }
 
-  let fresh = hashed;
+  let candidates = hashed;
   if (hashed.length > 0) {
     const { rows, meta } = await db.all<{ guid_hash: string }>(
       sql(
@@ -142,8 +143,36 @@ export async function refreshFeed(job: RefreshJob, deps: RefreshDeps): Promise<R
     );
     meter.add(meta);
     const known = new Set(rows.map((r) => r.guid_hash));
-    fresh = hashed.filter((h) => !known.has(h.hash));
+    candidates = hashed.filter((h) => !known.has(h.hash));
   }
+
+  // GUID churn guard (spec §6.3). Secondary keys of this fetch are remembered on the feed row; an
+  // item that is new by guid but matches the previous fetch's keys is already known. No extra I/O.
+  const secondary = uniqueKeys(await Promise.all(hashed.map((h) => secondaryKey(h.item))));
+  const secondaryOf = new Map(hashed.map((h, i) => [h.hash, secondary[i] ?? null]));
+  const previous = parseRecentKeys(job.recentKeys);
+  const novel = candidates.filter((h) => {
+    const key = secondaryOf.get(h.hash) ?? null;
+    return key === null || !previous.has(key);
+  });
+  // Daily cap: when over, the newest items are the ones kept.
+  const cap = planDailyCap({
+    nowSeconds: now,
+    newEntriesDay: job.newEntriesDay,
+    newEntriesCount: job.newEntriesCount,
+    warningCode: job.warningCode,
+  });
+  const fresh =
+    novel.length <= cap.allowed
+      ? novel
+      : [...novel].sort((a, b) => b.item.publishedAt - a.item.publishedAt).slice(0, cap.allowed);
+  const refused = novel.length - fresh.length;
+  if (refused > 0) {
+    deps.log('new_item_cap', { feedId: job.feedId, refused, stored: fresh.length });
+  }
+  const recentKeys = JSON.stringify(
+    secondary.filter((k): k is string => k !== null).slice(0, MAX_RECENT_KEYS),
+  );
 
   const statements: Statement[] = [];
   for (let i = 0; i < fresh.length; i += ENTRY_ROWS_PER_STATEMENT) {
@@ -201,6 +230,7 @@ export async function refreshFeed(job: RefreshJob, deps: RefreshDeps): Promise<R
               title = COALESCE(?, title), site_url = COALESCE(?, site_url),
               last_success_at = ?, last_new_entry_at = COALESCE(?, last_new_entry_at),
               state = 'ok', error_count = 0, last_error_code = NULL, last_status = ?,
+              recent_keys = ?, new_entries_day = ?, new_entries_count = ?, warning_code = ?,
               next_fetch_at = ?${u.set}
         WHERE id = ?`,
       res.headers.get('ETag'),
@@ -211,6 +241,10 @@ export async function refreshFeed(job: RefreshJob, deps: RefreshDeps): Promise<R
       now,
       fresh.length > 0 ? now : null,
       res.status,
+      recentKeys,
+      cap.day,
+      cap.countAfter(fresh.length),
+      cap.warningAfter(refused),
       now + job.fetchIntervalS,
       ...u.params,
       job.feedId,

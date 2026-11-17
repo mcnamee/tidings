@@ -13,6 +13,11 @@ export interface RefreshJob {
   state: FeedState;
   fetchIntervalS: number;
   lastSuccessAt: number | null;
+  /** Churn guard state (TID-046): the previous fetch's secondary keys and the daily counter. */
+  recentKeys: string | null;
+  newEntriesDay: number | null;
+  newEntriesCount: number;
+  warningCode: string | null;
 }
 
 export interface D1Usage {
