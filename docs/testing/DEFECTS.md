@@ -21,6 +21,27 @@ Entry template:
 
 ## Open
 
+### DEF-030: A feed link discovered on a page skips the address check, so a private-address feed is subscribed
+- Story: TID-013 (AC6, spec 10.6)
+- Severity: S3. Owner: SE.
+- Status: Open
+- Found by: `apps/worker/test/subscribe-adversarial.test.ts` > "a page whose only feed link points at a private address must not create a subscription" (`it.fails`).
+- Steps to reproduce: `POST /api/subscriptions` with a public page URL whose only `<link rel="alternate" type="application/rss+xml">` has `href="http://169.254.169.254/latest/meta-data"` (or `http://127.0.0.1/`).
+- Expected: `422 blocked_address`, no feed row and no subscription (AC6: "a private-address URL ... nothing is created"). For `feed_choice_required`, candidates should not carry such URLs either.
+- Actual: `201`; a `feeds` row and a subscription for the private URL are created. Only the typed URL goes through `checkUrl`; `resolveFeedUrl` returns the discovered URL and `routes.ts` uses it without `checkUrl` or `canonicalizeUrl`. No request leaves the Worker (companion test: the private address is never requested, because the refresher's `safeFetch` refuses it), so this is junk data and a failing subscription, not SSRF.
+- Suggested fix: run `checkUrl` (and canonicalise) on the discovered URL in `resolve.ts` and return `blocked`; drop private candidates from a choice.
+
+### DEF-031: A text/plain feed with more than 4 KB of prolog before the root element is "no_feed_found"
+- Story: TID-013 (FR-SU-1, discovery sniff)
+- Severity: S3 (low likelihood). Owner: SE.
+- Status: Open
+- Found by: `apps/worker/test/subscribe-adversarial.test.ts` > "a text/plain feed with a long comment before <rss> is still subscribed" (`it.fails`).
+- Steps to reproduce: serve a valid RSS 2.0 document as `Content-Type: text/plain` with a 5 KB XML comment between `<?xml ...?>` and `<rss>`; add its URL.
+- Expected: subscribed (the refresher parses it).
+- Actual: `422 no_feed_found`: `sniff` looks only at the first 4,096 bytes and, with no xml/html content type, answers `other`. `application/octet-stream` and a normal `text/plain` feed work.
+- Suggested fix: for an unplaceable type, fall back to the refresher (subscribe, let it record `parse_error`) as already done for `xml`, or sniff past comments and whitespace.
+
+
 ### DEF-018: HEAD /api/health is 401, so a HEAD uptime check fails
 - Story: TID-008 (spec 8.1 deny by default, 8.8 health)
 - Severity: S4. Owner: SE (or PM, if HEAD is out of scope).
