@@ -223,7 +223,13 @@ describe('AC4: expired sessions are refused', () => {
   it('GET /api/auth/session reports signed out for an expired session', async () => {
     const token = await seedSession('u1', { now: nowSec(), expiresAt: nowSec() - 1 });
     const res = await h.call('GET', '/api/auth/session', { cookies: { [SESSION_COOKIE]: token } });
-    expect(await res.json()).toEqual({ user: null, setupRequired: false, mustAddPasskey: false });
+    expect(await res.json()).toEqual({
+      user: null,
+      setupRequired: false,
+      mustAddPasskey: false,
+      // The test environment has the email secret and one user, so the option is on.
+      emailSignIn: true,
+    });
   });
 
   it('garbage, empty and oversized cookie values are 401, not 500', async () => {

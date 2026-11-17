@@ -9,7 +9,7 @@ export const SESSION_ABSOLUTE_TTL_SECONDS = 180 * 24 * 60 * 60;
 /** Spec 10.2: `expires_at` is pushed out only when fewer than this many seconds remain (about one write a week). */
 export const SESSION_RENEW_BELOW_SECONDS = 23 * 24 * 60 * 60;
 
-export type AuthMethod = 'setup' | 'passkey' | 'recovery';
+export type AuthMethod = 'setup' | 'passkey' | 'recovery' | 'email';
 
 export interface NewSession {
   token: string;
@@ -142,6 +142,7 @@ export async function deleteSession(db: Db, userId: string, idHash: string): Pro
 export async function describeSession(
   db: Db,
   session: ResolvedSession | null,
+  emailSignIn = false,
 ): Promise<SessionResponse> {
   if (session) {
     let mustAddPasskey = false;
@@ -156,7 +157,12 @@ export async function describeSession(
       );
       mustAddPasskey = added === null;
     }
-    return { user: session.user, setupRequired: false, mustAddPasskey };
+    return { user: session.user, setupRequired: false, mustAddPasskey, emailSignIn };
   }
-  return { user: null, setupRequired: !(await anyUserExists(db)), mustAddPasskey: false };
+  return {
+    user: null,
+    setupRequired: !(await anyUserExists(db)),
+    mustAddPasskey: false,
+    emailSignIn,
+  };
 }

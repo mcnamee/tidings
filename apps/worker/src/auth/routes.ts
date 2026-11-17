@@ -19,6 +19,7 @@ import {
 } from './challenges';
 import { clearSessionCookie, setSecureCookie, setSessionCookie } from './cookies';
 import { randomToken } from './crypto';
+import { emailSignInEnabled } from './email-signin';
 import { completeLogin, findLoginCandidate } from './login';
 import { consumeRateLimits, refundRateLimits, type RateRule, type RateTicket } from './rate-limit';
 import {
@@ -111,7 +112,7 @@ export function createAuthRoutes(deps?: Partial<AuthDeps>): Hono<AppEnv> {
     if (session && token && session.renewedMaxAge !== null) {
       setSessionCookie(c, token, session.renewedMaxAge);
     }
-    return c.json(await describeSession(db, session));
+    return c.json(await describeSession(db, session, await emailSignInEnabled(c.env, db)));
   });
 
   /**

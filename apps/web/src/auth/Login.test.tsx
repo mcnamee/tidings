@@ -21,7 +21,7 @@ vi.mock('@simplewebauthn/browser', () => ({
 const OPTIONS = { challenge: 'abc', rpId: 'localhost', allowCredentials: [] };
 const ASSERTION = { id: 'cred', rawId: 'cred', type: 'public-key', response: {} };
 const USER = { id: 'u1', displayName: 'Matt', role: 'owner', settings: {} };
-const SIGNED_OUT = { user: null, setupRequired: false, mustAddPasskey: false };
+const SIGNED_OUT = { user: null, setupRequired: false, mustAddPasskey: false, emailSignIn: false };
 
 let api: FakeApi;
 let client: QueryClient;
@@ -165,6 +165,7 @@ describe('AC1: signing in', () => {
       user: USER,
       setupRequired: false,
       mustAddPasskey: false,
+      emailSignIn: false,
     });
     // Focus goes to the destination h1.
     await waitFor(() =>

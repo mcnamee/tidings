@@ -11,6 +11,7 @@ import {
 } from 'react-router';
 import { useQueryClient } from '@tanstack/react-query';
 import { setUnauthenticatedHandler } from './api';
+import { EmailSignIn } from './auth/EmailLink';
 import { Login } from './auth/Login';
 import { ArticleList } from './lists/ArticleList';
 import { ArticleRoute } from './reader/ArticleView';
@@ -207,7 +208,8 @@ function screenFor(path: string) {
 }
 
 const authRoutes = ROUTES.filter(
-  (r) => r.kind === 'auth' && r.path !== '/setup' && r.path !== '/login',
+  (r) =>
+    r.kind === 'auth' && r.path !== '/setup' && r.path !== '/login' && r.path !== '/login/email',
 );
 const shellRoutes = ROUTES.filter((r) => r.kind !== 'auth');
 
@@ -227,6 +229,7 @@ export function App() {
         <Route element={<AuthLayout />}>
           <Route path="/setup" element={<Setup />} />
           <Route path="/login" element={<Login />} />
+          <Route path="/login/email" element={<EmailSignIn />} />
           {authRoutes.map((r) => (
             <Route key={r.path} path={r.path} element={<AuthPlaceholder title={r.title} />} />
           ))}

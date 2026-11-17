@@ -41,7 +41,12 @@ describe('AC1: session reports setupRequired on a fresh instance', () => {
   it('returns {user:null, setupRequired:true} when no user exists', async () => {
     const res = await h.call('GET', '/api/auth/session');
     expect(res.status).toBe(200);
-    expect(await res.json()).toEqual({ user: null, setupRequired: true, mustAddPasskey: false });
+    expect(await res.json()).toEqual({
+      user: null,
+      setupRequired: true,
+      mustAddPasskey: false,
+      emailSignIn: false,
+    });
     expect(res.headers.get('Cache-Control')).toBe('no-store');
   });
 

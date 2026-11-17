@@ -30,10 +30,24 @@ const PUBLIC_ROUTES: ReadonlySet<string> = new Set([
   'POST /api/auth/login/options',
   'POST /api/auth/login/verify',
   'POST /api/auth/recover',
+  'POST /api/auth/email/request',
+  'POST /api/auth/email/verify',
 ]);
 
 export function isPublicRoute(method: string, path: string): boolean {
   return PUBLIC_ROUTES.has(`${method} ${path}`);
+}
+
+/** ADR 0016 / TID-053 AC11. Renaming a passkey (PATCH) stays allowed. */
+export function requiresPasskeyReauth(method: string, path: string): boolean {
+  if (method === 'POST') {
+    return (
+      path === '/api/auth/passkeys/options' ||
+      path === '/api/auth/passkeys/verify' ||
+      path === '/api/auth/recovery-codes'
+    );
+  }
+  return method === 'DELETE' && /^\/api\/auth\/passkeys\/[^/]+$/.test(path);
 }
 
 const MUTATING_METHODS: ReadonlySet<string> = new Set(['POST', 'PATCH', 'PUT', 'DELETE']);
@@ -103,6 +117,11 @@ export function apiGuard(deps: GuardDeps): MiddlewareHandler<AppEnv> {
     if (session.renewedMaxAge !== null) setSessionCookie(c, token, session.renewedMaxAge);
 
     if (mutating && !passesCsrfCheck(c.req.raw.headers, c.env.APP_ORIGIN)) return csrfFailed(c);
+
+    // ADR 0016: a session made from an emailed link can't change how you sign in.
+    if (session.authMethod === 'email' && requiresPasskeyReauth(method, c.req.path)) {
+      return fail(c, 403, 'reauth_required', 'Sign in with a passkey to do this');
+    }
 
     const limiter = deps.apiRateLimit ?? c.env.API_RL;
     if (limiter) {

@@ -533,6 +533,7 @@ describe('step 2: recovery codes (AC2, AC3)', () => {
       user: USER,
       setupRequired: false,
       mustAddPasskey: false,
+      emailSignIn: false,
     });
   });
 

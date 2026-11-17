@@ -1,5 +1,7 @@
 import { Hono } from 'hono';
 import type { ApiError, HealthResponse } from '@tidings/shared';
+import { createEmailRoutes } from '../auth/email-signin';
+import type { EmailSender } from '../auth/mail';
 import { createAuthRoutes, type AuthDeps } from '../auth/routes';
 import { systemClock } from '../db';
 import { createCountsRoutes, createEntryRoutes } from '../entries/routes';
@@ -18,6 +20,8 @@ export const APP_VERSION = '0.0.0';
 export interface AppDeps extends AuthDeps {
   /** Stub for the `API_RL` binding in tests; production uses `env.API_RL`. */
   apiRateLimit: ApiRateLimiter;
+  /** TID-053: sends the sign-in email; tests inject a fake, production uses the `SIGNIN_EMAIL` binding. */
+  sendEmail: EmailSender;
   /** Subscribe and discovery dependencies (TID-013); production uses the real ones. */
   subscriptions: Partial<SubscriptionDeps>;
 }
@@ -47,6 +51,7 @@ export function createApp(deps?: Partial<AppDeps>): Hono<AppEnv> {
   app.use('*', apiGuard({ clock: deps?.clock ?? systemClock, apiRateLimit: deps?.apiRateLimit }));
 
   app.route('/auth', createAuthRoutes(deps));
+  app.route('/auth/email', createEmailRoutes({ clock: deps?.clock, sendEmail: deps?.sendEmail }));
   app.route('/folders', createFolderRoutes({ clock: deps?.clock }));
   app.route(
     '/subscriptions',

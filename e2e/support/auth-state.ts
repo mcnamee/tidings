@@ -52,6 +52,33 @@ function d1(args: string[]): void {
   );
 }
 
+/** Runs a read-only query against the E2E database and returns its rows (TID-053 email capture). */
+export function querySql<T = Record<string, unknown>>(statement: string): T[] {
+  const out = execFileSync(
+    'npx',
+    [
+      'wrangler',
+      'd1',
+      'execute',
+      'tidings',
+      '--local',
+      '--persist-to',
+      STATE_DIR,
+      '--json',
+      '--command',
+      statement,
+    ],
+    {
+      cwd: WORKER_DIR,
+      stdio: 'pipe',
+      encoding: 'utf8',
+      env: { ...process.env, WRANGLER_SEND_METRICS: 'false', CI: 'true' },
+    },
+  );
+  const parsed = JSON.parse(out) as Array<{ results?: T[] }>;
+  return parsed[0]?.results ?? [];
+}
+
 /** Runs SQL against the E2E database. For test setup only: never build it from page input. */
 export function runSql(statement: string): void {
   d1(['--command', statement]);

@@ -1,4 +1,5 @@
 import { env } from 'cloudflare:workers';
+import { createExecutionContext, waitOnExecutionContext } from 'cloudflare:test';
 import { createFixedClock, type FixedClock } from '@tidings/test-utils';
 import type { SetupVerifyResponse } from '@tidings/shared';
 import { createApp, type AppDeps } from '../../src/api/app';
@@ -14,6 +15,8 @@ export const SETUP_TOKEN = env.SETUP_TOKEN ?? '';
 
 export interface Harness {
   clock: FixedClock;
+  /** Waits for every `ctx.waitUntil` job started by earlier calls (the email send, TID-053). */
+  settle(): Promise<void>;
   call(
     method: 'GET' | 'POST' | 'PATCH' | 'PUT' | 'DELETE',
     path: string,
@@ -28,11 +31,23 @@ export interface Harness {
   ): Promise<Response>;
 }
 
-export function createHarness(deps?: Partial<AppDeps>): Harness {
+/**
+ * `envOverrides` replaces bindings for this harness only (`undefined` removes one), for the
+ * "configuration item missing" tests. By default `SIGNIN_EMAIL` is a stub that sends nothing.
+ */
+export function createHarness(
+  deps?: Partial<AppDeps>,
+  envOverrides: Record<string, unknown> = {},
+): Harness {
   const clock = createFixedClock();
   const app = createApp({ clock: () => clock.now(), ...deps });
+
+  const contexts: ExecutionContext[] = [];
   return {
     clock,
+    async settle() {
+      for (const ctx of contexts.splice(0)) await waitOnExecutionContext(ctx);
+    },
     call(method, path, init = {}) {
       // A same-origin browser request: Origin is set by the browser on every POST (spec 10.3).
       const headers = new Headers({ 'User-Agent': 'vitest', Origin: env.APP_ORIGIN });
@@ -54,8 +69,16 @@ export function createHarness(deps?: Partial<AppDeps>): Harness {
       }
       const body =
         init.rawBody ?? (init.body === undefined ? undefined : JSON.stringify(init.body));
+      // Built per call so a test that changes `env` mid-test (a missing secret) is honoured.
+      const testEnv = {
+        ...env,
+        SIGNIN_EMAIL: { send: () => Promise.resolve() },
+        ...envOverrides,
+      } as unknown as typeof env;
+      const ctx = createExecutionContext();
+      contexts.push(ctx);
       return Promise.resolve(
-        app.fetch(new Request(`${env.APP_ORIGIN}${path}`, { method, headers, body }), env),
+        app.fetch(new Request(`${env.APP_ORIGIN}${path}`, { method, headers, body }), testEnv, ctx),
       );
     },
   };
@@ -89,6 +112,7 @@ export async function resetAuthTables(): Promise<void> {
     'passkeys',
     'webauthn_challenges',
     'rate_limits',
+    'magic_links',
     'users',
   ]) {
     await env.DB.exec(`DELETE FROM ${t}`);
