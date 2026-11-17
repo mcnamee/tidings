@@ -20,6 +20,19 @@ export const ISOLATION_CASES: Readonly<Record<string, IsolationCase>> = {
     file: 'entries-api.test.ts',
     test: 'B asking for A’s subscription or folder gets 404 not_found, identical to a missing ID',
   },
+  // TID-019 AC9, AC10.
+  'GET /api/entries/:id path:id': {
+    file: 'entry-read.test.ts',
+    test: 'B asking for A’s entry gets 404 not_found, identical to a missing or malformed ID',
+  },
+  'PATCH /api/entries/:id path:id': {
+    file: 'entry-read.test.ts',
+    test: 'B changing A’s entry gets 404 not_found, and A’s entry is unchanged',
+  },
+  'POST /api/entries/read-state body:entryIds': {
+    file: 'entry-read.test.ts',
+    test: 'with another user’s IDs in the list, only mine change',
+  },
   'POST /api/subscriptions body:folderId': {
     file: 'subscribe.test.ts',
     test: 'B posting A’s folderId gets 404 not_found, and nothing is created or changed',

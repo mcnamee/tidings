@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, type ReactNode } from 'react';
+import { useEffect, useLayoutEffect, useRef, useState, type ReactNode } from 'react';
 import { Link, useLocation, useNavigationType, useSearchParams } from 'react-router';
 import { useQueryClient } from '@tanstack/react-query';
 import { Filter, Loader2, RefreshCw } from 'lucide-react';
@@ -16,7 +16,7 @@ import { unreadOnlyDefault } from '../lib/settings';
 import { usePullToRefresh } from '../lib/usePullToRefresh';
 import { BottomBar, HeaderActions } from '../shell/slots';
 import { ArticleRow } from './ArticleRow';
-import { clearOpened, markOpened, wasOpenedFrom } from './returning';
+import { clearOpened, markOpened, scrollOf, wasOpenedFrom } from './returning';
 
 const BUTTON =
   'inline-flex min-h-11 items-center justify-center gap-2 rounded-md border border-line-strong bg-surface px-4 text-base font-medium text-fg active:bg-sunken';
@@ -148,6 +148,13 @@ export function ArticleList({ view, id }: { view: EntryListView; id: string | nu
   useEffect(() => {
     if (!returning) clearOpened();
   }, [returning]);
+  // Back from an article lands at the same scroll position. The browser's own restoration runs
+  // before the list is back on screen, so the list puts it back itself.
+  useLayoutEffect(() => {
+    if ('scrollRestoration' in window.history) window.history.scrollRestoration = 'manual';
+    if (returning) window.scrollTo(0, scrollOf(listKey));
+    // Only on arrival.
+  }, []);
 
   const entries = useEntries(view, id, state, returning ? false : 'always');
   const subscriptions = useSubscriptions(view === 'feed' || view === 'all');
@@ -224,7 +231,7 @@ export function ArticleList({ view, id }: { view: EntryListView; id: string | nu
             <ArticleRow
               key={entry.id}
               entry={entry}
-              to={`${location.pathname}/a/${entry.id}`}
+              to={`${location.pathname}/a/${entry.id}?state=${state}`}
               onOpen={() => markOpened(listKey)}
               now={now}
             />

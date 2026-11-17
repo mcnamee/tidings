@@ -31,13 +31,23 @@ function writeOpen(ids: string[]): void {
 
 const byName = (a: string, b: string) => a.localeCompare(b, undefined, { sensitivity: 'base' });
 
-function Count({ n }: { n: number | undefined }) {
+/**
+ * The visible count, followed by a visually hidden "unread", so the link's accessible name is its
+ * visible text plus one word ("Tech 2 unread"). An aria-label that reorders or adds punctuation
+ * fails WCAG 2.5.3 Label in Name (DEF-051).
+ */
+export function Count({ n }: { n: number | undefined }) {
   if (!n) return null;
-  return <span className="shrink-0 text-sm tabular-nums">{n > 999 ? '999+' : n}</span>;
+  // The leading space keeps the name from running into the count ("Tech 2", not "Tech2").
+  return (
+    <>
+      {' '}
+      <span className="shrink-0 text-sm tabular-nums">
+        {n > 999 ? '999+' : n} <span className="sr-only">unread</span>
+      </span>
+    </>
+  );
 }
-
-const label = (name: string, n: number | undefined) =>
-  n ? `${name}, ${n > 999 ? '999+' : n} unread` : name;
 
 function FeedLink({
   sub,
@@ -57,7 +67,6 @@ function FeedLink({
     <NavLink
       to={`/feeds/${sub.id}`}
       replace={replace}
-      aria-label={label(sub.title, n)}
       className={({ isActive }) =>
         `${ROW} ${isActive ? CURRENT : IDLE} ${indent ? 'pl-[2.75rem]' : 'pl-[13px]'} ${
           dim && !isActive ? 'text-fg-muted' : ''
@@ -204,7 +213,6 @@ export function FeedTree({ replace }: { replace: boolean }) {
                 to={`/folders/${f.id}`}
                 replace={replace}
                 end
-                aria-label={label(f.name, n)}
                 className={({ isActive }) =>
                   `${ROW} ${isActive ? CURRENT : IDLE} pl-1 ${
                     zero(n) && !isActive ? 'text-fg-muted' : ''

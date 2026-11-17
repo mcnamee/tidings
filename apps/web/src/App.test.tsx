@@ -72,9 +72,7 @@ function renderApp(entries: string[], index?: number, { signedIn = true } = {}) 
 const path = () => screen.getByTestId('path').textContent;
 const SHELL_ROUTES: Array<[string, string]> = [
   ['/all', 'All articles'],
-  ['/all/a/e1', 'Feed'],
-  ['/folders/f1/a/e1', 'Feed'],
-  ['/feeds/s1/a/e1', 'Feed'],
+  ['/all/a/e1', 'All articles'],
   ['/manage', 'Manage feeds'],
   ['/manage/add', 'Add a feed'],
   ['/manage/import', 'Import from OPML'],
@@ -109,10 +107,24 @@ describe('routing placeholders (spec 11.1)', () => {
       expect(screen.getByText('Choose OPML file')).toBeInTheDocument(); // TID-016
     } else if (route === '/all') {
       expect(screen.getByTestId('list-skeleton')).toBeInTheDocument();
+    } else if (route === '/all/a/e1') {
+      expect(screen.getByTestId('article-skeleton')).toBeInTheDocument(); // TID-019
     } else {
       expect(screen.getByRole('main')).toHaveTextContent("This screen isn't built yet.");
     }
     expect(screen.getByRole('region', { name: 'Notifications' })).toBeInTheDocument();
+  });
+
+  // The header never says "Feed" or "Folder" (spec 11.1): a skeleton, with the word only in document.title.
+  it.each([
+    ['/folders/f1/a/e1', 'Folder'],
+    ['/feeds/s1/a/e1', 'Feed'],
+  ])('%s shows a skeleton in the header while the name loads', (route, fallback) => {
+    renderApp([route]);
+    const h1 = screen.getByRole('heading', { level: 1 });
+    expect(h1).toHaveAttribute('aria-busy', 'true');
+    expect(h1).not.toHaveTextContent(fallback);
+    expect(document.title).toBe(`${fallback} - Tidings`);
   });
 
   it.each(AUTH_ROUTES)(

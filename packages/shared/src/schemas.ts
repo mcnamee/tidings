@@ -3,6 +3,7 @@ import {
   DISPLAY_NAME_MAX,
   FOLDER_NAME_MAX,
   IMPORT_CHUNK_SIZE,
+  READ_STATE_MAX_IDS,
   SUBSCRIPTION_TITLE_MAX,
 } from './index';
 
@@ -137,3 +138,14 @@ export const importOpmlRequestSchema = z
       message: `At most ${IMPORT_CHUNK_SIZE} feeds per request`,
     },
   );
+
+/** `PATCH /api/entries/:id` (spec 8.5). Unknown keys, including `isStarred` until M2, are rejected. */
+export const patchEntryRequestSchema = z.object({ isRead: z.boolean() }).strict();
+
+/** `POST /api/entries/read-state` (spec 8.5): 1 to 1,000 IDs. */
+export const readStateRequestSchema = z
+  .object({
+    entryIds: z.array(z.string().min(1).max(32)).min(1).max(READ_STATE_MAX_IDS),
+    isRead: z.boolean(),
+  })
+  .strict();

@@ -21,6 +21,37 @@ Entry template:
 
 ## Open
 
+### DEF-070: Next, Previous and leaving an article crash the screen in current Chromium (blank page)
+
+- Story: TID-019 (AC7), `apps/web/src/reader/ArticleView.tsx` (`useEffect(() => window.scrollTo(0, 0), [])`)
+- Severity: S1 (the article view cannot be left or stepped through in a current browser; Back from an article is affected the same way).
+- Owner: SE. Status: Fixed 2026-11-17 by the orchestrator on `tid-019-article-view`; the known-defect markers are now normal tests and pass (unit and Chromium E2E).
+- Found by: `e2e/specs/tid-019-article-view.spec.ts` > "AC7: Next and Previous replace..." and "AC7: Back returns ... same scroll position..." (`test.fail`); unit `ArticleView.test.tsx` > "DEF-070: Next works when window.scrollTo returns a Promise" (`it.fails`). Both flip red when fixed: remove the markers then.
+- Steps to reproduce: open `/all`, tap an article, tap Next (Chromium used by Playwright 1.65).
+- Expected: the next article opens.
+- Actual: `TypeError: l is not a function`, thrown by React while unmounting the old article, and the page goes blank. `window.scrollTo()` returns a Promise in this Chromium, the arrow function returns it, and React treats a returned value as the effect's cleanup. jsdom's stub returns `undefined`, so the unit suite never saw it.
+- Suggested fix: `useEffect(() => { window.scrollTo(0, 0); }, []);` (same care in any other effect with an expression body).
+
+### DEF-071: Images in article content with no alt text fail axe `image-alt` (critical)
+
+- Story: TID-019 (AC6 and the a11y bar of §NFR-5), `apps/web/src/lib/sanitize.ts`
+- Severity: S3. Owner: SE. Status: Fixed 2026-11-17 by the orchestrator on `tid-019-article-view`; the known-defect markers are now normal tests and pass (unit and Chromium E2E).
+- Found by: `tid-019-article-view.spec.ts` > "DEF-071: axe is clean on an article whose feed image has no alt" (`test.fail`) and `sanitize.test.ts` > "DEF-071: an image with no alt attribute gets alt=\"\"" (`it.fails`).
+- Steps to reproduce: open an article whose `contentHtml` has `<img src="/img/big.png">`, run axe.
+- Expected: no serious or critical violation.
+- Actual: `image-alt` (critical). Most feed images have no alt.
+- Suggested fix: in the `afterSanitizeAttributes` hook, set `alt=""` on an `img` that has none.
+
+### DEF-072: A missing or foreign article shows a skeleton for about 7 s before "We couldn't find that article"
+
+- Story: TID-019 (AC9 in the UI), `apps/web/src/lib/queries.ts` (`useEntry`) with the app's default query retry
+- Severity: S3. Owner: SE. Status: Fixed 2026-11-17 by the orchestrator on `tid-019-article-view`; the known-defect markers are now normal tests and pass (unit and Chromium E2E).
+- Found by: `tid-019-article-view.spec.ts` > "DEF-072: a missing article says so within 2 s" (`test.fail`). The unit test passes because it sets `retry: false`.
+- Steps to reproduce: open `/all/a/999999` (or another user's entry ID, or a stale link to a purged article).
+- Expected: the not-found message at once; a 404 will not change on retry.
+- Actual: the API answers 404 four times (React Query default: 3 retries with back-off), and the skeleton shows for about 7 s.
+- Suggested fix: `retry: (n, err) => !(err instanceof ApiRequestError && err.status >= 400 && err.status < 500) && n < 3` in `useEntry`.
+
 ### DEF-020: A capped feed that stops changing keeps its `new_item_cap` warning indefinitely
 
 - Story: TID-046 (AC3, "on the first refresh in a new UTC day that stays under the cap, the warning clears")
@@ -325,7 +356,7 @@ Entry template:
 
 - Story: TID-018 (AC6, AC10), `apps/web/src/shell/FeedTree.tsx` (`label()`) and `FeedNav.tsx` ("All articles" link)
 - Severity: S3. Owner: SE.
-- Status: Open
+- Status: Verified (2026-11-17, TID-019 build 455aca8: the four former `test.fail` axe tests in `tid-018-article-lists.spec.ts` pass on mobile-light and desktop-dark with the markers removed). Fix: TID-019: the `aria-label`s are gone; `Count` in `FeedTree.tsx` renders the visible count plus a visually hidden " unread", so the name is "Tech 2 unread". The `test.fail` markers in `tid-018-article-lists.spec.ts` are removed (not run by the SE).
 - Found by: `e2e/specs/tid-018-article-lists.spec.ts` > "AC10: axe is clean on /all", "/folders/f1", "/feeds/s1" (desktop projects, where the sidebar is always visible) and "AC10: axe is clean on the drawer with folders, feeds and counts" (all projects). All are `test.fail`, so they turn red when fixed and the markers must come out then.
 - Steps to reproduce: seed one folder "Tech" with 2 unread articles, open `/all` at 1280 x 800 (or open the drawer at 375 x 812), run axe.
 - Expected: no serious or critical violations (AC10).

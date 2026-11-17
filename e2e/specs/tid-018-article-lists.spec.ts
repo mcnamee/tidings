@@ -69,10 +69,7 @@ test('AC14: markup in an article title and summary is shown as text and runs not
 });
 
 for (const route of ['/all', '/folders/f1', '/feeds/s1']) {
-  test(`AC10: axe is clean on ${route}`, async ({ page }, testInfo) => {
-    // DEF-051: on desktop the sidebar is always on screen, and its "Name, N unread" aria-labels fail
-    // axe's label-content-name-mismatch. Flips red when fixed: remove this line then.
-    test.fail(testInfo.project.name.startsWith('desktop'), 'DEF-051');
+  test(`AC10: axe is clean on ${route}`, async ({ page }) => {
     await page.goto(route);
     await expect(page.getByRole('main').getByRole('heading', { level: 2 }).first()).toBeVisible();
     await expectNoSeriousA11yViolations(page);
@@ -82,12 +79,11 @@ for (const route of ['/all', '/folders/f1', '/feeds/s1']) {
 test('AC10: axe is clean on the drawer with folders, feeds and counts', async ({
   page,
 }, testInfo) => {
-  test.fail(true, 'DEF-051: "Tech, 2 unread" does not contain the visible text "Tech 2"');
   await page.goto('/all');
   if (testInfo.project.name.startsWith('mobile')) {
     await page.getByRole('button', { name: 'Open navigation' }).click();
   }
-  await expect(page.getByRole('link', { name: /^Tech, 2 unread$/ })).toBeVisible();
+  await expect(page.getByRole('link', { name: /^Tech 2 unread$/ })).toBeVisible();
   await expectNoSeriousA11yViolations(page);
 });
 

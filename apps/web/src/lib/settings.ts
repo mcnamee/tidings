@@ -10,3 +10,8 @@ export function unreadOnlyDefault(settings: Settings | undefined): boolean {
 export function hideReadFeeds(settings: Settings | undefined): boolean {
   return settings?.hideReadFeeds === true;
 }
+
+/** Spec 6.2: `markReadOnOpen`, default true. */
+export function markReadOnOpen(settings: Settings | undefined): boolean {
+  return settings?.markReadOnOpen !== false;
+}

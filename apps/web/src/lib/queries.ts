@@ -9,16 +9,18 @@ import {
   type Counts,
   type EntriesResponse,
   type EntryListState,
+  type Entry,
   type EntryListView,
   type FoldersResponse,
   type SubscriptionsResponse,
 } from '@tidings/shared';
-import { apiGet } from '../api';
+import { ApiRequestError, apiGet } from '../api';
 
 // Query keys and cache rules from spec 11.3.
 export const FOLDERS_KEY = ['folders'] as const;
 export const SUBSCRIPTIONS_KEY = ['subscriptions'] as const;
 export const COUNTS_KEY = ['counts'] as const;
+export const entryKey = (id: string) => ['entry', id] as const;
 export const entriesKey = (view: EntryListView, id: string | null, state: EntryListState) =>
   ['entries', view, id, state] as const;
 
@@ -106,4 +108,20 @@ export function trimToFirstPage(client: QueryClient, key: readonly unknown[]): v
       ? { pages: data.pages.slice(0, 1), pageParams: data.pageParams.slice(0, 1) }
       : data,
   );
+}
+
+/**
+ * One article (`['entry', id]`, spec 11.3). `placeholder` is the list's summary of it, shown while
+ * the full entry loads; a placeholder has no content, so nothing is rendered from it but the header.
+ */
+export function useEntry(id: string, placeholder: () => Entry | undefined) {
+  return useQuery<Entry>({
+    queryKey: entryKey(id),
+    queryFn: ({ signal }) => apiGet<Entry>(`/api/entries/${encodeURIComponent(id)}`, { signal }),
+    staleTime: 30 * SECOND,
+    placeholderData: placeholder,
+    // A 4xx (not found, not yours) won't change on retry; show it at once (DEF-072).
+    retry: (count, err) =>
+      !(err instanceof ApiRequestError && err.status >= 400 && err.status < 500) && count < 3,
+  });
 }

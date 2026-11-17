@@ -13,6 +13,7 @@ import { useQueryClient } from '@tanstack/react-query';
 import { setUnauthenticatedHandler } from './api';
 import { Login } from './auth/Login';
 import { ArticleList } from './lists/ArticleList';
+import { ArticleRoute } from './reader/ArticleView';
 import { AddFeed } from './manage/AddFeed';
 import { ImportOpml } from './manage/ImportOpml';
 import { Manage } from './manage/Manage';
@@ -201,6 +202,7 @@ function screenFor(path: string) {
   if (path === '/all') return <ArticleList view="all" id={null} />;
   if (path === '/folders/:folderId') return <FolderList />;
   if (path === '/feeds/:subscriptionId') return <FeedList />;
+  if (path.includes('/a/:entryId')) return <ArticleRoute />;
   return <Placeholder />;
 }
 

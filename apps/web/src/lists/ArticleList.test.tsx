@@ -308,10 +308,12 @@ describe('AC6: the drawer', () => {
     seedTree();
     renderApp('/all');
     const nav = screen.getByRole('navigation', { name: 'Feeds and folders' });
-    const all = await within(nav).findByRole('link', { name: 'All articles, 999+ unread' });
+    const all = await within(nav).findByRole('link', { name: 'All articles 999+ unread' });
     expect(all).toHaveTextContent('999+');
-    const tech = within(nav).getByRole('link', { name: 'Tech, 34 unread' });
+    const tech = within(nav).getByRole('link', { name: 'Tech 34 unread' });
     expect(tech).toHaveTextContent('34');
+    // DEF-051: no aria-label; the name is the visible text plus a hidden "unread" (WCAG 2.5.3).
+    for (const link of [all, tech]) expect(link).not.toHaveAttribute('aria-label');
     const news = within(nav).getByRole('link', { name: 'News' }); // zero: no count, dimmed
     expect(news).toHaveTextContent(/^News$/);
     expect(news).toHaveClass('text-fg-muted');
@@ -322,11 +324,11 @@ describe('AC6: the drawer', () => {
       .map((l) => l.getAttribute('aria-label') ?? l.textContent);
     // Folders are collapsed by default; loose feeds follow, A to Z.
     expect(names.slice(0, 5)).toEqual([
-      'All articles, 999+ unread',
+      'All articles 999+ unread',
       'News',
-      'Tech, 34 unread',
+      'Tech 34 unread',
       'Broken Blog',
-      'Loose Busy, 999+ unread',
+      'Loose Busy 999+ unread',
     ]);
     expect(within(nav).getByRole('link', { name: 'Loose Quiet' })).toHaveClass('text-fg-muted');
     expect(within(nav).getByRole('img', { name: 'This feed has problems' })).toBeInTheDocument();
@@ -344,7 +346,7 @@ describe('AC6: the drawer', () => {
     expect(within(nav).queryByRole('link', { name: /^Ars/ })).not.toBeInTheDocument();
 
     await userEvent.click(within(nav).getByRole('button', { name: 'Expand Tech' }));
-    expect(within(nav).getByRole('link', { name: 'Ars, 30 unread' })).toBeInTheDocument();
+    expect(within(nav).getByRole('link', { name: 'Ars 30 unread' })).toBeInTheDocument();
     expect(within(nav).getByRole('button', { name: 'Collapse Tech' })).toHaveAttribute(
       'aria-expanded',
       'true',
@@ -357,10 +359,10 @@ describe('AC6: the drawer', () => {
     seedTree();
     renderApp('/all', { hideReadFeeds: true });
     const nav = screen.getByRole('navigation', { name: 'Feeds and folders' });
-    await within(nav).findByRole('link', { name: 'Tech, 34 unread' });
+    await within(nav).findByRole('link', { name: 'Tech 34 unread' });
     expect(within(nav).queryByRole('link', { name: 'News' })).not.toBeInTheDocument();
     expect(within(nav).queryByRole('link', { name: 'Loose Quiet' })).not.toBeInTheDocument();
-    expect(within(nav).getByRole('link', { name: 'Loose Busy, 999+ unread' })).toBeInTheDocument();
+    expect(within(nav).getByRole('link', { name: 'Loose Busy 999+ unread' })).toBeInTheDocument();
   });
 
   it('shows a skeleton while loading and an error with Try again when it cannot load', async () => {
