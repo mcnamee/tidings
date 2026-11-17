@@ -331,3 +331,25 @@ Entry template:
 - Expected: no serious or critical violations (AC10).
 - Actual: `label-content-name-mismatch` on the current-row link and on the folder and feed rows. The link's visible text is "Tech 2" but its `aria-label` is "Tech, 2 unread", so the visible text is not a contiguous part of the accessible name. Voice-control users who say "click Tech 2" cannot activate it.
 - Suggested: drop the `aria-label` and give the count a visually hidden suffix (`<span aria-hidden>2</span><span class="sr-only">2 unread</span>`), or make the name start with the exact visible text ("Tech 2 unread").
+
+### DEF-060: OPML import accepts zero-width-only folder names and titles
+
+- Story: TID-016 (spec 8.7, FR-OP-2), `apps/web/src/lib/opml.ts`, `packages/shared/src/schemas.ts` (`clip`)
+- Severity: S4. Owner: SE.
+- Status: Open
+- Found by: `apps/web/src/lib/opml.adversarial.test.ts` and `apps/worker/test/import-adversarial.test.ts`, the two "DEF-060" tests (`it.fails`; remove the marker when fixed).
+- Steps to reproduce: import an OPML whose folder `text` (or a feed's `title`) is only `U+200B U+200C U+200D`, or POST the same to `/api/import/opml`.
+- Expected: a name with no visible characters counts as blank: no folder is created and the feed is unfiled; no custom title is stored.
+- Actual: `trim()` does not remove zero-width characters, so an invisible folder (and an invisible feed name that replaces the real title) is created.
+- Suggested fix: strip `\p{Cf}` and whitespace before the blank test, on both the client and the API.
+
+### DEF-061: Clipping an imported title or folder name can split a surrogate pair
+
+- Story: TID-016, `apps/web/src/lib/opml.ts` and `clip()` in `packages/shared/src/schemas.ts`
+- Severity: S4. Owner: SE.
+- Status: Open
+- Found by: `opml.adversarial.test.ts` and `import-adversarial.test.ts`, the two "DEF-061" tests (`it.fails`).
+- Steps to reproduce: a folder name of 63 `a` followed by an emoji (or a 199-character title ending in one).
+- Expected: the clipped value is valid text.
+- Actual: `slice(0, 64)` / `slice(0, 200)` leaves a lone high surrogate, shown as a replacement character.
+- Suggested fix: clip by code point (`Array.from(s).slice(0, n).join('')`) or drop a trailing lone high surrogate.

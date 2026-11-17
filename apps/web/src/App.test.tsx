@@ -99,12 +99,14 @@ describe('routing placeholders (spec 11.1)', () => {
     expect(screen.getByRole('heading', { level: 1 })).toHaveTextContent(title);
     expect(document.title).toBe(`${title} - Tidings`);
     expect(screen.getByRole('banner')).toBeInTheDocument();
-    // /manage/add (TID-013), /manage (TID-014) and the lists (TID-018) are built; every other
+    // /manage/add (TID-013), /manage/import (TID-016), /manage (TID-014) and the lists (TID-018) are built; every other
     // route is a placeholder.
     if (route === '/manage') {
       expect(screen.getByRole('main')).not.toHaveTextContent("This screen isn't built yet.");
     } else if (route === '/manage/add') {
       expect(screen.getByLabelText('Feed or website address')).toBeInTheDocument();
+    } else if (route === '/manage/import') {
+      expect(screen.getByText('Choose OPML file')).toBeInTheDocument(); // TID-016
     } else if (route === '/all') {
       expect(screen.getByTestId('list-skeleton')).toBeInTheDocument();
     } else {
