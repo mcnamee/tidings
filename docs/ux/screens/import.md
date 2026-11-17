@@ -19,8 +19,8 @@ Steps (one component, four stages): choose, preview, sending, progress.
 | [ ! banner, only after a bad file ]   |
 | Choose your file                      |  h2
 | In Inoreader, open Preferences, then  |  text-base fg-muted
-| Import / Export, and export your      |
-| subscriptions as an OPML file. Then   |
+| Account, then Export and Backup, and  |
+| choose Download OPML file. Then       |
 | choose that file here.                |
 |                                       |
 | [        Choose OPML file          ]  |  label+file input, 48 px, accent
