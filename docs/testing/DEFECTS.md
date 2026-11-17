@@ -21,6 +21,55 @@ Entry template:
 
 ## Open
 
+### DEF-013: A feed whose guids change every fetch floods entries with no cap
+- Story: TID-012 (FR-RF-5, spec 9.4, risk to the D1 write budget)
+- Severity: S3 (design gap, PM decision). Owner: PM, then SE.
+- Status: Open
+- Found by: `apps/worker/test/refresh-adversarial.test.ts` > "CHARACTERISATION: a feed whose guids change every fetch..." (passes by asserting today's behaviour)
+- Steps to reproduce: serve 50 items with new guids on every fetch (timestamped or random guids, which exist in the wild).
+- Expected: some guard: a per-feed cap on new entries per day, or a flag for feeds that are all-new every fetch.
+- Actual: 50 entries and 50 unread rows per subscriber per fetch: 401 rows written per fetch (1 subscriber), about 19,248 rows/day for one feed (19% of the daily quota), 2,400 new unread articles/day, and `entries` grows by 2,400 rows/day until retention (TID-021). The 50-item cap bounds one fetch, not the day.
+- Suggested fix: PM to decide. Options: throttle a feed to N new entries/day, back off the interval when more than 80% of a fetch is new three times in a row, or only link items newer than the newest known `published_at`.
+
+### DEF-014: A 304 on a never-fetched feed marks it ok and sets last_success_at
+- Story: TID-012 (AC2, spec 7.3 step 2)
+- Severity: S3. Owner: SE.
+- Status: Open
+- Found by: `apps/worker/test/refresh-adversarial.test.ts` > "a 304 for a feed that has never been fetched does not claim success (DEF-014)" (`it.fails`; remove the marker when fixed)
+- Steps to reproduce: a `pending` feed with `last_success_at NULL` and no etag; origin answers 304 (a buggy origin or proxy; no validators were sent).
+- Expected: not a success: the feed stays `pending` (or fails) with no `last_success_at`.
+- Actual: `unchanged()` sets `state='ok'`, `last_success_at=now`. The feed has no content, and its first real 200 then links every item (the FR-SU-3 10-item limit is lost because that rule keys on `last_success_at IS NULL`).
+- Suggested fix: in `unchanged`, treat a 304 as success only when the job sent a validator (`etag` or `lastModified` not null) or `bodyHash` is not null; otherwise record a failure.
+
+### DEF-015: Spec 9.8 understates the cost of a first fetch and of an OPML import
+- Story: TID-012 (FR-SU-3, spec 9.8 item 2)
+- Severity: S3 (budget documentation, no AC fails). Owner: PM.
+- Status: Open
+- Found by: `refresh-adversarial.test.ts` > "first fetch of a 50-item feed stores 50 entries but links 10: 201 rows..."
+- Expected (spec 9.8): 250 feeds x 10 items x 8 rows = about 20,000 rows.
+- Actual: the refresher stores all parsed items (up to 50) and links 10: 50 x 3 + 10 x 5 + 1 = 201 rows per feed, so about 50,250 rows for 250 feeds (50% of a day, 75% on import day in scenario A). Storing all 50 is the right design (otherwise items 11 to 50 would arrive as new and unread on the next fetch); the spec number is wrong. The engineer's read-cost note (about 121 reads per changed fetch) is also not yet in 9.5.
+- Suggested fix: PM updates 9.8 and 9.5, and decides whether import needs a longer stagger.
+
+### DEF-016: AC13 gate ignores invocations that died for any reason other than exceededCpu
+- Story: TID-012 (AC13), `apps/worker/bench/analysis.ts`
+- Severity: S2 for the gate's validity (it could pass vacuously). Owner: SE.
+- Status: Open
+- Found by: `apps/worker/test/bench-gate.test.ts` > "a window with killed or crashed invocations is not a PASS" and "analytics seeing far fewer invocations..." (`it.fails`)
+- Expected: any non-`success` status in a measured window (`exceededResources`, `exceededMemory`, `scriptThrewException`, `internalError`) fails the gate, and a window where Analytics saw less than 98% of the calls is not a PASS.
+- Actual: only the literal status `exceededCpu` fails. Quantiles come from the `success` group only, so killed invocations drop out of the p95 (survivorship), and the 98% coverage check only adds a note. I could not check offline which status Cloudflare reports for a CPU kill, so the literal may never match.
+- Suggested fix: FAIL on any non-success request count; NEEDS PM when coverage is under 98%. The runner's warnings (including `rejected` calls) are also not saved in the run file, so `analyze.ts` cannot enforce them; save them and fail the analysis when present.
+
+### DEF-017: AC13 gate can PASS on too few calls or on a subset of the scenarios
+- Story: TID-012 (AC13), `apps/worker/bench/analysis.ts`
+- Severity: S3. Owner: SE.
+- Status: Open
+- Found by: `apps/worker/test/bench-gate.test.ts` > "fewer than 200 measured calls cannot PASS..." and "overall is not PASS with no gated rows..." (`it.fails`)
+- Expected: AC13 requires at least 200 calls per fixture and all 8 gated scenarios.
+- Actual: `evaluate` ignores `window.calls` (5 calls can PASS, for example `--runs 5`), and `overall` returns PASS for an empty list or for one row (`[].every(...)` is true; the existing test even asserts `overall([rowPass]) === 'PASS'`). The engineer's suggested `--only changed:rss-typical` run would print "Overall: PASS".
+- Suggested fix: require `calls >= 200` in measure windows, and have `overall` check that all 8 gated scenario ids are present.
+
+
+
 ## Closed
 
 ### DEF-011: Stripping HTML tags from plain-text fields in one pass re-forms a tag

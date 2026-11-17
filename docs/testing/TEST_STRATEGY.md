@@ -267,3 +267,26 @@ comment and no script or style body survives in `title`, `author` or `summary`. 
 `.github/workflows/ci.yml`: `npm ci`, typecheck, lint, `npm test`, `npm run build`, Playwright browser
 install, `npm run test:e2e`, `npm audit --audit-level=high`. The Playwright report and traces upload as an
 artifact when a step fails.
+
+## TID-012 traceability (background refresh)
+
+Files: `apps/worker/test/dispatcher.test.ts`, `refresh-feed.test.ts` (engineer), `refresh-adversarial.test.ts`,
+`bench-gate.test.ts` (tester), `bench.test.ts`, `apps/worker/src/refresh/backoff.test.ts`.
+
+| AC | Test (file > name) | Status |
+| --- | --- | --- |
+| 1 | dispatcher > lease: "AC1: 50 due feeds...", "AC1: two concurrent dispatcher runs lease 40 distinct feeds"; adversarial > "a lease that expires mid-flight..." | pass |
+| 2, 3 | refresh-feed > unchanged content (AC2, AC3) | pass |
+| 4 | refresh-feed > success path (AC4) | pass |
+| 5 to 8 | refresh-feed > failures and backoff; backoff.test.ts; adversarial > Retry-After table | pass |
+| 9 | refresh-feed > redirects (AC9); adversarial > redirect loop, two feeds to one target | pass |
+| 10 | dispatcher > a callee that rejects (AC10) | pass |
+| 11 | dispatcher AC11; refresh-feed > unsubscribed feeds | pass |
+| 12 | dispatcher > real fan-out through ctx.exports (logic); manual `/cdn-cgi/local/scheduled` check not run | pass (logic) |
+| 13 | bench.test.ts (harness dry run); deployed gate not run; bench-gate.test.ts (DEF-016, DEF-017) | pending deployment |
+| 14 | refresh-feed > AC14 (two tests) | pass |
+| 15 | refresh-feed > no oracle (AC15); adversarial > "last_error_code is always from the fixed set" | pass |
+| 16 | dispatcher > FeedRefresher config guard (AC16) | pass |
+
+Tests marked `it.fails` (DEF-014, DEF-016, DEF-017) pass while the defect exists and error once it is fixed;
+the fix removes the marker without changing the assertion.
