@@ -281,6 +281,14 @@ describe('AC5: rename a feed', () => {
   });
 });
 
+describe('UX review: a feed row is announced with its folder and health', () => {
+  it('describes the options button with the folder and any problem', async () => {
+    await ready();
+    const button = screen.getByRole('button', { name: 'alpha news, options' });
+    expect(button).toHaveAccessibleDescription(/No folder|Tech/);
+  });
+});
+
 describe('AC6: delete a folder', () => {
   it('asks first with the feed count, then the folder goes and its feeds stay at the top level', async () => {
     const user = userEvent.setup();

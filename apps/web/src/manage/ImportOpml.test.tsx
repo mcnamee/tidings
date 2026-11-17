@@ -201,7 +201,7 @@ describe('AC5: importing the same file again', () => {
     await choose(user, fixture());
     expect(await screen.findByText('250 already subscribed')).toBeInTheDocument();
     expect(screen.getByText('Everything in this file is already in Tidings.')).toBeInTheDocument();
-    const button = screen.getByRole('button', { name: 'Import 0 feeds' });
+    const button = screen.getByRole('button', { name: 'Nothing new to import' });
     expect(button).toHaveAttribute('aria-disabled', 'true');
     await user.click(button);
     expect(posts()).toHaveLength(0);

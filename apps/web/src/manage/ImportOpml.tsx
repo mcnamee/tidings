@@ -258,7 +258,7 @@ export function ImportOpml() {
                 })
               }
             >
-              {`Import ${plural(n, 'feed')}`}
+              {n === 0 ? 'Nothing new to import' : `Import ${plural(n, 'feed')}`}
             </PrimaryButton>
             {!online && (
               <p
@@ -305,7 +305,7 @@ export function ImportOpml() {
               Try again
             </PrimaryButton>
             <Link to="/manage" className={SECONDARY}>
-              Leave
+              Back to Manage
             </Link>
           </div>
         )}

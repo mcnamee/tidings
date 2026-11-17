@@ -1,7 +1,7 @@
 import { useEffect, useLayoutEffect, useRef, useState, type ReactNode } from 'react';
 import { Link, useLocation, useNavigationType, useSearchParams } from 'react-router';
 import { useQueryClient } from '@tanstack/react-query';
-import { CheckCheck, Filter, Loader2, RefreshCw } from 'lucide-react';
+import { Check, CheckCheck, Filter, Loader2, RefreshCw } from 'lucide-react';
 import {
   MARK_ALL_CONFIRM_OVER,
   type EntryListState,
@@ -292,7 +292,11 @@ export function ArticleList({ view, id }: { view: EntryListView; id: string | nu
           onClick={() => setState(state === 'unread' ? 'all' : 'unread')}
           className="inline-flex min-h-11 items-center gap-2 rounded-md px-3 text-base font-medium text-fg active:bg-sunken aria-pressed:bg-accent-subtle aria-pressed:text-accent-subtle-fg"
         >
-          <Filter aria-hidden="true" className="size-5" strokeWidth={1.75} />
+          {state === 'unread' ? (
+            <Check aria-hidden="true" className="size-5" strokeWidth={2.25} />
+          ) : (
+            <Filter aria-hidden="true" className="size-5" strokeWidth={1.75} />
+          )}
           Unread only
         </button>
       </HeaderActions>

@@ -173,15 +173,19 @@ export function Manage() {
                   <button
                     type="button"
                     aria-label={`${s.title}, options`}
+                    aria-describedby={`${s.id}-folder${note ? ` ${s.id}-note` : ''}`}
                     onClick={() => setModal({ kind: 'feed', sub: s })}
                     className="flex min-h-14 w-full flex-col items-start justify-center px-3 py-2 text-left active:bg-sunken"
                   >
                     <span className="w-full truncate text-base font-medium text-fg">{s.title}</span>
-                    <span className="w-full truncate text-sm text-fg-muted">
+                    <span id={`${s.id}-folder`} className="w-full truncate text-sm text-fg-muted">
                       {s.folderId ? (folderName.get(s.folderId) ?? 'No folder') : 'No folder'}
                     </span>
                     {note && (
-                      <span className="mt-0.5 flex w-full items-start gap-1.5 text-sm text-warning-subtle-fg">
+                      <span
+                        id={`${s.id}-note`}
+                        className="mt-0.5 flex w-full items-start gap-1.5 text-sm text-warning-subtle-fg"
+                      >
                         <TriangleAlert aria-hidden="true" className="mt-0.5 size-4 shrink-0" />
                         <span>{note}</span>
                       </span>
