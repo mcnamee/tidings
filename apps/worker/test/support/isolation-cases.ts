@@ -19,4 +19,24 @@ export const ISOLATION_CASES: Readonly<Record<string, IsolationCase>> = {
     file: 'subscribe.test.ts',
     test: 'B posting A’s folderId gets 404 not_found, and nothing is created or changed',
   },
+  'PATCH /api/folders/:id path:id': {
+    file: 'folders.test.ts',
+    test: 'B renaming A’s folder gets 404 not_found, and A’s folder is unchanged',
+  },
+  'DELETE /api/folders/:id path:id': {
+    file: 'folders.test.ts',
+    test: 'B deleting A’s folder gets 404 not_found, and A’s folder and subscriptions are unchanged',
+  },
+  'PATCH /api/subscriptions/:id path:id': {
+    file: 'folders.test.ts',
+    test: 'B editing A’s subscription gets 404 not_found, and A’s subscription is unchanged',
+  },
+  'PATCH /api/subscriptions/:id body:folderId': {
+    file: 'folders.test.ts',
+    test: 'B moving their own subscription into A’s folder gets 404 not_found, and nothing changes',
+  },
+  'DELETE /api/subscriptions/:id path:id': {
+    file: 'folders.test.ts',
+    test: 'B unsubscribing with A’s subscription ID gets 404 not_found, and A’s subscription and entries are unchanged',
+  },
 };

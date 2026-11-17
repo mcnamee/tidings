@@ -56,8 +56,8 @@ const err = (json: unknown) => (json as ApiError).error;
 const ok = (json: unknown) => json as SubscribeResponse;
 const page = (links: string[], extra = '') =>
   `<!doctype html><html><head>${links.join('')}</head><body>${extra}</body></html>`;
-const link = (href: string, type = 'application/rss+xml') =>
-  `<link rel="alternate" type="${type}" href="${href}">`;
+const link = (href: string, type = 'application/rss+xml', title = '') =>
+  `<link rel="alternate" type="${type}" href="${href}"${title ? ` title="${title}"` : ''}>`;
 
 beforeEach(async () => {
   await resetData();
@@ -185,23 +185,49 @@ describe('SSRF spellings', () => {
     expect(fx.fake.calls.map((c) => c.url)).toEqual([SITE]);
   });
 
-  // DEF-030: discovery hands the single discovered URL straight to createSubscription without the
-  // address check, so a private feed row and subscription are created (the refresher then refuses
-  // to fetch it, so no request leaves). Remove `.fails` when it is fixed.
-  it.fails(
-    'a page whose only feed link points at a private address must not create a subscription',
-    async () => {
-      fx.fake.route(SITE, {
-        headers: HTML,
-        body: page([link('http://169.254.169.254/latest/meta-data')]),
-      });
-      const { res, json } = await subscribe('u1', { url: SITE });
-      expect(res.status).toBe(422);
-      expect(err(json).code).toBe('blocked_address');
-      expect(await count('feeds')).toBe(0);
-      expect(await count('subscriptions')).toBe(0);
-    },
-  );
+  // DEF-030 (fixed): discovered URLs go through canonicalisation and the address check.
+  it('a page whose only feed link points at a private address must not create a subscription', async () => {
+    fx.fake.route(SITE, {
+      headers: HTML,
+      body: page([link('http://169.254.169.254/latest/meta-data')]),
+    });
+    const { res, json } = await subscribe('u1', { url: SITE });
+    expect(res.status).toBe(422);
+    expect(err(json).code).toBe('blocked_address');
+    expect(await count('feeds')).toBe(0);
+    expect(await count('subscriptions')).toBe(0);
+  });
+
+  it('private candidates are dropped from a feed_choice_required list, public ones stay (DEF-030)', async () => {
+    fx.fake.route(SITE, {
+      headers: HTML,
+      body: page([
+        link('http://127.0.0.1/a.xml', 'application/rss+xml', 'Private'),
+        link('https://blog.example.com/b.xml', 'application/rss+xml', 'B'),
+        link('https://blog.example.com/c.xml', 'application/atom+xml', 'C'),
+      ]),
+    });
+    const { res, json } = await subscribe('u1', { url: SITE });
+    expect(res.status).toBe(422);
+    expect(err(json).code).toBe('feed_choice_required');
+    const urls = (err(json).details as { candidates: { url: string }[] }).candidates.map(
+      (c) => c.url,
+    );
+    expect(urls).toEqual(['https://blog.example.com/b.xml', 'https://blog.example.com/c.xml']);
+    expect(await count('feeds')).toBe(0);
+  });
+
+  it('one private and one public link subscribes to the public one only', async () => {
+    fx.fake.route(SITE, {
+      headers: HTML,
+      body: page([link('http://10.0.0.5/a.xml'), link('https://blog.example.com/b.xml')]),
+    });
+    fx.fake.serveFeed('https://blog.example.com/b.xml', rss(items(1, 2)));
+    const { res } = await subscribe('u1', { url: SITE });
+    expect(res.status).toBe(201);
+    expect(await count('feeds', 'url = ?', 'https://blog.example.com/b.xml')).toBe(1);
+    expect(await count('feeds')).toBe(1);
+  });
 
   it('a <base href> pointing at a private host does not redirect discovery: the relative link resolves against the page', async () => {
     fx.fake.route(SITE, {

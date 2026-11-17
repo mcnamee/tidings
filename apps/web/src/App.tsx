@@ -4,6 +4,7 @@ import { useQueryClient } from '@tanstack/react-query';
 import { setUnauthenticatedHandler } from './api';
 import { Login } from './auth/Login';
 import { AddFeed } from './manage/AddFeed';
+import { Manage } from './manage/Manage';
 import { Setup } from './auth/Setup';
 import { BannerSlot } from './auth/ui';
 import { readLastList } from './lib/lastList';
@@ -144,6 +145,7 @@ function SettingsPlaceholder() {
 
 function screenFor(path: string) {
   if (path === '/settings') return <SettingsPlaceholder />;
+  if (path === '/manage') return <Manage />;
   if (path === '/manage/add') return <AddFeed />;
   return <Placeholder />;
 }

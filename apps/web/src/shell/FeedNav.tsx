@@ -1,5 +1,6 @@
 import { Link, NavLink } from 'react-router';
 import { Inbox, ListChecks, Plus, Settings } from 'lucide-react';
+import { FolderTree, useHasTree } from './FolderTree';
 
 const ROW =
   'flex min-h-11 items-center gap-3 border-l-[3px] px-4 text-base font-medium text-fg active:bg-sunken';
@@ -12,6 +13,7 @@ const IDLE = 'border-transparent';
  * the empty state. `replace` makes destination links replace the drawer's history entry.
  */
 export function FeedNav({ replace = false }: { replace?: boolean }) {
+  const hasTree = useHasTree();
   return (
     <nav aria-label="Feeds and folders" className="flex min-h-0 flex-1 flex-col">
       <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain py-2">
@@ -23,26 +25,29 @@ export function FeedNav({ replace = false }: { replace?: boolean }) {
           <Inbox aria-hidden="true" className="size-5 shrink-0" strokeWidth={1.75} />
           <span className="min-w-0 flex-1 truncate">All articles</span>
         </NavLink>
-        <div className="px-4 py-4">
-          <h2 className="text-base font-semibold text-fg">No feeds yet</h2>
-          <p className="mt-1 text-sm text-fg-muted">Add a feed or import your OPML file.</p>
-          <p className="mt-2 flex flex-col text-base">
-            <Link
-              to="/manage/add"
-              replace={replace}
-              className="inline-flex min-h-11 items-center text-accent underline"
-            >
-              Add a feed
-            </Link>
-            <Link
-              to="/manage/import"
-              replace={replace}
-              className="inline-flex min-h-11 items-center text-accent underline"
-            >
-              Import from Inoreader
-            </Link>
-          </p>
-        </div>
+        <FolderTree replace={replace} />
+        {!hasTree && (
+          <div className="px-4 py-4">
+            <h2 className="text-base font-semibold text-fg">No feeds yet</h2>
+            <p className="mt-1 text-sm text-fg-muted">Add a feed or import your OPML file.</p>
+            <p className="mt-2 flex flex-col text-base">
+              <Link
+                to="/manage/add"
+                replace={replace}
+                className="inline-flex min-h-11 items-center text-accent underline"
+              >
+                Add a feed
+              </Link>
+              <Link
+                to="/manage/import"
+                replace={replace}
+                className="inline-flex min-h-11 items-center text-accent underline"
+              >
+                Import from Inoreader
+              </Link>
+            </p>
+          </div>
+        )}
       </div>
       <div className="border-t border-line p-3 pb-[max(0.75rem,env(safe-area-inset-bottom))]">
         <Link

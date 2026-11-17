@@ -4,14 +4,16 @@
  * to the caller's own rows.
  */
 import {
+  FOLDER_LIMIT,
   feedErrorMessage,
+  feedWarningMessage,
   isFeedErrorCode,
   type FeedState,
   type Folder,
   type Subscription,
 } from '@tidings/shared';
 import { PARKED_AT } from '../refresh/backoff';
-import { Db, sql, type Statement } from './client';
+import { Db, sql, type SqlValue, type Statement } from './client';
 import { toIso } from './ids';
 
 /** FR-SU-3. */
@@ -200,11 +202,13 @@ interface SubscriptionRow {
   last_attempt_at: number | null;
   last_error_code: string | null;
   next_fetch_at: number;
+  warning_code: string | null;
 }
 
 const SUBSCRIPTION_SELECT = `
   SELECT s.id, s.feed_id, s.folder_id, s.title_override, s.created_at, f.url, f.site_url, f.title,
-         f.state, f.last_success_at, f.last_attempt_at, f.last_error_code, f.next_fetch_at
+         f.state, f.last_success_at, f.last_attempt_at, f.last_error_code, f.next_fetch_at,
+         f.warning_code
     FROM subscriptions s JOIN feeds f ON f.id = s.feed_id`;
 
 function toSubscription(r: SubscriptionRow): Subscription {
@@ -225,7 +229,7 @@ function toSubscription(r: SubscriptionRow): Subscription {
       errorMessage: feedErrorMessage(errorCode),
       // A parked feed has no next fetch; the year-9999 sentinel is not a date to show.
       nextFetchAt: toIso(Math.min(r.next_fetch_at, PARKED_AT)),
-      warning: null,
+      warning: feedWarningMessage(r.warning_code),
     },
   };
 }
@@ -255,4 +259,132 @@ export async function getSubscription(
     sql(`${SUBSCRIPTION_SELECT} WHERE s.user_id = ? AND s.id = ?`, userId, subscriptionId),
   );
   return row ? { subscription: toSubscription(row), feedId: row.feed_id } : null;
+}
+
+// ── Folders (FR-FO-1 to FR-FO-5) ───────────────────────────────
+
+export type FolderWrite =
+  { ok: true; folder: Folder } | { ok: false; reason: 'conflict' | 'limit_reached' | 'not_found' };
+
+function isUniqueViolation(err: unknown): boolean {
+  if (!(err instanceof Error)) return false;
+  return /UNIQUE constraint failed/i.test(`${err.message} ${String(err.cause ?? '')}`);
+}
+
+/**
+ * Names are unique per user and case-insensitive: the `name` column is `COLLATE NOCASE` and
+ * `UNIQUE (user_id, name)` enforces it, so two racing creates cannot both win. The count guard is
+ * inside the `INSERT`, so the limit cannot be passed by a race either.
+ */
+export async function createFolder(
+  db: Db,
+  userId: string,
+  p: { id: string; name: string; now: number },
+): Promise<FolderWrite> {
+  try {
+    const meta = await db.run(
+      sql(
+        `INSERT INTO folders (id, user_id, name, created_at)
+         SELECT ?, ?, ?, ? WHERE (SELECT COUNT(*) FROM folders WHERE user_id = ?) < ?`,
+        p.id,
+        userId,
+        p.name,
+        p.now,
+        userId,
+        FOLDER_LIMIT,
+      ),
+    );
+    if (Number(meta.changes ?? 0) === 0) return { ok: false, reason: 'limit_reached' };
+  } catch (err) {
+    if (isUniqueViolation(err)) return { ok: false, reason: 'conflict' };
+    throw err;
+  }
+  return { ok: true, folder: { id: p.id, name: p.name } };
+}
+
+export async function renameFolder(
+  db: Db,
+  userId: string,
+  folderId: string,
+  name: string,
+): Promise<FolderWrite> {
+  try {
+    const meta = await db.run(
+      sql('UPDATE folders SET name = ? WHERE id = ? AND user_id = ?', name, folderId, userId),
+    );
+    if (Number(meta.changes ?? 0) === 0) return { ok: false, reason: 'not_found' };
+  } catch (err) {
+    if (isUniqueViolation(err)) return { ok: false, reason: 'conflict' };
+    throw err;
+  }
+  return { ok: true, folder: { id: folderId, name } };
+}
+
+/** FR-FO-3: the folder's subscriptions move to "no folder"; nothing is unsubscribed. */
+export async function deleteFolder(db: Db, userId: string, folderId: string): Promise<boolean> {
+  const results = await db.batch([
+    sql(
+      'UPDATE subscriptions SET folder_id = NULL WHERE user_id = ? AND folder_id = ?',
+      userId,
+      folderId,
+    ),
+    sql('DELETE FROM folders WHERE id = ? AND user_id = ?', folderId, userId),
+  ]);
+  return Number(results[1]?.meta.changes ?? 0) > 0;
+}
+
+// ── Subscription edit and unsubscribe (FR-SU-5, FR-SU-6) ───────
+
+/** Each field is left alone when undefined. A null title clears the custom title. */
+export async function updateSubscription(
+  db: Db,
+  userId: string,
+  subscriptionId: string,
+  p: { title?: string | null; folderId?: string | null },
+): Promise<boolean> {
+  const sets: string[] = [];
+  const params: SqlValue[] = [];
+  if (p.title !== undefined) {
+    sets.push('title_override = ?');
+    params.push(p.title);
+  }
+  if (p.folderId !== undefined) {
+    sets.push('folder_id = ?');
+    params.push(p.folderId);
+  }
+  if (sets.length === 0) return (await getSubscription(db, userId, subscriptionId)) !== null;
+  const meta = await db.run(
+    sql(
+      `UPDATE subscriptions SET ${sets.join(', ')} WHERE id = ? AND user_id = ?`,
+      ...params,
+      subscriptionId,
+      userId,
+    ),
+  );
+  return Number(meta.changes ?? 0) > 0;
+}
+
+/**
+ * One batch: delete the user's `user_entries` for the feed, delete the subscription, and park the
+ * feed when nobody follows it any more (spec 7.1). Returns false when the user has no such
+ * subscription.
+ */
+export async function deleteSubscription(
+  db: Db,
+  userId: string,
+  subscriptionId: string,
+): Promise<boolean> {
+  const found = await getSubscription(db, userId, subscriptionId);
+  if (!found) return false;
+  await db.batch([
+    sql('DELETE FROM user_entries WHERE user_id = ? AND feed_id = ?', userId, found.feedId),
+    sql('DELETE FROM subscriptions WHERE id = ? AND user_id = ?', subscriptionId, userId),
+    sql(
+      `UPDATE feeds SET next_fetch_at = ?
+        WHERE id = ? AND NOT EXISTS (SELECT 1 FROM subscriptions WHERE feed_id = feeds.id)`,
+      PARKED_AT,
+      found.feedId,
+    ),
+  ]);
+  return true;
 }

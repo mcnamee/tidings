@@ -35,7 +35,7 @@ Entry template:
 ### DEF-030: A feed link discovered on a page skips the address check, so a private-address feed is subscribed
 - Story: TID-013 (AC6, spec 10.6)
 - Severity: S3. Owner: SE.
-- Status: Open
+- Status: Fixed (pending tester close). `resolve.ts` canonicalises and runs `checkUrl` on every discovered URL; a private one returns `blocked` and is dropped from a `feed_choice_required` list. `it.fails` flipped to a passing test.
 - Found by: `apps/worker/test/subscribe-adversarial.test.ts` > "a page whose only feed link points at a private address must not create a subscription" (`it.fails`).
 - Steps to reproduce: `POST /api/subscriptions` with a public page URL whose only `<link rel="alternate" type="application/rss+xml">` has `href="http://169.254.169.254/latest/meta-data"` (or `http://127.0.0.1/`).
 - Expected: `422 blocked_address`, no feed row and no subscription (AC6: "a private-address URL ... nothing is created"). For `feed_choice_required`, candidates should not carry such URLs either.

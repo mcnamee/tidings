@@ -208,6 +208,21 @@ export interface AlreadySubscribedDetails {
   subscriptionId: string;
 }
 
+/** FR-FO-1 and FR-FO-5. */
+export const FOLDER_NAME_MAX = 64;
+export const FOLDER_LIMIT = 200;
+
+/** `POST` and `PATCH /api/folders` (spec 8.4). */
+export interface FolderRequest {
+  name: string;
+}
+
+/** `PATCH /api/subscriptions/:id`. Omitted fields are unchanged; a null or blank title clears it. */
+export interface UpdateSubscriptionRequest {
+  title?: string | null;
+  folderId?: string | null;
+}
+
 export interface FoldersResponse {
   items: Folder[];
 }
