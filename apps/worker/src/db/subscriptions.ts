@@ -72,6 +72,10 @@ export interface FeedRow {
   fetch_interval_s: number;
   last_success_at: number | null;
   next_fetch_at: number;
+  recent_keys: string | null;
+  new_entries_day: number | null;
+  new_entries_count: number;
+  warning_code: string | null;
 }
 
 /** A feed by canonical URL. Shared data (no `user_id`): callers only learn whether it exists. */
@@ -79,7 +83,8 @@ export async function findFeedByUrl(db: Db, url: string): Promise<FeedRow | null
   return db.first<FeedRow>(
     sql(
       `SELECT id, url, etag, last_modified, body_hash, error_count, state, fetch_interval_s,
-              last_success_at, next_fetch_at
+              last_success_at, next_fetch_at, recent_keys, new_entries_day, new_entries_count,
+              warning_code
          FROM feeds WHERE url = ?`,
       url,
     ),

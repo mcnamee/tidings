@@ -82,6 +82,10 @@ function jobFor(feed: FeedRow): RefreshJob {
     state: feed.state,
     fetchIntervalS: feed.fetch_interval_s,
     lastSuccessAt: feed.last_success_at,
+    recentKeys: feed.recent_keys,
+    newEntriesDay: feed.new_entries_day,
+    newEntriesCount: feed.new_entries_count,
+    warningCode: feed.warning_code,
   };
 }
 
