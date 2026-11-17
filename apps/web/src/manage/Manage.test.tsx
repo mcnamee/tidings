@@ -298,6 +298,13 @@ describe('AC6: delete a folder', () => {
     expect(calls('DELETE', '/api/subscriptions')).toHaveLength(0);
   });
 
+  it('opens with Cancel focused, so Enter cannot delete by accident (UX review)', async () => {
+    const user = userEvent.setup();
+    await ready();
+    await user.click(screen.getByRole('button', { name: 'Delete Tech' }));
+    expect(screen.getByRole('button', { name: 'Cancel' })).toHaveFocus();
+  });
+
   it('Cancel deletes nothing', async () => {
     const user = userEvent.setup();
     await ready();

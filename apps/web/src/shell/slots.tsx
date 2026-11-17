@@ -43,7 +43,9 @@ export function BottomBar({ children }: { children: ReactNode }) {
   }, [bottomBar]);
   return bottomBar
     ? createPortal(
-        <div className="mx-auto flex min-h-14 max-w-2xl items-center gap-2">{children}</div>,
+        <div className="mx-auto flex min-h-14 max-w-2xl flex-wrap items-center gap-2">
+          {children}
+        </div>,
         bottomBar,
       )
     : null;

@@ -13,7 +13,11 @@ import { BottomBar, HeaderActions } from '../shell/slots';
 import { ArticleContent } from './ArticleContent';
 
 const BAR_BUTTON =
-  'inline-flex min-h-11 min-w-0 flex-1 items-center justify-center gap-1 rounded-md px-2 text-base font-medium text-fg active:bg-sunken disabled:text-fg-muted';
+  'inline-flex min-h-11 items-center justify-center gap-1 rounded-md px-2 text-base font-medium text-fg active:bg-sunken disabled:text-fg-muted';
+// Previous and Next show only their chevron below 26rem (416 px, and at any large text size, since
+// rem grows with it), so the three actions fit on one row. The words stay as the accessible name.
+const BAR_STEP = `${BAR_BUTTON} min-w-14 flex-none min-[26rem]:flex-1`;
+const BAR_STEP_LABEL = 'max-[26rem]:sr-only';
 
 const DATE = new Intl.DateTimeFormat(undefined, { dateStyle: 'medium', timeStyle: 'short' });
 
@@ -191,16 +195,16 @@ function ArticleScreen({
           type="button"
           onClick={() => onStep(-1)}
           disabled={!hasPrev || busy}
-          className={BAR_BUTTON}
+          className={BAR_STEP}
         >
           <ChevronLeft aria-hidden="true" className="size-5 shrink-0" strokeWidth={1.75} />
-          Previous
+          <span className={BAR_STEP_LABEL}>Previous</span>
         </button>
         <button
           type="button"
           onClick={() => void setEntryRead(client, entry, !entry.isRead)}
           disabled={!loaded}
-          className={BAR_BUTTON}
+          className={`${BAR_BUTTON} flex-[2] text-center`}
         >
           {entry.isRead ? 'Mark as unread' : 'Mark as read'}
         </button>
@@ -208,9 +212,9 @@ function ArticleScreen({
           type="button"
           onClick={() => onStep(1)}
           disabled={!hasNext || busy}
-          className={BAR_BUTTON}
+          className={BAR_STEP}
         >
-          Next
+          <span className={BAR_STEP_LABEL}>Next</span>
           {busy ? (
             <Loader2 aria-hidden="true" className="size-5 shrink-0 animate-spin" />
           ) : (

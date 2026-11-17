@@ -22,7 +22,10 @@ export function Sheet({
 
   useEffect(() => {
     const opener = document.activeElement instanceof HTMLElement ? document.activeElement : null;
-    const first = panel.current?.querySelector<HTMLElement>(FOCUSABLE);
+    // A confirm sheet marks its safe choice with data-autofocus so Enter can't delete by accident.
+    const first =
+      panel.current?.querySelector<HTMLElement>('[data-autofocus]') ??
+      panel.current?.querySelector<HTMLElement>(FOCUSABLE);
     (first ?? panel.current)?.focus();
     return () => {
       if (opener?.isConnected) opener.focus();

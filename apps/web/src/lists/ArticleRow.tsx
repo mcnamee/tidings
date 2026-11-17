@@ -59,7 +59,7 @@ export function ArticleRow({
             loading="lazy"
             decoding="async"
             referrerPolicy="no-referrer"
-            className="size-20 shrink-0 rounded-md bg-sunken object-cover"
+            className="size-[80px] shrink-0 rounded-md bg-sunken object-cover"
           />
         )}
       </Link>

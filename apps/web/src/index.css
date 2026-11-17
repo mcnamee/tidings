@@ -140,7 +140,7 @@
     font-size: var(--article-size);
     line-height: 1.65;
     max-inline-size: 65ch; /* ch follows the font size, so the measure holds at S, M, L */
-    margin-inline: auto;
+    margin-inline: 0;
     color: var(--c-text);
     overflow-wrap: anywhere; /* long URLs never push the page sideways */
     hyphens: auto;

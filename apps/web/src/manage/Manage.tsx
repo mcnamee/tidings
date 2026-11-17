@@ -124,13 +124,13 @@ export function Manage() {
         ) : (
           <ul className="mt-2 divide-y divide-line rounded-md border border-line bg-surface">
             {folderList.map((f) => (
-              <li key={f.id} className="flex items-center gap-1 pl-3">
+              <li key={f.id} className="flex flex-wrap items-center gap-1 pl-3">
                 <FolderIcon
                   aria-hidden="true"
                   className="size-5 shrink-0 text-fg-muted"
                   strokeWidth={1.75}
                 />
-                <div className="min-w-0 flex-1 py-2 pl-2">
+                <div className="min-w-32 flex-1 py-2 pl-2">
                   <p className="truncate text-base font-medium text-fg">{f.name}</p>
                   <p className="text-sm text-fg-muted">
                     {plural((groups.get(f.id) ?? []).length, 'feed', 'feeds')}
@@ -305,7 +305,7 @@ export function Manage() {
             >
               Delete folder
             </button>
-            <button type="button" className={SHEET_BUTTON} onClick={close}>
+            <button type="button" data-autofocus className={SHEET_BUTTON} onClick={close}>
               Cancel
             </button>
           </div>
@@ -326,7 +326,7 @@ export function Manage() {
             >
               Unsubscribe
             </button>
-            <button type="button" className={SHEET_BUTTON} onClick={close}>
+            <button type="button" data-autofocus className={SHEET_BUTTON} onClick={close}>
               Cancel
             </button>
           </div>
