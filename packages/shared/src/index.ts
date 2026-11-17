@@ -137,3 +137,10 @@ export interface LoginVerifyRequest {
 export interface LoginVerifyResponse {
   user: User;
 }
+
+export {
+  feedErrorMessage,
+  httpErrorCode,
+  isFeedErrorCode,
+  type FeedErrorCode,
+} from './feed-errors';

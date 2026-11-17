@@ -1,0 +1,9 @@
+// AC13 fixture origin: serves the generated feeds over HTTPS from a separate throwaway Worker.
+// Runbook: docs/BACKLOG.md, TID-012, "AC13 runbook".
+{
+  "name": "tidings-bench-origin",
+  "main": "origin-worker.ts",
+  "compatibility_date": "2026-11-16",
+  "workers_dev": true,
+  "observability": { "enabled": false },
+}

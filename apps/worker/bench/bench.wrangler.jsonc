@@ -1,0 +1,27 @@
+// AC13 benchmark callee: the production FeedRefresher as its own throwaway Worker.
+// Never deploy this as `tidings`. Runbook: docs/BACKLOG.md, TID-012, "AC13 runbook".
+{
+  "name": "tidings-bench",
+  "main": "bench-worker.ts",
+  "compatibility_date": "2026-11-16",
+  // The origin is another workers.dev Worker on this account; without this flag a Worker's
+  // fetch() to it can be refused (error 1042). Benchmark only.
+  "compatibility_flags": ["global_fetch_strictly_public"],
+  "workers_dev": true,
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "tidings-bench",
+      // Replace with the id printed by `wrangler d1 create tidings-bench` (see the runbook).
+      "database_id": "REPLACE_WITH_DATABASE_ID",
+      "migrations_dir": "../migrations",
+    },
+  ],
+  "vars": {
+    // Not the real app: only used in the User-Agent and the own-hostname block.
+    "APP_ORIGIN": "https://tidings-bench.example.com",
+    "RP_ID": "tidings-bench.example.com",
+    "RP_NAME": "Tidings benchmark",
+  },
+  "observability": { "enabled": false },
+}

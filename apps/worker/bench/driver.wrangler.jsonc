@@ -1,0 +1,21 @@
+// AC13 benchmark driver: calls tidings-bench's FeedRefresher through a service binding.
+// Deploy it AFTER tidings-bench. Runbook: docs/BACKLOG.md, TID-012, "AC13 runbook".
+{
+  "name": "tidings-bench-driver",
+  "main": "driver-worker.ts",
+  "compatibility_date": "2026-11-16",
+  "workers_dev": true,
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "tidings-bench",
+      // The same id as in bench.wrangler.jsonc.
+      "database_id": "REPLACE_WITH_DATABASE_ID",
+    },
+  ],
+  "services": [
+    { "binding": "REFRESHER", "service": "tidings-bench", "entrypoint": "FeedRefresher" },
+  ],
+  // BENCH_TOKEN is passed at deploy time: --var BENCH_TOKEN:<random> (never committed).
+  "observability": { "enabled": false },
+}

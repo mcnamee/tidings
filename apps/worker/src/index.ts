@@ -1,21 +1,14 @@
 import type { Env } from '../env';
 import { createApp } from './api/app';
-import { resolveFetchPolicy } from './fetch';
+import { handleScheduled } from './refresh/scheduled';
+
+// TID-012: the per-feed RPC entrypoint must be a named export of the main module (ctx.exports).
+export { FeedRefresher } from './refresh/entrypoint';
 
 const app = createApp();
 
 export default {
   fetch: app.fetch,
-  // Empty for now; the refresh dispatcher and maintenance arrive with TID-012 / TID-021.
-  scheduled(controller: ScheduledController, env: Env): void {
-    try {
-      resolveFetchPolicy(env);
-    } catch (err) {
-      console.error(`configuration error: ${String(err)}`);
-      return;
-    }
-    console.log(
-      `scheduled: cron=${controller.cron} at=${new Date(controller.scheduledTime).toISOString()}`,
-    );
-  },
+  // TID-012: refresh dispatcher. The hourly maintenance cron arrives with TID-021.
+  scheduled: (controller, env, ctx) => handleScheduled(controller, env, ctx),
 } satisfies ExportedHandler<Env>;
