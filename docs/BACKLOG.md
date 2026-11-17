@@ -1,6 +1,6 @@
 # Tidings Backlog
 
-Owner: product-manager. Last updated 2026-11-17 (reorganised into releases: MVP, R2, R3; ADR 0014).
+Owner: product-manager. Last updated 2026-11-17 (MVP feature stories accepted, ADR 0015; reorganised into releases: MVP, R2, R3, ADR 0014).
 
 - **Releases (ADR 0014):** MVP gets the owner reading their feeds on their phone as soon as possible; R2 and R3 follow over the next couple of weeks. Old "M1" stories are split across MVP, R2 and R3; M2 and M3 are unchanged.
 - Stories are in priority order within each release. Build top to bottom unless dependencies allow parallel work.
@@ -25,24 +25,29 @@ Owner: product-manager. Last updated 2026-11-17 (reorganised into releases: MVP,
 | TID-010 | SSRF-safe fetcher | MVP | Done | TID-004 |
 | TID-011 | Feed parser and normalisation | MVP | Done | TID-002 |
 | TID-012 | Background refresh pipeline | MVP | Done (AC13 moved to TID-039) | TID-003, 010, 011 |
-| TID-013 | Subscribe to a feed | MVP | Ready (**next**) | TID-008, 012 |
-| TID-046 | GUID churn guard and per-feed daily cap (DEF-013) | MVP | Ready (**next**, parallel with TID-013) | TID-012 |
-| TID-014 | Folders and subscription management | MVP | In verification (AC9 UX review deferred to the end-of-MVP pass) | TID-013 |
-| TID-018 | Article lists, navigation and unread counts | MVP | Blocked | TID-013 |
-| TID-016 | Import subscriptions from OPML | MVP | Blocked | TID-014, 046 |
-| TID-019 | Article view and read state | MVP | Blocked | TID-018 |
-| TID-020 | Mark all as read | MVP | Blocked | TID-018 |
-| TID-024 | Production deployment and runbook (MVP scope, ADR 0014) | MVP | Blocked | all MVP stories |
+| TID-013 | Subscribe to a feed | MVP | Done (ADR 0015) | TID-008, 012 |
+| TID-046 | GUID churn guard and per-feed daily cap (DEF-013) | MVP | Done (ADR 0015) | TID-012 |
+| TID-014 | Folders and subscription management | MVP | Done (ADR 0015) | TID-013 |
+| TID-018 | Article lists, navigation and unread counts | MVP | Done with conditions (AC5 folder bound moves to TID-049, DEF-050; ADR 0015) | TID-013 |
+| TID-016 | Import subscriptions from OPML | MVP | Done (ADR 0015) | TID-014, 046 |
+| TID-019 | Article view and read state | MVP | Done (ADR 0015) | TID-018 |
+| TID-020 | Mark all as read | MVP | Done (ADR 0015) | TID-018 |
+| TID-024 | Production deployment and runbook (MVP scope, ADR 0014) | MVP | Ready (**next**; needs the owner's approval and setup) | all MVP stories |
 | TID-009 | Sign in with a recovery code | R2 | Ready | TID-008 |
-| TID-017 | Export subscriptions as OPML | R2 | Blocked | TID-014 |
-| TID-015 | Feed health and "Refresh now" | R2 | Blocked | TID-014 |
+| TID-017 | Export subscriptions as OPML | R2 | Ready | TID-014 |
+| TID-015 | Feed health and "Refresh now" (now includes problem feeds first in Manage) | R2 | Ready | TID-014 |
 | TID-022 | Settings: theme, reading, account | R2 | Blocked | TID-008, 009 |
+| TID-048 | Mark read or unread from a list row (FR-RD-8) | R2 | Ready | TID-019 |
+| TID-049 | Folder view read cost (DEF-050) | R2 | Ready (default chosen; owner may overturn, spec Q13) | TID-018 |
+| TID-050 | Tell me which OPML folders weren't created | R2 | Ready | TID-016 |
 | TID-021 | Retention and maintenance job | R2 | Ready | TID-012 |
 | TID-047 | Post-launch budget and CPU check (TID-024 AC3, AC4, AC6, AC7; replaces TID-039 as a gate) | R2 | Blocked | TID-024 |
-| TID-023 | Persisted client cache and installable PWA shell | R3 | Blocked | TID-018, 019 |
+| TID-023 | Persisted client cache and installable PWA shell | R3 | Ready | TID-018, 019 |
 | TID-036 | SSRF guard hardening (TID-010 follow-up) | R3 | Ready | TID-010 |
 | TID-037 | Design-token drift and contrast check in CI (TID-006 follow-up) | R3 | Ready | TID-006 |
-| TID-038 | E2E harness stability: host sleep and shared local state | R3 | Ready | TID-005 |
+| TID-038 | E2E harness stability: host sleep and shared local state (now includes DEF-090) | R3 | Ready | TID-005 |
+| TID-051 | Mark all as read skips late arrivals with old dates | R3 | Ready | TID-020 |
+| TID-052 | Focus the screen title on first load of a deep link | R3 | Ready | TID-016 |
 | TID-039 | Deployed CPU gate (TID-012 AC13) | Later | Deferred (ADR 0014; run only if TID-047 shows CPU trouble) | TID-012 |
 | TID-025 … TID-035 | Comfort features | M2 | Later | R3 |
 | TID-040 … TID-045 | Later features | M3 | Later | M2 |
@@ -488,6 +493,7 @@ Known risks: (a) a Worker fetching another workers.dev Worker on the same accoun
 - **Agents:** UX, SE, QA, PM
 - **Depends on:** TID-008, TID-012
 - **Spec:** FR-SU-1 to FR-SU-4, FR-SU-7, FR-SU-8, §7.1, §7.5, §8.4, §10.8, ADR 0012, ADR 0013
+- **Status:** Done (accepted 2026-11-17, ADR 0015). Rulings: an unreachable or mistyped address becomes a `failing` subscription (AC5 as written); the double origin fetch on subscribe is accepted.
 - **Status:** Ready (merge `tid-008-verification` and `tid-012-gate-closure` to `main` first)
 
 **User story:** As the owner, I want to paste a feed or website URL and see its articles straight away, so that adding a source feels instant.
@@ -514,6 +520,7 @@ Known risks: (a) a Worker fetching another workers.dev Worker on the same accoun
 - **Agents:** UX, SE, QA, PM
 - **Depends on:** TID-013
 - **Spec:** FR-FO-1 to FR-FO-5, FR-SU-5, FR-SU-6, §8.4
+- **Status:** Done (accepted 2026-11-17, ADR 0015). AC9 met by the end-of-MVP UX review (`docs/ux/reviews/mvp-review.md`). DEF-040 won't fix (ASCII-only case folding; AC2 reads as ASCII case).
 
 **User story:** As the owner, I want to group feeds into folders and rename, move or remove them, so that I can browse by topic like I do in Inoreader.
 
@@ -547,6 +554,7 @@ Known risks: (a) a Worker fetching another workers.dev Worker on the same accoun
 4. Given I tap "Refresh now" again within 5 minutes, then `429 rate_limited` and the button shows when it'll be available.
 5. *(Added 2026-11-17, §10.6 rule 8, FR-FH-1.)* Given each `last_error_code`, then Manage and the `refresh` response show only the message from the fixed table (HTTP errors as "The server returned {status} {reason}" with the reason from our own table, never upstream `statusText`). A test asserts that every code in the set has a message and that unknown codes fall back to "Something went wrong fetching this feed".
 6. *(Added 2026-11-17, ADR 0013 decision 6.)* Given the engineer's draft table in `packages/shared/src/feed-errors.ts`, then UX reviews every message, including `http_304` (today "The server returned 304 Not Modified", which reads like success) and the `new_item_cap` warning from TID-046, and the shipped table matches the UX copy doc exactly (a unit test compares them). `feedErrorMessage` returns the fallback message, not null, for an unknown code.
+7. *(Added 2026-11-17, ADR 0015, MVP UX review item 6.)* Given feeds in `failing`, `dead` or `gone` and others `ok` or `pending`, when I open `/manage`, then the problem feeds are listed first (alphabetical within each group), and the Import screen's "See which" link lands on that list.
 
 ---
 
@@ -555,6 +563,7 @@ Known risks: (a) a Worker fetching another workers.dev Worker on the same accoun
 - **Agents:** UX, SE, QA, PM
 - **Depends on:** TID-014
 - **Spec:** FR-OP-1 to FR-OP-4, §8.7
+- **Status:** Done (accepted 2026-11-17, ADR 0015). The preview counts only what the server will save. Carried over: folders refused by the 200-folder limit are reported in TID-050 (R2).
 
 **User story:** As someone leaving Inoreader, I want to import my OPML export with folders intact, so that I can switch in one sitting.
 
@@ -593,6 +602,7 @@ Known risks: (a) a Worker fetching another workers.dev Worker on the same accoun
 - **Agents:** UX, SE, QA, PM
 - **Depends on:** TID-013
 - **Spec:** FR-RD-1 to FR-RD-6, FR-RD-10 to FR-RD-12, §8.5, §8.6, NFR-1, NFR-7
+- **Status:** Done with conditions (accepted 2026-11-17, ADR 0015). AC5's folder-view bullet is not met (DEF-050, open); it moves to TID-049 (R2). Every other AC passes.
 
 **User story:** As the owner, I want to browse all my articles, a folder or a single feed, newest first with unread counts, so that I can catch up quickly on my phone.
 
@@ -622,6 +632,7 @@ Known risks: (a) a Worker fetching another workers.dev Worker on the same accoun
 - **Agents:** UX, SE, QA, PM
 - **Depends on:** TID-018
 - **Spec:** FR-RD-7, FR-RD-8, §10.5, NFR-5
+- **Status:** Done (accepted 2026-11-17, ADR 0015). Next and Previous are disabled on a direct link (no list context; AC7 needs a list view). Carried over: Mark read or unread on list rows (FR-RD-8) is TID-048 (R2).
 
 **User story:** As the owner, I want to read an article comfortably and have it marked as read, so that my unread list reflects what I've actually seen.
 
@@ -646,6 +657,7 @@ Known risks: (a) a Worker fetching another workers.dev Worker on the same accoun
 - **Agents:** UX, SE, QA, PM
 - **Depends on:** TID-018
 - **Spec:** FR-RD-9, §8.5
+- **Status:** Done (accepted 2026-11-17, ADR 0015). The confirm count is the view's cached unread count (approximate); the toast states the exact number. Carried over: backdated arrivals after `asOf` are TID-051 (R3).
 
 **User story:** As the owner, I want to mark everything in a view as read in one tap, so that I can clear out a busy folder.
 
@@ -731,6 +743,7 @@ Known risks: (a) a Worker fetching another workers.dev Worker on the same accoun
 - **Depends on:** all other MVP stories. TID-039 is no longer a gate (ADR 0014).
 - **MVP scope (ADR 0014):** AC1, AC2, AC5 and AC8 only. AC3, AC4, AC6 and AC7 move to TID-047 (post-launch check, R2).
 - **Spec:** §9, §14.3, §10.1 break-glass, Q2
+- **Status:** Ready. Every other MVP story is Done (ADR 0015). Needs the owner's approval and Cloudflare setup before any deploy.
 
 **User story:** As the owner, I want Tidings deployed on my Cloudflare account with automatic deploys and a runbook, so that I can rely on it daily and fix it if something goes wrong.
 
@@ -793,7 +806,7 @@ Known risks: (a) a Worker fetching another workers.dev Worker on the same accoun
 
 - **Agents:** QA (owner), SE if a config change touches app code, PM
 - **Depends on:** TID-005
-- **Status:** Ready (**next**; small, tester; rewritten 2026-11-17 from DEF-019, ADR 0012)
+- **Status:** Ready (small, tester; rewritten 2026-11-17 from DEF-019, ADR 0012; DEF-090 added by ADR 0015)
 
 **User story:** As the team, I want the E2E suite to finish quickly and fail only on real defects, so that its results can be trusted at acceptance time.
 
@@ -807,6 +820,8 @@ Known risks: (a) a Worker fetching another workers.dev Worker on the same accoun
 4. Given 3 vitest processes for `@tidings/worker` started at the same time, then all pass with no `409` in the setup tests, or the tester documents the shared state that causes it and the SE isolates it (for example, a per-process persistence directory or database name). Proven by a script that runs 3 in parallel 5 times.
 5. Given 3 consecutive full E2E runs via `npm run test:e2e:full` on an unattended machine, then the tester records pass counts, wall time and any gap notes in `TEST_STRATEGY.md`. The target is zero failures not caused by a product defect.
 6. Given CI, then E2E retries stay at the current setting or lower, so flakiness isn't hidden, and any retry that passes is reported as flaky in the run summary.
+
+7. *(Added 2026-11-17, ADR 0015.)* Given DEF-090 (the toast-offset test at 200% text and the offline-banner check in the shell console test, each failing about once per full run under load), then each is fixed by waiting on the app state it checks (the bottom-bar observer has settled; the app has seen the `offline` event), not by a longer timeout, and the 3 runs in AC5 show neither failing.
 
 **Out of scope:** per-worker databases for parallel E2E (a later story if run time demands it); retrying tests locally after a clock jump (the gap note is enough).
 
@@ -822,6 +837,102 @@ Known risks: (a) a Worker fetching another workers.dev Worker on the same accoun
 **User story:** As the owner, I want to confirm that real use fits the free tier, so that I can cancel Inoreader with confidence.
 
 **Acceptance criteria:** TID-024 AC3, AC4, AC6 and AC7 as written, run against production after 48 hours of real use with the owner's OPML imported. If `exceededCpu` is 1% of refresh invocations or more, or any budget is above 70% of its free limit, the PM schedules TID-039 or applies ADR 0006's ladder before R3.
+
+---
+
+### TID-048: Mark read or unread from a list row (FR-RD-8)
+
+- **Agents:** UX, SE, QA
+- **Depends on:** TID-019
+- **Release:** R2
+- **Spec:** FR-RD-8, §8.5 (`PATCH /api/entries/:id`)
+- **Status:** Ready (carried over from TID-019, ADR 0015)
+
+**User story:** As the owner, I want to mark an article read or unread from the list without opening it, so that I can skip or keep articles quickly, as I do in Inoreader.
+
+**Acceptance criteria**
+
+1. Given a list row, then it offers "Mark as read" (unread row) or "Mark as unread" (read row) through a control that UX specifies, at least 44 x 44 px at 375 px, with an accessible name that includes the article title.
+2. Given I use it, then the row's read styling and the counts change within 100 ms (optimistic) and one `PATCH /api/entries/:id` is sent; on an API error both roll back and a toast shows (same copy as TID-019 AC3).
+3. Given unread-only mode, when I mark a row read, then it stays in the list, shown as read, until I leave and return or pull to refresh (same rule as TID-018 AC13).
+4. Given 375 px in both themes and 200% text, then the row layout has no horizontal overflow and axe is clean *(E2E + UX review)*.
+
+**Out of scope:** swipe gestures (M2, TID-027 family); multi-select.
+
+---
+
+### TID-049: Folder view read cost (DEF-050)
+
+- **Agents:** SE, QA
+- **Depends on:** TID-018
+- **Release:** R2
+- **Spec:** NFR-7, §8.5, ADR 0008
+- **Status:** Ready, built on the default in spec Q13 (option a) unless the owner chooses otherwise.
+
+**User story:** As the owner, I want folder views to cost a predictable number of D1 reads, so that the read budget stays safe as my folders grow.
+
+**Acceptance criteria**
+
+1. Given the folder view query, then it selects the page's keys from `ue_unread_feed` / `ue_feed` for the folder's feeds first, then joins `user_entries` and `entries` for those keys only. No migration.
+2. Given the seeded folders in DEF-050 (unread and all, page 1 and a continuation page), then `rows_read` ≤ M + 3 × (limit + 1) + S + 10 (+ T on continuation pages; the tester's proposed restatement of M + 2 × (limit + 1) + S + 10 + 51), and is lower than today's 303 for the sparse seed-folder-3. The DEF-050 `it.fails` becomes a passing test against the restated bound.
+3. Given the TID-018 AC3 duplicate-and-skip test and the AC5 tie test with 60 rows sharing one `published_at`, then both still pass for the folder view.
+4. Given the change, then NFR-7 in the spec and ADR 0008 state the new folder bound, and the integration test prints the measured `rows_read` for each seeded case.
+
+**Out of scope:** the denormalised folder index (ADR 0008 option 1); it needs a migration and extra writes.
+
+---
+
+### TID-050: Tell me which OPML folders weren't created
+
+- **Agents:** UX, SE, QA
+- **Depends on:** TID-016
+- **Release:** R2
+- **Spec:** §8.7, FR-OP-2
+- **Status:** Ready (carried over from TID-016, ADR 0015)
+
+**User story:** As someone importing a large OPML file, I want to know when a folder couldn't be created, so that I'm not surprised to find its feeds unfiled.
+
+**Acceptance criteria**
+
+1. Given I have 199 folders and import a file with 3 new folders, then 1 folder is created, the feeds in the other 2 are subscribed with no folder, and the `POST /api/import/opml` response lists the 2 folder names in a new `unfiledFolders: string[]` field (spec §8.7 updated).
+2. Given that response, then the import result screen says how many folders couldn't be created and that their feeds are unfiled, with UX copy, and names up to 5 of them.
+3. Given an import under the limit, then `unfiledFolders` is an empty array and no message shows.
+
+---
+
+### TID-051: Mark all as read skips late arrivals with old dates
+
+- **Agents:** SE, QA
+- **Depends on:** TID-020
+- **Release:** R3
+- **Spec:** FR-RD-9, §8.5
+- **Status:** Ready (carried over from TID-020, ADR 0015)
+
+**User story:** As the owner, I want articles that arrive after I loaded a list to stay unread when I mark all as read, even if the publisher backdated them, so that I never lose an article I haven't seen.
+
+**Acceptance criteria**
+
+1. Given a list loaded at `asOf = T`, when an entry with `published_at` before T is linked to me after T, and I then mark all as read, then that entry stays unread. Everything TID-020 AC1 to AC7 covers still passes.
+2. Given the fix, then `rows_written` per refresh is unchanged from TID-046 AC4's measurements, and mark-all-read's `rows_written` stays ≤ 3 per affected entry.
+3. Given the implementation, then the engineer records the choice in an ADR: an entry-ID watermark (no migration; only if `entries.id` is proven never to reuse a value at or below the watermark, for example via `AUTOINCREMENT`) or an `added_at` column on `user_entries` (a numbered migration, no new index unless the query plan needs one).
+
+**Out of scope:** the 10 existing entries linked when subscribing to a feed another user already has (TID-013 AC4) count as arrivals only if the chosen watermark naturally covers them.
+
+---
+
+### TID-052: Focus the screen title on first load of a deep link
+
+- **Agents:** SE, UX
+- **Depends on:** TID-016
+- **Release:** R3
+- **Status:** Ready (MVP UX review item 7, ADR 0015)
+
+**User story:** As a keyboard or screen-reader user, I want a page I open directly to start at its title, so that I hear where I am first.
+
+**Acceptance criteria**
+
+1. Given I load `/manage/import` or `/manage/add` directly, then focus is on the shell `h1`, not the in-page `h2`, and no focus ring shows for a pointer load.
+2. Given I move between import steps, then focus still moves to the step heading as now (unit test for both cases).
 
 ---
 
@@ -849,7 +960,7 @@ Known risks: (a) a Worker fetching another workers.dev Worker on the same accoun
 
 - **Agents:** SE, QA, PM (UX copy for the warning lands in TID-015 AC6)
 - **Depends on:** TID-012
-- **Status:** Ready. Build before TID-016 and TID-024.
+- **Status:** Done (accepted 2026-11-17, ADR 0015). DEF-020 fixed: the first unchanged refresh of a new UTC day clears the warning.
 - **Spec:** §6.3 "GUID churn guard", §6.5 planned migration, §8.2 `health.warning`, §9.8, ADR 0013 decision 2
 
 **User story:** As the owner, I want a feed that reissues its article IDs on every fetch to show each article once, so that one badly built feed can't bury my reading list or use up the free plan.

@@ -8,15 +8,26 @@ All merged work is on `main`, and CI is green.
 
 Work is now organised into releases: **MVP**, then **R2**, then **R3** (ADR 0014, spec §2). The backlog summary table gives each story's release and build order.
 
+**MVP feature stories are Done** (PM acceptance round, ADR 0015): TID-013, TID-046, TID-014, TID-016, TID-018 (with its AC5 folder-view bound carried over to TID-049), TID-019 and TID-020.
+
+What remains before the MVP is released:
+
+1. **TID-024, production deploy.** Needs the owner's approval and one-time setup (spec Q14). Never deploy without it.
+2. **DEF-050, the owner's decision (spec Q13).** It does not block the release. The PM default, option (a), is scheduled as TID-049 in R2.
+3. The final full E2E run on the fix batch passes, apart from DEF-090 flakes that pass on rerun (ADR 0015).
+4. After the deploy, the owner signs in, imports their OPML and reads on a real iPhone (manual pass).
+
 | Release | Stories, in build order |
 |---|---|
-| MVP | TID-013 and TID-046 (in parallel), TID-014, TID-018, TID-016, TID-019, TID-020, then TID-024 (production deploy; needs the owner's approval each time) |
-| R2 | TID-009, TID-017, TID-015, TID-022, TID-021, TID-047 (post-launch budget and CPU check) |
-| R3 | TID-023, TID-036, TID-037, TID-038 |
+| MVP | TID-024 only (everything else Done) |
+| R2 | TID-009, TID-048, TID-017, TID-015, TID-022, TID-021, TID-049, TID-050, TID-047 (post-launch budget and CPU check) |
+| R3 | TID-023, TID-036, TID-037, TID-038, TID-051, TID-052 |
 
 TID-039 (deployed CPU gate) is deferred and runs only if TID-047 shows trouble.
 
-The decision history lives in ADRs 0001–0014. Open questions for the owner are in spec §16.1.
+**Next free IDs:** TID-053 and DEF-091.
+
+The decision history lives in ADRs 0001–0015. Open questions for the owner are in spec §16.1.
 
 Two local branches were deliberately **not** pushed: `tid-002-parse-spike` and `tid-003-fanout-spike`. They hold throwaway spike code; the results are already in ADRs 0002, 0004 and 0006.
 
@@ -35,7 +46,7 @@ For the MVP the workflow is lighter, to save tokens (ADR 0014):
 - **One E2E run at a time.** The harness uses fixed ports 8788 and 8790. Run at most about 2 agents at once: parallel runs overload the machine and use up the plan's usage limit quickly.
 - **Cloud sessions:** the setup script must be `npx -y npm@11.6.2 ci` (the container's npm 10 rejects the lockfile). Playwright's Chromium can't be downloaded, so `playwright.config.ts` uses `CHROME_PATH` (preinstalled Chrome 153) when it is set.
 - **Locally, run E2E under `caffeinate -ims npm run test:e2e`.** Every earlier "Playwright stall" was the Mac going to sleep (DEF-019). Cloud VMs don't need this.
-- **Defect IDs collide across parallel branches.** Allocate the next ID from `main`; the next free one is **DEF-020**. Renumber at merge time if needed.
+- **Defect IDs collide across parallel branches.** Allocate the next ID from `main`; the next free one is in "State of `main`" above. Renumber at merge time if needed.
 - **`package-lock.json`:** `npm install` on macOS reorders the optional `@emnapi` entries. Commit lockfile changes only if `npm ci` fails without them. CI pins npm 11.6.2.
 - **Merge conflicts** are usually two branches each appending a section, in `TEST_STRATEGY.md`, `DEFECTS.md`, `packages/shared` exports or `BACKLOG.md`. Keep both sides.
 - **Platform fonts differ.** Linux CI fonts are wider than macOS ones, so large-text tests must not depend on exact line counts.

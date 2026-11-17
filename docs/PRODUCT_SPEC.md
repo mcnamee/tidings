@@ -54,8 +54,8 @@ The user pays for Inoreader to read a few hundred RSS/Atom feeds, mostly on a ph
 |---|---|---|
 | **M0 Foundations** | De-risk and scaffold | Monorepo, CI, test harness, D1 schema, design system and app shell, two time-boxed spikes (parser CPU, fan-out isolation). |
 | **MVP** (release 1) | Read my feeds on my phone, as soon as possible | Passkey sign-in (done); background refresh with caching, conditional GET and backoff (done); GUID churn guard; subscribe by URL with autodiscovery; folders and subscription management; OPML import; article lists for All, Folder and Feed with unread-only filter, cursor pagination and unread counts; article view with sanitised content; mark read on open, toggle unread, mark all as read; production deploy and runbook. |
-| **R2** (about 1 week after MVP) | Safe to cancel Inoreader | Sign in with a recovery code; OPML export; feed health and "Refresh now"; settings (theme, reading, passkeys, recovery codes, sign out); retention cleanup; post-launch budget and CPU check against real use (TID-047). |
-| **R3** (about 2 weeks after MVP) | Polish and hardening | Persisted client cache and installable PWA shell; SSRF guard hardening; design-token and contrast check in CI; E2E harness stability. |
+| **R2** (about 1 week after MVP) | Safe to cancel Inoreader | Sign in with a recovery code; OPML export; feed health and "Refresh now"; settings (theme, reading, passkeys, recovery codes, sign out); retention cleanup; post-launch budget and CPU check against real use (TID-047); mark read or unread from a list row (TID-048, FR-RD-8); folder view read cost (TID-049, DEF-050); report OPML folders that weren't created (TID-050). |
+| **R3** (about 2 weeks after MVP) | Polish and hardening | Persisted client cache and installable PWA shell; SSRF guard hardening; design-token and contrast check in CI; E2E harness stability; mark all as read skips backdated late arrivals (TID-051); deep-link heading focus (TID-052). |
 | **M2 Comfort** | Inoreader parity for daily use | Star / "Saved" view; mark-read-on-scroll; swipe to next/previous article; oldest-first sort; "mark older than X as read"; adaptive refresh interval (honour `ttl`, `sy:updatePeriod`, back off quiet feeds); feed favicons; desktop keyboard shortcuts; active sessions list; reorder folders. |
 | **M3 Later** | Nice to have | Offline reading of article bodies; full-text search (D1 FTS5, after a budget check); invite-only multi-user; multiple folders per feed (tags); filter rules; update-in-place for edited articles. |
 | **Won't do** | | Native apps, Inoreader API sync, social, readability extraction, AI features, image proxying (see open question Q9). |
@@ -1089,4 +1089,7 @@ The user accepted every recommended default on 2026-11-16 and chose the hostname
 
 ### 16.1 Open questions (pending the user)
 
-None at the moment.
+| # | Question | Recommended default (work proceeds on it unless you say otherwise) |
+|---|---|---|
+| Q13 | The folder view reads more D1 rows than NFR-7 promised (DEF-050). It is far inside the free quota either way (worst measured about 300 rows per page; 50 pages a day is about 15,000 of the 5,000,000 daily rows). Options: (a) rewrite the query and restate the bound, no migration; (b) add a denormalised folder index, a migration and extra writes on every new article; (c) keep today's query and raise the ceiling. | **(a)**, as TID-049 in R2. It does not block the MVP release (ADR 0015). |
+| Q14 | Approve the first production deploy (TID-024) to `tidings.mcn.am`, and do the one-time setup it needs: create the production D1 database, set `SETUP_TOKEN` with `wrangler secret`, add the custom domain route, and give CI a deploy token. | **Approve** when you are ready to set it up; nothing deploys until you say so. |
