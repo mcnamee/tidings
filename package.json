@@ -20,6 +20,8 @@
     "format": "prettier --write .",
     "test": "npm run test --workspaces --if-present && vitest run --root . --config vitest.root.config.ts",
     "test:e2e": "npm run test:e2e --workspace e2e --if-present",
+    "deploy": "npm run build -w @tidings/web && npm run deploy -w @tidings/worker",
+    "check:headers": "node scripts/check-prod-headers.mjs",
     "db:migrate:local": "npm run db:migrate:local -w @tidings/worker",
     "db:seed:local": "npm run db:seed:local -w @tidings/worker"
   },

@@ -9,6 +9,7 @@
     "test": "vitest run",
     "build": "wrangler deploy --dry-run --outdir .wrangler/dry-run",
     "db:migrate:local": "wrangler d1 migrations apply tidings --local",
+    "deploy": "wrangler d1 migrations apply tidings --remote && wrangler deploy",
     "db:seed:local": "node scripts/seed.mjs"
   },
   "dependencies": {

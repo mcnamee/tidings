@@ -39,3 +39,39 @@ jobs:
             e2e/test-results/
           retention-days: 7
       - run: npm audit --audit-level=high
+
+  # TID-024 AC1: deploy only after the ci job passes, only from main, never for PRs.
+  deploy:
+    needs: ci
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    concurrency:
+      group: deploy-production
+      cancel-in-progress: false
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm install -g npm@11.6.2
+      - run: npm ci
+      - name: Build the SPA
+        run: npm run build -w @tidings/web
+      # A failed migration fails this step, which stops the job before the deploy step.
+      # Migrations must be backward compatible with the previous Worker version (spec 14.3).
+      - name: Apply remote D1 migrations
+        uses: cloudflare/wrangler-action@v3.14.1
+        with:
+          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          workingDirectory: apps/worker
+          command: d1 migrations apply tidings --remote
+      - name: Deploy the Worker
+        uses: cloudflare/wrangler-action@v3.14.1
+        with:
+          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          workingDirectory: apps/worker
+          command: deploy
