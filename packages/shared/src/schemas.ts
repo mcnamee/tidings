@@ -158,6 +158,7 @@ export const markAllReadRequestSchema = z
     before: z
       .string()
       .max(40)
+      .regex(/^[+-]?\d{4,6}-\d{2}-\d{2}T\d{2}:\d{2}/, 'before must be an ISO timestamp')
       .refine((v) => !Number.isNaN(Date.parse(v)), { message: 'before must be an ISO timestamp' }),
   })
   .strict()

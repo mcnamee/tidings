@@ -242,3 +242,128 @@ describe('AC4, AC6: large batches', () => {
     expect(more.entryIds).toBeNull();
   });
 });
+
+describe('adversarial input (tester, TID-020)', () => {
+  it('view/id mismatches are 404 or 400 and change nothing', async () => {
+    await resetC();
+    const aBefore = await unread(A);
+    for (const [body, status] of [
+      [{ view: 'feed', id: 'seed-folder-2', before: AS_OF }, 404], // folder ID as a subscription
+      [{ view: 'folder', id: 'seed-sub-1', before: AS_OF }, 404], // subscription ID as a folder
+      [{ view: 'feed', id: '1', before: AS_OF }, 404], // a raw feed ID is not a subscription ID
+      [{ view: 'folder', id: '', before: AS_OF }, 400],
+      [{ view: 'folder', id: 5, before: AS_OF }, 400],
+      [{ view: 'folder', id: 'x'.repeat(65), before: AS_OF }, 400],
+      [{ view: 'folder', id: "x' OR '1'='1", before: AS_OF }, 404],
+    ] as const) {
+      const { res } = await markAll(A, body);
+      expect(res.status, JSON.stringify(body)).toBe(status);
+    }
+    expect(await unread(A)).toEqual(aBefore);
+  });
+
+  it('a stray id on view=all is ignored, and still only the caller’s rows change', async () => {
+    const aBefore = await unread(A);
+    const { res, json } = await markAll(B, { view: 'all', id: 'seed-folder-2', before: AS_OF });
+    expect(res.status).toBe(200);
+    expect((json as MarkAllReadResponse).updated).toBe(0); // B was cleared in the isolation test
+    expect(await unread(A)).toEqual(aBefore);
+  });
+
+  it('bad or extreme before values: invalid dates are 400, out-of-range ones mark nothing or everything', async () => {
+    await resetC();
+    for (const before of [
+      '',
+      ' ',
+      'NaN',
+      '2026-13-45T00:00:00Z',
+      '+275760-09-13T00:00:00.001Z',
+      'x'.repeat(41),
+    ]) {
+      const { res } = await markAll(C, { view: 'all', before });
+      expect(res.status, before).toBe(400);
+    }
+    expect(await unread(C)).toHaveLength(2000);
+    const past = await markAll(C, { view: 'all', before: '-000001-01-01T00:00:00.000Z' });
+    expect((past.json as MarkAllReadResponse).updated).toBe(0);
+    const future = await markAll(C, { view: 'all', before: '+275760-09-13T00:00:00.000Z' });
+    expect((future.json as MarkAllReadResponse).updated).toBe(2000);
+    await resetC();
+  });
+
+  it('DEF-080: a non-ISO but Date.parse-able before ("1", "Jan 1 2000") is 400', async () => {
+    for (const before of ['1', 'Jan 1 2000', '2000']) {
+      const { res } = await markAll(C, { view: 'all', before });
+      expect(res.status, before).toBe(400);
+    }
+    // An offset and a fractional second are still ISO.
+    const ok = await markAll(C, { view: 'all', before: '2026-11-17T12:00:00.123+05:00' });
+    expect(ok.res.status).toBe(200);
+  });
+
+  it('two concurrent mark-alls change each row once: the counts add up and the ID sets are disjoint', async () => {
+    await resetC();
+    const [x, y] = await Promise.all([
+      markAll(C, { view: 'all', before: AS_OF }),
+      markAll(C, { view: 'all', before: AS_OF }),
+    ]);
+    const a = x.json as MarkAllReadResponse;
+    const b = y.json as MarkAllReadResponse;
+    expect(a.updated + b.updated).toBe(2000);
+    const seen = new Set([...(a.entryIds ?? []), ...(b.entryIds ?? [])]);
+    expect(seen.size).toBe((a.entryIds ?? []).length + (b.entryIds ?? []).length);
+    expect(await unread(C)).toEqual([]);
+  });
+
+  it('arrivals after the list loaded: newer ones stay unread, a backdated one is marked (no added_at; PM question 2)', async () => {
+    await resetC();
+    // Arrives "after load" with published_at BEFORE the watermark (a backdated post).
+    await run(
+      "INSERT INTO entries (id, feed_id, guid_hash, url, title, published_at, fetched_at) VALUES (20001, 1, 'c-late-old', 'https://feed1.example.com/c/late-old', 'late old', ?, ?)",
+      BASE - 5000,
+      NOW,
+    );
+    await run(
+      'INSERT INTO user_entries (user_id, entry_id, feed_id, published_at, is_read) VALUES (?, 20001, 1, ?, 0)',
+      C,
+      BASE - 5000,
+    );
+    await run(
+      "INSERT INTO entries (id, feed_id, guid_hash, url, title, published_at, fetched_at) VALUES (20002, 1, 'c-late-new', 'https://feed1.example.com/c/late-new', 'late new', ?, ?)",
+      BASE + 1,
+      NOW,
+    );
+    await run(
+      'INSERT INTO user_entries (user_id, entry_id, feed_id, published_at, is_read) VALUES (?, 20002, 1, ?, 0)',
+      C,
+      BASE + 1,
+    );
+    const { json } = await markAll(C, { view: 'all', before: AS_OF });
+    expect((json as MarkAllReadResponse).updated).toBe(2001);
+    expect(await unread(C)).toEqual([20002]);
+    await run('DELETE FROM user_entries WHERE user_id = ? AND entry_id > 20000', C);
+    await run('DELETE FROM entries WHERE id > 20000');
+    await resetC();
+  });
+
+  it('Undo with another user’s IDs changes nothing of theirs', async () => {
+    const aRead = await db.all<{ entry_id: number }>(
+      sql('SELECT entry_id FROM user_entries WHERE user_id = ? AND is_read = 1 LIMIT 5', A),
+    );
+    const ids = aRead.rows.map((r) => String(r.entry_id));
+    const { json } = await call(C, 'POST', '/api/entries/read-state', {
+      entryIds: ids,
+      isRead: false,
+    });
+    expect((json as ReadStateResponse).updated).toBe(0);
+    const still = await db.all<{ entry_id: number }>(
+      sql(
+        'SELECT entry_id FROM user_entries WHERE user_id = ? AND is_read = 1 AND entry_id IN (' +
+          ids.join(',') +
+          ')',
+        A,
+      ),
+    );
+    expect(still.rows).toHaveLength(ids.length);
+  });
+});

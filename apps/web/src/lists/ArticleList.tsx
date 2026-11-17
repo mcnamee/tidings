@@ -165,7 +165,7 @@ export function ArticleList({ view, id }: { view: EntryListView; id: string | nu
   }, []);
 
   const entries = useEntries(view, id, state, returning ? false : 'always');
-  const subscriptions = useSubscriptions(view === 'feed' || view === 'all');
+  const subscriptions = useSubscriptions();
   const items = entries.data?.pages.flatMap((p) => p.items) ?? [];
 
   async function refresh() {

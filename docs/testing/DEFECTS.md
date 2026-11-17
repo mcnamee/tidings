@@ -384,3 +384,23 @@ Entry template:
 - Expected: the clipped value is valid text.
 - Actual: `slice(0, 64)` / `slice(0, 200)` leaves a lone high surrogate, shown as a replacement character.
 - Suggested fix: clip by code point (`Array.from(s).slice(0, n).join('')`) or drop a trailing lone high surrogate.
+
+### DEF-080: `mark-all-read` accepted a non-ISO `before` ("1", "Jan 1 2000")
+
+- Story: TID-020 (spec 8.5), `markAllReadRequestSchema` in `packages/shared/src/schemas.ts`
+- Severity: S4. Owner: SE.
+- Status: Fixed by the tester (one-line regex, TID-020 branch), awaiting SE/PM sign-off.
+- Found by: `apps/worker/test/mark-all-read.test.ts` > "DEF-080: a non-ISO but Date.parse-able before ... is 400".
+- Steps to reproduce: `POST /api/entries/mark-all-read` with `before: "1"`.
+- Expected: `400 validation_failed` (spec: `before` is an ISO timestamp; anything else is 400).
+- Actual: `Date.parse` accepts it (as a year), so the request ran with an unintended watermark.
+- Fix: schema also requires the `YYYY-MM-DDTHH:MM` shape (signed 4 to 6 digit years allowed).
+
+### DEF-081: Mark all as read in a folder view did not update rows or counts until the server replied
+
+- Story: TID-020 (FR-RD-9, optimistic update), `apps/web/src/lists/ArticleList.tsx`
+- Severity: S4. Owner: SE.
+- Status: Fixed by the tester (one line, TID-020 branch), awaiting SE/PM sign-off.
+- Found by: `MarkAllRead.test.tsx` > "optimistic counts in a folder view".
+- Cause: `useSubscriptions` was enabled only for the feed and all views. The folder view's optimistic update maps entries and counts to folders through the cached subscriptions, which were absent when the sidebar was closed (mobile), so nothing changed until the refetch.
+- Fix: `useSubscriptions()` in every view (shared cache key, no extra request when already loaded).

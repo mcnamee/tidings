@@ -188,6 +188,18 @@ describe('AC3: more than 20 entries', () => {
     expect(posts(MARK)).toEqual([{ view: 'all', before: AS_OF }]);
   });
 
+  it('exactly 21 asks (boundary)', async () => {
+    api.set(ENTRIES('all'), page([entry(1)]));
+    api.set('GET /api/counts', counts(21));
+    api.set(MARK, { body: { updated: 21, entryIds: ['1'] } });
+    renderApp('/all');
+    await screen.findByText('Title 1');
+    await waitFor(() => expect(client.getQueryData<Counts>(['counts'])?.total).toBe(21));
+    await userEvent.click(markAllButton());
+    expect(screen.getByRole('dialog', { name: 'Mark 21 articles as read?' })).toBeVisible();
+    expect(posts(MARK)).toEqual([]);
+  });
+
   it('exactly 20 does not ask', async () => {
     api.set(ENTRIES('all'), page([entry(1)]));
     api.set('GET /api/counts', counts(20));
@@ -273,5 +285,38 @@ describe('a failed mark all', () => {
     renderApp('/all');
     await screen.findByText('All caught up');
     expect(markAllButton()).toBeDisabled();
+  });
+});
+
+describe('AC1, AC5: optimistic counts in a folder view', () => {
+  it('only the folder’s subscriptions drop to 0; other feeds and folders keep their counts', async () => {
+    const other: Subscription = { ...sub, id: 's2', folderId: null, title: 'Outside' };
+    api.set('GET /api/subscriptions', { body: { items: [sub, other] } });
+    api.set('GET /api/counts', {
+      body: { total: 5, folders: { f1: 3 }, subscriptions: { s1: 3, s2: 2 } },
+    });
+    api.set(ENTRIES('folder', 'f1'), page([entry(1)]));
+    let release: () => void = () => {};
+    const gate = new Promise<void>((r) => (release = r));
+    api.set(MARK, async () => {
+      await gate;
+      return { body: { updated: 3, entryIds: ['1'] } };
+    });
+    renderApp('/folders/f1');
+    await screen.findByText('Title 1');
+    await waitFor(() => expect(client.getQueryData<Counts>(['counts'])?.total).toBe(5));
+    await waitFor(() =>
+      expect(client.getQueryData<Subscription[]>(['subscriptions'])).toHaveLength(2),
+    );
+    await userEvent.click(markAllButton());
+    await waitFor(() =>
+      expect(client.getQueryData<Counts>(['counts'])).toEqual({
+        total: 2,
+        folders: { f1: 0 },
+        subscriptions: { s1: 0, s2: 2 },
+      }),
+    );
+    release();
+    await screen.findByText('Marked 3 as read');
   });
 });
