@@ -1,26 +1,7 @@
-import { useQuery } from '@tanstack/react-query';
-import type { Folder, FoldersResponse, Subscription, SubscriptionsResponse } from '@tidings/shared';
-import { apiGet } from '../api';
+import type { Folder, Subscription } from '@tidings/shared';
 
-/** Query keys shared by Manage, Add feed and the drawer's folder list. */
-export const FOLDERS_KEY = ['folders'] as const;
-export const SUBSCRIPTIONS_KEY = ['subscriptions'] as const;
-
-export function useFolders() {
-  return useQuery({
-    queryKey: FOLDERS_KEY,
-    queryFn: ({ signal }) => apiGet<FoldersResponse>('/api/folders', { signal }),
-    staleTime: 5 * 60_000,
-  });
-}
-
-export function useSubscriptions() {
-  return useQuery({
-    queryKey: SUBSCRIPTIONS_KEY,
-    queryFn: ({ signal }) => apiGet<SubscriptionsResponse>('/api/subscriptions', { signal }),
-    staleTime: 5 * 60_000,
-  });
-}
+// One cache shape for folders and subscriptions (the `items` arrays), shared with the drawer.
+export { FOLDERS_KEY, SUBSCRIPTIONS_KEY, useFolders, useSubscriptions } from '../lib/queries';
 
 /** FR-FO-4: alphabetical, case-insensitive. */
 const compare = (a: string, b: string) => a.localeCompare(b, undefined, { sensitivity: 'base' });

@@ -2,9 +2,7 @@ import { useQueryClient } from '@tanstack/react-query';
 import type {
   Folder,
   FolderRequest,
-  FoldersResponse,
   Subscription,
-  SubscriptionsResponse,
   UpdateSubscriptionRequest,
 } from '@tidings/shared';
 import { ApiRequestError, NetworkError, apiDelete, apiPatch, apiPost } from '../api';
@@ -45,13 +43,9 @@ export function useManageActions() {
     for (const queryKey of keys) void client.invalidateQueries({ queryKey });
   };
   const patchSubs = (fn: (items: Subscription[]) => Subscription[]) =>
-    client.setQueryData<SubscriptionsResponse>(SUBSCRIPTIONS_KEY, (old) =>
-      old ? { items: fn(old.items) } : old,
-    );
+    client.setQueryData<Subscription[]>(SUBSCRIPTIONS_KEY, (old) => (old ? fn(old) : old));
   const patchFolders = (fn: (items: Folder[]) => Folder[]) =>
-    client.setQueryData<FoldersResponse>(FOLDERS_KEY, (old) =>
-      old ? { items: fn(old.items) } : old,
-    );
+    client.setQueryData<Folder[]>(FOLDERS_KEY, (old) => (old ? fn(old) : old));
 
   /** Runs an optimistic change; on failure restores both caches and says so. */
   async function optimistic(
@@ -60,8 +54,8 @@ export function useManageActions() {
     failure: string,
   ): Promise<boolean> {
     const before = {
-      folders: client.getQueryData<FoldersResponse>(FOLDERS_KEY),
-      subs: client.getQueryData<SubscriptionsResponse>(SUBSCRIPTIONS_KEY),
+      folders: client.getQueryData<Folder[]>(FOLDERS_KEY),
+      subs: client.getQueryData<Subscription[]>(SUBSCRIPTIONS_KEY),
     };
     change();
     try {
@@ -118,8 +112,8 @@ export function useManageActions() {
       }
     },
 
-    moveSubscription(sub: Subscription, folderId: string | null): Promise<boolean> {
-      return optimistic(
+    async moveSubscription(sub: Subscription, folderId: string | null): Promise<boolean> {
+      const ok = await optimistic(
         () => patchSubs((items) => items.map((s) => (s.id === sub.id ? { ...s, folderId } : s))),
         () =>
           apiPatch(`/api/subscriptions/${sub.id}`, {
@@ -127,6 +121,9 @@ export function useManageActions() {
           } satisfies UpdateSubscriptionRequest),
         "Couldn't move that feed. Try again.",
       );
+      // Folder unread counts and folder lists change with the move.
+      if (ok) refresh(['counts'], ['entries']);
+      return ok;
     },
 
     async deleteFolder(folder: Folder): Promise<boolean> {
@@ -140,7 +137,10 @@ export function useManageActions() {
         () => apiDelete(`/api/folders/${folder.id}`),
         "Couldn't delete that folder. Try again.",
       );
-      if (ok) toast.success(`Deleted ${folder.name}`);
+      if (ok) {
+        refresh(['counts'], ['entries']);
+        toast.success(`Deleted ${folder.name}`);
+      }
       return ok;
     },
 

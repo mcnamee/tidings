@@ -1,10 +1,21 @@
 import { useEffect, useState } from 'react';
-import { Link, Navigate, Outlet, Route, Routes, useLocation } from 'react-router';
+import {
+  Link,
+  Navigate,
+  Outlet,
+  Route,
+  Routes,
+  matchPath,
+  useLocation,
+  useParams,
+} from 'react-router';
 import { useQueryClient } from '@tanstack/react-query';
 import { setUnauthenticatedHandler } from './api';
 import { Login } from './auth/Login';
+import { ArticleList } from './lists/ArticleList';
 import { AddFeed } from './manage/AddFeed';
 import { Manage } from './manage/Manage';
+import { useFolders, useSubscriptions } from './lib/queries';
 import { Setup } from './auth/Setup';
 import { BannerSlot } from './auth/ui';
 import { readLastList } from './lib/lastList';
@@ -143,10 +154,51 @@ function SettingsPlaceholder() {
   );
 }
 
+// Keyed by the ID so moving between two folders (or feeds) starts a fresh list, not a reused one.
+function FolderList() {
+  const { folderId = '' } = useParams();
+  return <ArticleList key={folderId} view="folder" id={folderId} />;
+}
+
+function FeedList() {
+  const { subscriptionId = '' } = useParams();
+  return <ArticleList key={subscriptionId} view="feed" id={subscriptionId} />;
+}
+
+/**
+ * `/` opens the last list viewed on this device (spec 11.1, TID-018 AC11). A stored folder or
+ * feed that no longer exists, or one that cannot be checked, falls back to /all.
+ */
+function RootRedirect() {
+  const stored = readLastList();
+  const session = useSession();
+  const folderId = matchPath('/folders/:id', stored)?.params.id;
+  const feedId = matchPath('/feeds/:id', stored)?.params.id;
+  const signedIn = !!session.data?.user;
+  const folders = useFolders(signedIn && folderId !== undefined);
+  const subscriptions = useSubscriptions(signedIn && feedId !== undefined);
+
+  if (stored === '/all') return <Navigate to="/all" replace />;
+  // Signed out: the route guard sends the person to /login and remembers where they were going.
+  if (session.isPending) return null;
+  if (!signedIn) return <Navigate to={stored} replace />;
+  const check = folderId !== undefined ? folders : subscriptions;
+  if (check.isPending) return null;
+  const exists =
+    !!check.data &&
+    (folderId !== undefined
+      ? folders.data?.some((f) => f.id === folderId)
+      : subscriptions.data?.some((s) => s.id === feedId));
+  return <Navigate to={exists ? stored : '/all'} replace />;
+}
+
 function screenFor(path: string) {
   if (path === '/settings') return <SettingsPlaceholder />;
   if (path === '/manage') return <Manage />;
   if (path === '/manage/add') return <AddFeed />;
+  if (path === '/all') return <ArticleList view="all" id={null} />;
+  if (path === '/folders/:folderId') return <FolderList />;
+  if (path === '/feeds/:subscriptionId') return <FeedList />;
   return <Placeholder />;
 }
 
@@ -167,7 +219,7 @@ export function App() {
     <>
       <SetupRedirect />
       <Routes>
-        <Route path="/" element={<Navigate to={readLastList()} replace />} />
+        <Route path="/" element={<RootRedirect />} />
         <Route element={<AuthLayout />}>
           <Route path="/setup" element={<Setup />} />
           <Route path="/login" element={<Login />} />

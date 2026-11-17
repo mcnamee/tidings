@@ -220,6 +220,8 @@ describe('AC4: move a feed', () => {
     await waitFor(() => expect(calls('PATCH', '/api/subscriptions/s1')).toHaveLength(1));
     expect(calls('PATCH', '/api/subscriptions/s1')[0]?.body).toEqual({ folderId: 'f1' });
     // Drawer order: Tech, then its feeds (alpha news, Zebra Blog), then loose feeds (Mango).
+    // Folders start collapsed in the drawer (TID-018 AC6), so open Tech first.
+    await user.click(drawer().getByRole('button', { name: 'Expand Tech' }));
     await waitFor(() =>
       expect(
         drawer()

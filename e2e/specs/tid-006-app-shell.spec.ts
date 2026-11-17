@@ -1,5 +1,6 @@
 import type { Page } from '@playwright/test';
 import { expectNoSeriousA11yViolations } from '../support/axe.ts';
+import { clearListData, seedListData } from '../support/list-data.ts';
 import { expect, signedInTest as test } from '../support/test.ts';
 
 // TID-006 app shell and theming. Projects: mobile-light, mobile-dark, desktop-light, desktop-dark.
@@ -133,6 +134,10 @@ test.describe('TID-006 navigation drawer (mobile)', () => {
     expect(box?.height).toBeGreaterThanOrEqual(44);
     await menu.click();
     await expect(page.getByRole('dialog')).toBeVisible();
+    // The tree loads its subscriptions (TID-018); the empty state's two links arrive with them.
+    await expect(
+      page.getByRole('dialog').getByRole('heading', { name: 'No feeds yet' }),
+    ).toBeVisible();
     const controls = await page.getByRole('dialog').locator('a, button').all();
     expect(controls.length).toBeGreaterThanOrEqual(7);
     for (const el of controls) {
@@ -198,11 +203,19 @@ test.describe('TID-006 routes, accessibility and headers', () => {
   });
 
   test('"/" redirects to the last viewed list, falling back to /all', async ({ page }) => {
-    await page.goto('/');
-    await expect(page).toHaveURL(/\/all$/);
-    await page.goto('/folders/f9');
-    await page.goto('/');
-    await expect(page).toHaveURL(/\/folders\/f9$/);
+    // TID-018 AC11: the folder has to exist, or "/" falls back to /all.
+    seedListData({ folders: [{ id: 'f9', name: 'Nine' }] });
+    try {
+      await page.goto('/');
+      await expect(page).toHaveURL(/\/all$/);
+      await page.goto('/folders/f9');
+      // The list records itself once the session check resolves; wait for the folder header.
+      await expect(page.getByRole('heading', { level: 1, name: 'Nine' })).toBeVisible();
+      await page.goto('/');
+      await expect(page).toHaveURL(/\/folders\/f9$/);
+    } finally {
+      clearListData();
+    }
   });
 
   test('offline shows the banner and online hides it', async ({ page, context }) => {

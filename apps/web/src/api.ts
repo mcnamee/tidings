@@ -1,4 +1,5 @@
 import type { ApiError, ErrorCode, HealthResponse } from '@tidings/shared';
+import { reportReachable } from './lib/connectivity';
 
 export async function fetchHealth(fetchFn: typeof fetch = fetch): Promise<HealthResponse> {
   const res = await fetchFn('/api/health');
@@ -70,8 +71,11 @@ async function request<T>(
   try {
     res = await (opts.fetchFn ?? fetch)(path, init);
   } catch {
+    // A request the caller cancelled says nothing about the network.
+    if (!opts.signal?.aborted) reportReachable(false);
     throw new NetworkError();
   }
+  reportReachable(true);
   if (!res.ok) {
     let code: ErrorCode | null = null;
     let details: unknown;

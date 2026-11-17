@@ -89,3 +89,17 @@ export const updateSubscriptionRequestSchema = z
   .refine((v) => v.title !== undefined || v.folderId !== undefined, {
     message: 'Provide title or folderId',
   });
+
+/** `GET /api/entries` query (spec 8.5). `state` is absent when the user's setting decides. */
+export const entriesQuerySchema = z
+  .object({
+    view: z.enum(['all', 'folder', 'feed']),
+    id: z.string().min(1).max(64).optional(),
+    state: z.enum(['unread', 'all']).optional(),
+    limit: z.coerce.number().int().min(1).max(100).default(50),
+    cursor: z.string().min(1).max(200).optional(),
+  })
+  .refine((q) => q.view === 'all' || q.id !== undefined, {
+    message: 'id is required unless view=all',
+    path: ['id'],
+  });

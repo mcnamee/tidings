@@ -694,6 +694,8 @@ Rate limits for Public routes: 10 requests / 10 min per IP per route family (set
 | `POST /api/entries/mark-all-read` | `{ view, id?, before: string (ISO, the list's asOf) }` | `200 { updated: number, entryIds: string[] \| null }` (`entryIds` only when `updated ≤ 1000`, for undo) |
 | `GET /api/counts` | – | `200 Counts` (unread only; folders aggregate their subscriptions) |
 
+`GET /api/entries` details (TID-018): `view` is required; `id` is required for `folder` and `feed` (the folder ID or the subscription ID), and ignored for `all`. A missing or invalid `view`, `id`, `state`, `limit` (1 to 100, default 50) or a malformed `cursor` is `400 validation_failed`. A folder or subscription that is not the caller's is `404 not_found`, the same as one that does not exist. `state` defaults to the user's `unreadOnly` setting (default unread). Items are newest first by `published_at`, then entry ID. The route only reads cached data: it never fetches a feed (FR-RD-11). `GET /api/counts` returns the unread total, and a count for every subscription and for every folder that has a subscription (0 when nothing is unread); `total` equals the number of unread `user_entries`, and a folder's count is the sum of its subscriptions. It reads the unread index once plus the user's subscriptions (NFR-7: unread rows + subscriptions + 10).
+
 `asOf` is the server time of the first page. The SPA keeps it and passes it as `before` to mark-all-read so that articles that arrive after the user loaded the list stay unread.
 
 ### 8.6 Cursor format and list queries

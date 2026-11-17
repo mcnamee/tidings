@@ -1,18 +1,18 @@
 import { useEffect, useId, useRef, useState, type FormEvent } from 'react';
 import { Link, useNavigate } from 'react-router';
-import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { useQueryClient } from '@tanstack/react-query';
 import { CircleAlert } from 'lucide-react';
 import {
   feedErrorMessage,
   type AlreadySubscribedDetails,
   type FeedCandidate,
   type FeedChoiceDetails,
-  type FoldersResponse,
   type SubscribeRequest,
   type SubscribeResponse,
   type Subscription,
 } from '@tidings/shared';
-import { ApiRequestError, NetworkError, apiGet, apiPost } from '../api';
+import { ApiRequestError, NetworkError, apiPost } from '../api';
+import { useFolders } from '../lib/queries';
 import { BannerSlot, PrimaryButton, Spinner, TextField, type BannerContent } from '../auth/ui';
 import { useOnline } from '../lib/hooks';
 import { toast } from '../lib/toast';
@@ -70,11 +70,7 @@ export function AddFeed() {
   const online = useOnline();
   const navigate = useNavigate();
   const client = useQueryClient();
-  const folders = useQuery({
-    queryKey: ['folders'],
-    queryFn: ({ signal }) => apiGet<FoldersResponse>('/api/folders', { signal }),
-    staleTime: 5 * 60_000,
-  });
+  const folders = useFolders();
 
   const [url, setUrl] = useState('');
   const [folderId, setFolderId] = useState('');
@@ -98,7 +94,7 @@ export function AddFeed() {
     if (screen.kind === 'added') addedHeading.current?.focus();
   }, [screen.kind]);
 
-  const folderList = folders.data?.items ?? [];
+  const folderList = folders.data ?? [];
 
   function stop(focusUrl: boolean) {
     inFlight.current = false;

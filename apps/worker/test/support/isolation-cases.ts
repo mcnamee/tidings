@@ -15,6 +15,11 @@ export interface IsolationCase {
 }
 
 export const ISOLATION_CASES: Readonly<Record<string, IsolationCase>> = {
+  // TID-018 AC8. `id` names a folder (view=folder) or a subscription (view=feed).
+  'GET /api/entries query:id': {
+    file: 'entries-api.test.ts',
+    test: 'B asking for A’s subscription or folder gets 404 not_found, identical to a missing ID',
+  },
   'POST /api/subscriptions body:folderId': {
     file: 'subscribe.test.ts',
     test: 'B posting A’s folderId gets 404 not_found, and nothing is created or changed',

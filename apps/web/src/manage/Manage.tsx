@@ -54,8 +54,8 @@ export function Manage() {
   const [modal, setModal] = useState<Modal | null>(null);
   const close = () => setModal(null);
 
-  const folderList = sortedFolders(folders.data?.items);
-  const groups = groupByFolder(subs.data?.items);
+  const folderList = sortedFolders(folders.data);
+  const groups = groupByFolder(subs.data);
   const folderName = new Map(folderList.map((f) => [f.id, f.name]));
   const feeds = [...groups.values()]
     .flat()

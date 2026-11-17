@@ -40,6 +40,11 @@ function Probe() {
 let api: FakeApi;
 beforeEach(() => {
   api = installFakeApi();
+  // The feed tree and the lists read these (TID-018). One folder and one feed that the route
+  // fixtures below use; the lists themselves are tested in lists/ArticleList.test.tsx.
+  api.set('GET /api/folders', { body: { items: [{ id: 'f1', name: 'Tech' }] } });
+  api.set('GET /api/subscriptions', { body: { items: [] } });
+  api.set('GET /api/counts', { body: { total: 0, folders: {}, subscriptions: {} } });
 });
 afterEach(() => vi.unstubAllGlobals());
 
@@ -67,8 +72,6 @@ function renderApp(entries: string[], index?: number, { signedIn = true } = {}) 
 const path = () => screen.getByTestId('path').textContent;
 const SHELL_ROUTES: Array<[string, string]> = [
   ['/all', 'All articles'],
-  ['/folders/f1', 'Folder'],
-  ['/feeds/s1', 'Feed'],
   ['/all/a/e1', 'Feed'],
   ['/folders/f1/a/e1', 'Feed'],
   ['/feeds/s1/a/e1', 'Feed'],
@@ -96,11 +99,14 @@ describe('routing placeholders (spec 11.1)', () => {
     expect(screen.getByRole('heading', { level: 1 })).toHaveTextContent(title);
     expect(document.title).toBe(`${title} - Tidings`);
     expect(screen.getByRole('banner')).toBeInTheDocument();
-    // /manage/add (TID-013) and /manage (TID-014) are built; every other route is still a placeholder.
+    // /manage/add (TID-013), /manage (TID-014) and the lists (TID-018) are built; every other
+    // route is a placeholder.
     if (route === '/manage') {
       expect(screen.getByRole('main')).not.toHaveTextContent("This screen isn't built yet.");
     } else if (route === '/manage/add') {
       expect(screen.getByLabelText('Feed or website address')).toBeInTheDocument();
+    } else if (route === '/all') {
+      expect(screen.getByTestId('list-skeleton')).toBeInTheDocument();
     } else {
       expect(screen.getByRole('main')).toHaveTextContent("This screen isn't built yet.");
     }
@@ -170,10 +176,22 @@ describe('routing placeholders (spec 11.1)', () => {
     expect(path()).toBe('/all');
   });
 
-  it('/ redirects to the last viewed list', () => {
+  it('/ redirects to the last viewed list when it still exists (TID-018 AC11)', async () => {
+    localStorage.setItem('tidings.lastList', '/folders/f1');
+    renderApp(['/']);
+    await vi.waitFor(() => expect(path()).toBe('/folders/f1'));
+  });
+
+  it('/ falls back to /all when the stored folder or feed no longer exists (TID-018 AC11)', async () => {
     localStorage.setItem('tidings.lastList', '/folders/f9');
     renderApp(['/']);
-    expect(path()).toBe('/folders/f9');
+    await vi.waitFor(() => expect(path()).toBe('/all'));
+  });
+
+  it('/ falls back to /all for a stored feed that no longer exists (TID-018 AC11)', async () => {
+    localStorage.setItem('tidings.lastList', '/feeds/gone');
+    renderApp(['/']);
+    await vi.waitFor(() => expect(path()).toBe('/all'));
   });
 
   it('/ ignores a stored value that is not a list path', () => {
