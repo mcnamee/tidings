@@ -40,8 +40,9 @@ export function installFakeApi(): FakeApi {
           status: 404,
         });
       }
-      return new Response(JSON.stringify(route.body ?? {}), {
-        status: route.status ?? 200,
+      const status = route.status ?? 200;
+      return new Response(status === 204 ? null : JSON.stringify(route.body ?? {}), {
+        status,
         headers: { 'Content-Type': 'application/json', ...route.headers },
       });
     }),

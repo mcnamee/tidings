@@ -5,6 +5,7 @@ import { MemoryRouter, useLocation, useNavigate } from 'react-router';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { App } from './App';
 import { fetchHealth } from './api';
+import { SESSION_KEY } from './lib/session';
 import { toast } from './lib/toast';
 import { installFakeApi, type FakeApi } from './test-api';
 import { installMatchMedia, type FakeMedia } from './test-utils';
@@ -42,8 +43,14 @@ beforeEach(() => {
 });
 afterEach(() => vi.unstubAllGlobals());
 
-function renderApp(entries: string[], index?: number) {
+const OWNER = { id: 'u1', displayName: 'Matt', role: 'owner', settings: {} } as const;
+
+/** Shell tests start signed in (the session cache is seeded, so nothing is fetched). */
+function renderApp(entries: string[], index?: number, { signedIn = true } = {}) {
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+  if (signedIn) {
+    client.setQueryData(SESSION_KEY, { user: OWNER, setupRequired: false, mustAddPasskey: false });
+  }
   return render(
     <QueryClientProvider client={client}>
       <MemoryRouter
@@ -100,7 +107,7 @@ describe('routing placeholders (spec 11.1)', () => {
       api.set('GET /api/auth/session', {
         body: { user: null, setupRequired: route === '/setup', mustAddPasskey: false },
       });
-      renderApp([route]);
+      renderApp([route], undefined, { signedIn: false });
       expect(await screen.findByRole('heading', { level: 1 })).toHaveTextContent(title);
       expect(screen.queryByRole('banner')).not.toBeInTheDocument();
       expect(screen.queryByRole('button', { name: 'Open navigation' })).not.toBeInTheDocument();

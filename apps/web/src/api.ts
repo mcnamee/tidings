@@ -36,6 +36,16 @@ function parseRetryAfter(value: string | null): number | null {
   return Number.isFinite(n) && n >= 0 ? n : null;
 }
 
+let onUnauthenticated: (() => void) | null = null;
+
+/**
+ * Called when any request is answered `401 unauthenticated` (the session ended or was revoked,
+ * TID-008 AC4/AC13). The app uses it to drop the signed-in state; it never touches the cache.
+ */
+export function setUnauthenticatedHandler(handler: (() => void) | null): void {
+  onUnauthenticated = handler;
+}
+
 export interface RequestOptions {
   signal?: AbortSignal;
   fetchFn?: typeof fetch;
@@ -43,7 +53,7 @@ export interface RequestOptions {
 }
 
 async function request<T>(
-  method: 'GET' | 'POST',
+  method: 'GET' | 'POST' | 'PATCH' | 'PUT' | 'DELETE',
   path: string,
   body: unknown,
   opts: RequestOptions,
@@ -51,10 +61,9 @@ async function request<T>(
   const timeout = AbortSignal.timeout(opts.timeoutMs ?? REQUEST_TIMEOUT_MS);
   const signal = opts.signal ? AbortSignal.any([opts.signal, timeout]) : timeout;
   const init: RequestInit = { method, signal, credentials: 'same-origin' };
-  if (body !== undefined) {
-    init.headers = { 'Content-Type': 'application/json' };
-    init.body = JSON.stringify(body);
-  }
+  // Spec 10.3: every mutating request declares JSON, even one with no body, or the Worker refuses it.
+  if (method !== 'GET') init.headers = { 'Content-Type': 'application/json' };
+  if (body !== undefined) init.body = JSON.stringify(body);
   let res: Response;
   try {
     res = await (opts.fetchFn ?? fetch)(path, init);
@@ -68,8 +77,10 @@ async function request<T>(
     } catch {
       // not JSON (a proxy error page, say): the status alone decides
     }
+    if (res.status === 401 && code === 'unauthenticated') onUnauthenticated?.();
     throw new ApiRequestError(res.status, code, parseRetryAfter(res.headers.get('Retry-After')));
   }
+  if (res.status === 204) return undefined as T;
   try {
     return (await res.json()) as T;
   } catch {

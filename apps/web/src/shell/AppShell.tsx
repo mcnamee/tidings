@@ -78,6 +78,16 @@ export function AppShell() {
 
   useEffect(() => saveLastList(location.pathname), [location.pathname]);
 
+  // Arriving from sign-in: focus goes to the destination's h1 (login.md 4, auth-common 6).
+  const arrivedFromSignIn =
+    typeof location.state === 'object' &&
+    location.state !== null &&
+    (location.state as { focusHeading?: unknown }).focusHeading === true;
+  useEffect(() => {
+    if (arrivedFromSignIn) heading.current?.focus();
+    // Only on arrival: later renders must not steal focus.
+  }, []);
+
   // Focus: new screen's h1 after a route change (not after Back/Forward); Menu after the drawer
   // closes without navigating.
   const prev = useRef<{ open: boolean; pathname: string } | null>(null);

@@ -581,7 +581,7 @@ SQLite `DELETE … LIMIT` isn't available by default, so chunked deletes use `WH
 ### 8.1 Conventions
 
 - Base path `/api`. JSON in and out (`Content-Type: application/json`), except OPML export.
-- Auth: session cookie `__Host-tid_session`. **Every route requires a session except those marked Public.** Missing/invalid session → `401 unauthenticated`.
+- Auth: session cookie `__Host-tid_session`. **Every route requires a session except those marked Public.** Missing/invalid/expired session → `401 unauthenticated`. This is deny by default: the Worker lists the Public routes (method and exact path) and treats every other `/api/*` request, including one no handler exists for, as needing a session. A session also gets the `API_RL` per-user limit (§10.7) after the CSRF check.
 - Mutating methods (`POST`, `PATCH`, `PUT`, `DELETE`) must pass the CSRF check (§10.3) → otherwise `403 csrf_failed`.
 - Objects owned by another user return **404 `not_found`** (never 403), so existence isn't leaked.
 - Timestamps: ISO-8601 UTC strings. IDs: strings (entry IDs are numeric strings).
@@ -598,7 +598,7 @@ type ErrorCode =
   | 'webauthn_failed' | 'invalid_recovery_code' | 'last_passkey' | 'internal' | 'config_error';
 ```
 
-  `validation_failed` → 400 with zod issues in `details`; `rate_limited` → 429 with `Retry-After`; `conflict`/`already_subscribed` → 409; `limit_reached`, `feed_choice_required`, `no_feed_found`, `fetch_failed`, `blocked_address` → 422; `setup_unavailable` → 409; `internal` → 500; `config_error` → 500, returned by every `/api/*` route when the Worker's configuration is unsafe (§10.6, `ALLOW_FETCH_HOSTS` guard), and by the setup endpoints when `SETUP_TOKEN` is missing or shorter than 32 characters (§10.1), with the fixed message "Server configuration error". The code in `packages/shared` currently says `internal_error`, but the spec's `internal` wins (renamed in TID-008).
+  `validation_failed` → 400 with zod issues in `details`; `rate_limited` → 429 with `Retry-After`; `conflict`/`already_subscribed` → 409; `limit_reached`, `feed_choice_required`, `no_feed_found`, `fetch_failed`, `blocked_address` → 422; `setup_unavailable` → 409; `internal` → 500; `config_error` → 500, returned by every `/api/*` route when the Worker's configuration is unsafe (§10.6, `ALLOW_FETCH_HOSTS` guard), and by the setup endpoints when `SETUP_TOKEN` is missing or shorter than 32 characters (§10.1), with the fixed message "Server configuration error". An unhandled exception returns `500 internal` with the fixed message "Internal error" and never the exception text. `packages/shared` matches this list exactly (a test compares them).
 
 - **Pagination** (entries only): `limit` (1–100, default 50) and opaque `cursor`. Response `{ items, nextCursor }`; `nextCursor: null` means the end. Other collections are bounded by per-user limits and returned whole.
 
@@ -652,6 +652,8 @@ type Passkey = { id: string; name: string; createdAt: string; lastUsedAt: string
 | `POST /api/auth/recovery-codes` | Session + `authenticated_at` within 15 min | `{}` | `200 { recoveryCodes: string[10] }`; `403 reauth_required` |
 | `GET /api/me` | Session | – | `200 User` |
 | `PATCH /api/me` | Session | `{ displayName?: string, settings?: Partial<UserSettings> }` | `200 User` |
+
+Each `/api/auth/session` call counts as use and slides the session like any authenticated request (§10.2), re-issuing the cookie when it does. `POST /api/auth/logout` deletes only the calling session.
 
 Rate limits for Public routes: 10 requests / 10 min per IP per route family (setup, login, recover), plus 30 / hour global for `recover` and `setup` (D1 `rate_limits`, §10.7). For `setup` (TID-007), a slot is taken when a request arrives and handed back when it succeeds, so the limits count failed attempts: a normal setup (options, then verify) uses none, and 10 failures from one IP in 10 minutes block the 11th with `429 rate_limited` and `Retry-After`. Setup also needs `SETUP_TOKEN` of at least 32 characters; a shorter or missing one returns `500 config_error` rather than accepting any token.
 
@@ -906,7 +908,7 @@ For automated tests only, an `ALLOW_FETCH_HOSTS` var can allow the local fixture
 
 ### 10.7 Rate limiting
 
-- **Auth routes** (setup, login, recover): D1 fixed-window counter in `rate_limits` keyed by route family and `CF-Connecting-IP`, plus a global counter for setup and recover (§8.3). Authoritative. A slot is claimed on arrival and handed back on success, so the limits count failures. The exception is `login/options`, which is never refunded: each call uses a slot, and a successful `login/verify` refunds only its own slot. This bounds the challenge rows one IP can create (ADR 0011). The global setup limit can be used to lock setup for up to an hour before the owner exists. That's accepted (risk R12), and the runbook covers clearing it.
+- **Auth routes** (setup, login, recover): D1 fixed-window counter in `rate_limits` keyed by route family and `CF-Connecting-IP`, plus a global counter for setup and recover (§8.3). Authoritative. A slot is claimed on arrival and handed back on success, so the limits count failures. The exception is `login/options`, which is never refunded: each call uses a slot, and a successful `login/verify` refunds only its own slot. They are two counters (`login:options:ip:…` and `login:verify:ip:…`, 10 each per 10 minutes) so that ten full sign-ins fit in a window. This bounds the challenge rows one IP can create (ADR 0011). The global setup limit can be used to lock setup for up to an hour before the owner exists. That's accepted (risk R12), and the runbook covers clearing it.
 - **Authenticated API:** 600 requests/minute per user via the Workers Rate Limiting binding `API_RL` (verified on Free 2026-11-16; approximate, so it is a backstop only), keyed by user ID, returning `429 rate_limited`. Built in TID-008.
 - **Manual feed refresh:** once per 5 minutes per feed per user (checked against `feeds.last_attempt_at`).
 
