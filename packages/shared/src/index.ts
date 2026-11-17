@@ -88,3 +88,10 @@ export interface SetupVerifyResponse {
   user: User;
   recoveryCodes: string[];
 }
+
+export {
+  feedErrorMessage,
+  httpErrorCode,
+  isFeedErrorCode,
+  type FeedErrorCode,
+} from './feed-errors';

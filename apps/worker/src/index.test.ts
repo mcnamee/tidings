@@ -1,15 +1,18 @@
+import { env } from 'cloudflare:workers';
+import { createExecutionContext } from 'cloudflare:test';
 import { describe, expect, it, vi } from 'vitest';
-import type { Env } from '../env';
 import worker from './index';
 
 describe('worker entry', () => {
-  it('scheduled() logs and does not throw', () => {
+  it('scheduled() runs the dispatcher (nothing due) and logs one summary', async () => {
     const log = vi.spyOn(console, 'log').mockImplementation(() => {});
-    worker.scheduled(
+    await worker.scheduled(
       { cron: '* * * * *', scheduledTime: 0 } as ScheduledController,
-      { APP_ORIGIN: 'https://tidings.mcn.am' } as Env,
+      env,
+      createExecutionContext(),
     );
     expect(log).toHaveBeenCalledOnce();
+    expect(String(log.mock.calls[0]?.[0])).toContain('"leased":0');
     log.mockRestore();
   });
 });
