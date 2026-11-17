@@ -52,7 +52,8 @@ test.describe('TID-014 folders and subscription management', () => {
     await page.goto('/manage/add');
     await page.getByLabel('Feed or website address').fill(fixtureServer.url(FEED_PATH));
     await page.getByRole('button', { name: 'Add feed' }).click();
-    await expect(page.getByRole('heading', { name: `Added ${FEED_TITLE}` })).toBeVisible();
+    // A successful first fetch opens the feed's list (TID-013 AC1).
+    await expect(page.getByRole('heading', { level: 1, name: FEED_TITLE })).toBeVisible();
 
     // Create a folder (AC1).
     await page.goto('/manage');
