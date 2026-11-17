@@ -38,7 +38,7 @@ Owner: product-manager. Last updated 2026-11-17 (MVP feature stories accepted, A
 | TID-015 | Feed health and "Refresh now" (now includes problem feeds first in Manage) | R2 | Ready | TID-014 |
 | TID-022 | Settings: theme, reading, account | R2 | Blocked | TID-008, 009 |
 | TID-048 | Mark read or unread from a list row (FR-RD-8) | R2 | Ready | TID-019 |
-| TID-049 | Folder view read cost (DEF-050) | R2 | Ready (default chosen; owner may overturn, spec Q13) | TID-018 |
+| TID-049 | Folder view read cost (DEF-050) | R2 | Built, awaiting QA (owner approved option a) | TID-018 |
 | TID-050 | Tell me which OPML folders weren't created | R2 | Ready | TID-016 |
 | TID-021 | Retention and maintenance job | R2 | Ready | TID-012 |
 | TID-047 | Post-launch budget and CPU check (TID-024 AC3, AC4, AC6, AC7; replaces TID-039 as a gate) | R2 | Blocked | TID-024 |
@@ -867,7 +867,7 @@ Known risks: (a) a Worker fetching another workers.dev Worker on the same accoun
 - **Depends on:** TID-018
 - **Release:** R2
 - **Spec:** NFR-7, §8.5, ADR 0008
-- **Status:** Ready, built on the default in spec Q13 (option a) unless the owner chooses otherwise.
+- **Status:** Built (owner approved option a). Bound restated as M + 3 × (limit + 1) + S + 20 (the +10 left 4 rows short on two seed cases), see ADR 0008 amendment. Awaiting QA.
 
 **User story:** As the owner, I want folder views to cost a predictable number of D1 reads, so that the read budget stays safe as my folders grow.
 

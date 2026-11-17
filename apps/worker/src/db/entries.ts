@@ -65,28 +65,55 @@ export async function listEntries(
 
   const index = INDEX_FOR[view][unreadOnly ? 'unread' : 'all'];
   const binds: SqlValue[] = [userId];
-  let text =
-    SELECT +
-    'FROM user_entries ue ' +
-    (index ? 'INDEXED BY ' + index + ' ' : '') +
-    'JOIN entries e ON e.id = ue.entry_id WHERE ue.user_id = ?';
+  let text: string;
 
-  if (unreadOnly) text += ' AND ue.is_read = 0';
-  if (view === 'feed') {
-    text += ' AND ue.feed_id = ?';
-    binds.push(Number(params.id));
-  } else if (view === 'folder') {
-    text +=
-      ' AND ue.feed_id IN (SELECT feed_id FROM subscriptions WHERE user_id = ? AND folder_id = ?)';
+  if (view === 'folder') {
+    // Keys first (NFR-7b, DEF-050): pick the page's (feed, published_at, entry) keys from the
+    // covering feed index, then fetch the row and entry columns for those keys only. The plain
+    // join made the planner walk the user's whole unread/all view and test the folder per row.
+    const keyIndex = unreadOnly ? 'ue_unread_feed' : 'ue_feed';
+    let keys =
+      'SELECT feed_id, published_at, entry_id FROM user_entries INDEXED BY ' +
+      keyIndex +
+      ' WHERE user_id = ?';
+    if (unreadOnly) keys += ' AND is_read = 0';
+    keys +=
+      ' AND feed_id IN (SELECT feed_id FROM subscriptions WHERE user_id = ? AND folder_id = ?)';
     binds.push(userId, String(params.id));
+    if (params.cursor) {
+      const c = decodeCursor(params.cursor);
+      keys += ' AND (published_at, entry_id) < (?, ?)';
+      binds.push(c.p, c.i);
+    }
+    keys += ' ORDER BY published_at DESC, entry_id DESC LIMIT ?';
+    binds.push(limit + 1);
+    text =
+      SELECT +
+      'FROM (' +
+      keys +
+      ') k JOIN user_entries ue ON ue.user_id = ? AND ue.entry_id = k.entry_id ' +
+      'JOIN entries e ON e.id = k.entry_id ORDER BY k.published_at DESC, k.entry_id DESC';
+    binds.push(userId);
+  } else {
+    text =
+      SELECT +
+      'FROM user_entries ue ' +
+      (index ? 'INDEXED BY ' + index + ' ' : '') +
+      'JOIN entries e ON e.id = ue.entry_id WHERE ue.user_id = ?';
+
+    if (unreadOnly) text += ' AND ue.is_read = 0';
+    if (view === 'feed') {
+      text += ' AND ue.feed_id = ?';
+      binds.push(Number(params.id));
+    }
+    if (params.cursor) {
+      const c = decodeCursor(params.cursor);
+      text += ' AND (ue.published_at, ue.entry_id) < (?, ?)';
+      binds.push(c.p, c.i);
+    }
+    text += ' ORDER BY ue.published_at DESC, ue.entry_id DESC LIMIT ?';
+    binds.push(limit + 1);
   }
-  if (params.cursor) {
-    const c = decodeCursor(params.cursor);
-    text += ' AND (ue.published_at, ue.entry_id) < (?, ?)';
-    binds.push(c.p, c.i);
-  }
-  text += ' ORDER BY ue.published_at DESC, ue.entry_id DESC LIMIT ?';
-  binds.push(limit + 1);
 
   const { rows, meta } = await db.all<EntrySummaryRow>(sql(text, ...binds));
   const hasMore = rows.length > limit;

@@ -351,7 +351,7 @@ Entry template:
 
 - Story: TID-018 (AC5), `apps/worker/src/db/entries.ts` (TID-004)
 - Severity: S3. Owner: SE (needs a PM decision first: see below).
-- Status: Open
+- Status: Fixed (TID-049, 2026-11-17): keys-then-join query, bound restated as M + 3 x (limit + 1) + S + 20 (spec NFR-7b, ADR 0008 amendment). The `it.fails` is now a normal test; awaiting tester verification.
 - Found by: `apps/worker/test/entries-api.test.ts` > "folder view: rows_read <= M + 51 + S + 10 ... (DEF-050)" (`it.fails`, flips red when fixed; remove the marker then).
 - Steps to reproduce: seeded data (`scripts/seed.mjs`), `listEntries` with `view: 'folder'`, `limit: 50`, page 1.
 - Expected (ADR 0008, AC5): `rows_read <= M + 51 + S + 10`, M = the user's matching rows in the folder.
