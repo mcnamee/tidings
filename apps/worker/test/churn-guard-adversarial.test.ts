@@ -134,23 +134,44 @@ describe('warning lifetime (AC3)', () => {
   });
 });
 
-describe('known defects', () => {
-  // DEF-020: AC3 says the warning clears on the first refresh of a new UTC day that stays under the
-  // cap. A feed that stops changing (304 or identical body) never reaches the code that clears it.
-  it.fails(
-    'DEF-020: a quiet feed (identical body) on a later UTC day clears the warning',
-    async () => {
-      const id = await seedFeed({ url: FEED_URL });
-      const body = rss(fresh(3, 'a'));
-      fx.fake.route(FEED_URL, { status: 200, body });
-      await refresh(id);
-      await setCounter(id, today(), 200, 'new_item_cap');
-      fx.clock.set('2026-11-12T08:00:00Z');
-      fx.fake.route(FEED_URL, { status: 200, body });
-      await refresh(id);
-      expect((await feedRow(id)).warning_code).toBeNull();
-    },
-  );
+describe('DEF-020: the cap warning clears when a quiet feed is under the cap on a new UTC day', () => {
+  it('identical body on a later UTC day clears the warning in one UPDATE', async () => {
+    const id = await seedFeed({ url: FEED_URL });
+    const body = rss(fresh(3, 'a'));
+    fx.fake.route(FEED_URL, { status: 200, body });
+    await refresh(id);
+    await setCounter(id, today(), 200, 'new_item_cap');
+    fx.clock.set('2026-11-12T08:00:00Z');
+    fx.fake.route(FEED_URL, { status: 200, body });
+    const out = await refresh(id);
+    expect(out.result).toBe('unchanged');
+    expect(out.usage.rowsWritten).toBe(1);
+    expect((await feedRow(id)).warning_code).toBeNull();
+  });
+
+  it('a 304 on a later UTC day clears it too', async () => {
+    const id = await seedFeed({ url: FEED_URL });
+    fx.fake.serveFeed(FEED_URL, rss(fresh(3, 'a')), { etag: '"v1"' });
+    await refresh(id);
+    await setCounter(id, today(), 200, 'new_item_cap');
+    fx.clock.set('2026-11-12T08:00:00Z');
+    const out = await refresh(id);
+    expect(fx.fake.calls.at(-1)?.headers.get('if-none-match')).toBe('"v1"');
+    expect(out.result).toBe('unchanged');
+    expect((await feedRow(id)).warning_code).toBeNull();
+  });
+
+  it('the same UTC day keeps the warning and writes nothing', async () => {
+    const id = await seedFeed({ url: FEED_URL });
+    const body = rss(fresh(3, 'a'));
+    fx.fake.route(FEED_URL, { status: 200, body });
+    await refresh(id);
+    await setCounter(id, today(), 200, 'new_item_cap');
+    fx.fake.route(FEED_URL, { status: 200, body });
+    const out = await refresh(id);
+    expect(out.usage.rowsWritten).toBe(0);
+    expect((await feedRow(id)).warning_code).toBe('new_item_cap');
+  });
 });
 
 describe('churning feeds (AC2, AC3)', () => {

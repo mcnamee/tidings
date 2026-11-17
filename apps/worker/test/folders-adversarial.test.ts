@@ -124,7 +124,7 @@ describe('folder name inputs', () => {
   );
 
   // DEF-041
-  it.fails('a name made only of zero-width characters is rejected as blank', async () => {
+  it('a name made only of zero-width characters is rejected as blank', async () => {
     const r = await call('POST', '/api/folders', { name: '​​' });
     expect(r.res.status).toBe(400);
   });

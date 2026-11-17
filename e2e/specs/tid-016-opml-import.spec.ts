@@ -54,7 +54,7 @@ test.describe('TID-016 OPML import', () => {
     // The preview comes before anything is sent (AC1): 4 outlines with a feed, 1 folder, 1 invalid.
     await expect(page.getByRole('heading', { name: 'Found 4 feeds in 1 folder' })).toBeVisible();
     await expect(page.getByText('0 already subscribed')).toBeVisible();
-    await expect(page.getByText('1 invalid')).toBeVisible();
+    await expect(page.getByText("1 can't be imported")).toBeVisible();
     const subsBefore = (await (await page.request.get('/api/subscriptions')).json()) as {
       items: unknown[];
     };

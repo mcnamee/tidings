@@ -19,7 +19,14 @@ import {
 } from '../db';
 import { safeFetch, type FetchFn, type SafeFetchResult } from '../fetch';
 import { parseRetryAfter } from './backoff';
-import { MAX_RECENT_KEYS, parseRecentKeys, planDailyCap, secondaryKey, uniqueKeys } from './churn';
+import {
+  MAX_RECENT_KEYS,
+  capWarningExpired,
+  parseRecentKeys,
+  planDailyCap,
+  secondaryKey,
+  uniqueKeys,
+} from './churn';
 import {
   hasSubscribers,
   markGone,
@@ -272,14 +279,20 @@ export async function refreshFeed(job: RefreshJob, deps: RefreshDeps): Promise<R
   /** 304 and identical-body 200: write only if the feed was unhealthy or its URL moved. */
   async function unchanged(r: SafeFetchResult, status: number): Promise<RefreshOutcome> {
     const newUrl = permanentRedirectTarget(job, r);
-    if (job.errorCount > 0 || job.state !== 'ok' || newUrl !== null) {
+    // DEF-020: a stored cap warning from an earlier UTC day clears here, in the same UPDATE.
+    const clearWarning = capWarningExpired({
+      nowSeconds: now,
+      newEntriesDay: job.newEntriesDay,
+      warningCode: job.warningCode,
+    });
+    if (job.errorCount > 0 || job.state !== 'ok' || newUrl !== null || clearWarning) {
       const u = urlUpdate(job.feedId, newUrl);
       meter.add(
         await db.run(
           sql(
             `UPDATE feeds
                 SET state = 'ok', error_count = 0, last_error_code = NULL, last_status = ?,
-                    last_success_at = ?, next_fetch_at = ?${u.set}
+                    last_success_at = ?, next_fetch_at = ?${clearWarning ? ', warning_code = NULL' : ''}${u.set}
               WHERE id = ?`,
             status,
             now,

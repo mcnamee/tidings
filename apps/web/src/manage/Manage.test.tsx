@@ -384,6 +384,29 @@ describe('the screen', () => {
     expect(main().getByText('Too many new items at once.')).toBeVisible();
   });
 
+  it('a pending feed says it is waiting for the first fetch, in muted text with a clock', async () => {
+    subs[2] = sub('s3', 'Mango', {
+      health: { ...sub('x', 'x').health, state: 'pending' },
+    });
+    await ready();
+    const note = main().getByText('Waiting for the first fetch.');
+    expect(note).toBeVisible();
+    expect(note.parentElement).toHaveClass('text-fg-muted');
+    expect(note.parentElement).not.toHaveClass('text-warning-subtle-fg');
+    expect(note.previousElementSibling).toHaveClass('lucide-clock');
+  });
+
+  it('while loading, shows skeleton cards and keeps Add feed and Import visible', async () => {
+    api.set('GET /api/folders', () => new Promise(() => {}));
+    renderManage();
+    const busy = await within(screen.getByRole('main')).findByLabelText('Loading feeds');
+    expect(busy).toHaveAttribute('aria-busy', 'true');
+    expect(busy.querySelectorAll('.animate-skeleton')).toHaveLength(10);
+    expect(screen.queryByText('Loading')).not.toBeInTheDocument();
+    expect(main().getByRole('link', { name: 'Add feed' })).toBeVisible();
+    expect(main().getByRole('link', { name: 'Import from OPML' })).toBeVisible();
+  });
+
   it('Escape closes a sheet and returns focus to the button that opened it', async () => {
     const user = userEvent.setup();
     await ready();

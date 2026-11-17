@@ -82,3 +82,13 @@ export function planDailyCap(i: DailyCapInput): DailyCapPlan {
       refused > 0 ? NEW_ITEM_CAP_WARNING : sameDay ? i.warningCode : null,
   };
 }
+
+/**
+ * True when a stored cap warning is out of date: the counter is from an earlier UTC day, so a
+ * refresh that stores nothing (304 or identical body) is under the cap and clears it (DEF-020).
+ */
+export function capWarningExpired(
+  i: Pick<DailyCapInput, 'nowSeconds' | 'newEntriesDay' | 'warningCode'>,
+): boolean {
+  return i.warningCode !== null && i.newEntriesDay !== utcDay(i.nowSeconds);
+}

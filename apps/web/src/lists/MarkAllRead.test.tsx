@@ -188,6 +188,17 @@ describe('AC3: more than 20 entries', () => {
     expect(posts(MARK)).toEqual([{ view: 'all', before: AS_OF }]);
   });
 
+  it('formats a large count with a thousands separator', async () => {
+    api.set(ENTRIES('all'), page([entry(1)]));
+    api.set('GET /api/counts', counts(1500));
+    renderApp('/all');
+    await screen.findByText('Title 1');
+    await waitFor(() => expect(client.getQueryData<Counts>(['counts'])?.total).toBe(1500));
+    await userEvent.click(markAllButton());
+    expect(screen.getByRole('dialog', { name: 'Mark 1,500 articles as read?' })).toBeVisible();
+    expect(screen.getByRole('button', { name: 'Mark 1,500 as read' })).toBeVisible();
+  });
+
   it('exactly 21 asks (boundary)', async () => {
     api.set(ENTRIES('all'), page([entry(1)]));
     api.set('GET /api/counts', counts(21));
@@ -222,7 +233,7 @@ describe('AC4: more than 1,000 entries', () => {
     await screen.findByText('Title 1');
     await waitFor(() => expect(client.getQueryData<Counts>(['counts'])?.total).toBe(1500));
     await userEvent.click(markAllButton());
-    await userEvent.click(screen.getByRole('button', { name: 'Mark 1500 as read' }));
+    await userEvent.click(screen.getByRole('button', { name: 'Mark 1,500 as read' }));
     await screen.findByText('Marked 1500 as read');
     expect(screen.queryByRole('button', { name: 'Undo' })).not.toBeInTheDocument();
   });

@@ -26,6 +26,9 @@ import { BottomBar, HeaderActions } from '../shell/slots';
 import { ArticleRow } from './ArticleRow';
 import { clearOpened, markOpened, scrollOf, wasOpenedFrom } from './returning';
 
+const COUNT_FORMAT = new Intl.NumberFormat('en-US');
+const formatCount = (n: number) => COUNT_FORMAT.format(n);
+
 const BUTTON =
   'inline-flex min-h-11 items-center justify-center gap-2 rounded-md border border-line-strong bg-surface px-4 text-base font-medium text-fg active:bg-sunken';
 
@@ -290,7 +293,7 @@ export function ArticleList({ view, id }: { view: EntryListView; id: string | nu
           type="button"
           aria-pressed={state === 'unread'}
           onClick={() => setState(state === 'unread' ? 'all' : 'unread')}
-          className="inline-flex min-h-11 items-center gap-2 rounded-md px-3 text-base font-medium text-fg active:bg-sunken aria-pressed:bg-accent-subtle aria-pressed:text-accent-subtle-fg"
+          className="inline-flex min-h-11 items-center gap-2 whitespace-nowrap rounded-md px-3 text-base font-medium text-fg active:bg-sunken aria-pressed:bg-accent-subtle aria-pressed:text-accent-subtle-fg"
         >
           {state === 'unread' ? (
             <Check aria-hidden="true" className="size-5" strokeWidth={2.25} />
@@ -321,14 +324,17 @@ export function ArticleList({ view, id }: { view: EntryListView; id: string | nu
         </button>
       </BottomBar>
       {confirming && (
-        <Sheet title={`Mark ${toMark} articles as read?`} onClose={() => setConfirming(false)}>
+        <Sheet
+          title={`Mark ${formatCount(toMark)} articles as read?`}
+          onClose={() => setConfirming(false)}
+        >
           <div className="mt-4 space-y-2">
             <button
               type="button"
               onClick={markAll}
               className="flex min-h-12 w-full items-center justify-center gap-2 rounded-md bg-accent px-4 text-base font-medium text-accent-fg"
             >
-              Mark {toMark} as read
+              Mark {formatCount(toMark)} as read
             </button>
             <button type="button" onClick={() => setConfirming(false)} className={SHEET_BUTTON}>
               Cancel

@@ -56,7 +56,7 @@ Entry template:
 
 - Story: TID-046 (AC3, "on the first refresh in a new UTC day that stays under the cap, the warning clears")
 - Severity: S4. Owner: SE.
-- Status: Open
+- Status: Fixed (MVP fix batch). The first unchanged (304 or identical-body) refresh of a new UTC day clears `warning_code` inside the existing unchanged-path UPDATE (`capWarningExpired`); no extra statement. Tests: `churn-guard-adversarial.test.ts`.
 - Found by: `apps/worker/test/churn-guard-adversarial.test.ts` > "DEF-020: a quiet feed (identical body) on a later UTC day clears the warning" (`it.fails`; remove the marker when fixed).
 - Steps to reproduce: a feed hits the cap and gets `warning_code = 'new_item_cap'`; it then stops publishing (the origin answers 304 or an identical body). Refresh it on the next UTC day.
 - Expected: the refresh is under the cap (it stored nothing), so the warning clears.
@@ -67,7 +67,7 @@ Entry template:
 ### DEF-031: A text/plain feed with more than 4 KB of prolog before the root element is "no_feed_found"
 - Story: TID-013 (FR-SU-1, discovery sniff)
 - Severity: S3 (low likelihood). Owner: SE.
-- Status: Open
+- Status: Fixed (MVP fix batch). Unplaceable content types, and text/plain that starts like markup, subscribe and the refresher decides (`sniff` in `resolve.ts`). Tests: `subscribe-adversarial.test.ts`.
 - Found by: `apps/worker/test/subscribe-adversarial.test.ts` > "a text/plain feed with a long comment before <rss> is still subscribed" (`it.fails`).
 - Steps to reproduce: serve a valid RSS 2.0 document as `Content-Type: text/plain` with a 5 KB XML comment between `<?xml ...?>` and `<rss>`; add its URL.
 - Expected: subscribed (the refresher parses it).
@@ -159,7 +159,7 @@ Entry template:
 ### DEF-040: Folder names are case-insensitive for ASCII only, so "Étude" and "étude" can both exist
 - Story: TID-014 (AC2, FR-FO-1)
 - Severity: S4. Owner: SE.
-- Status: Open
+- Status: Won't fix for MVP. PM accepts ASCII-only case folding; AC2 reads as ASCII case. The `it.fails` test stays as documentation.
 - Found by: `apps/worker/test/folders-adversarial.test.ts` > "names differing only by non-ASCII case conflict" (`it.fails`).
 - Steps to reproduce: `POST /api/folders {"name":"Étude"}`, then `{"name":"étude"}`.
 - Expected: `409 conflict` (AC2 says duplicates are case-insensitive).
@@ -169,7 +169,7 @@ Entry template:
 ### DEF-041: A folder name made only of zero-width characters is accepted
 - Story: TID-014 (AC3)
 - Severity: S4. Owner: SE.
-- Status: Open
+- Status: Fixed (MVP fix batch). `tidyText` in `packages/shared/src/text.ts`, used by the folder and title schemas.
 - Found by: `apps/worker/test/folders-adversarial.test.ts` > "a name made only of zero-width characters is rejected as blank" (`it.fails`).
 - Steps to reproduce: `POST /api/folders {"name":"\u200b\u200b"}`.
 - Expected: `400 validation_failed` (blank).
@@ -367,7 +367,7 @@ Entry template:
 
 - Story: TID-016 (spec 8.7, FR-OP-2), `apps/web/src/lib/opml.ts`, `packages/shared/src/schemas.ts` (`clip`)
 - Severity: S4. Owner: SE.
-- Status: Open
+- Status: Fixed (MVP fix batch). Same helper on the API and in the OPML parser.
 - Found by: `apps/web/src/lib/opml.adversarial.test.ts` and `apps/worker/test/import-adversarial.test.ts`, the two "DEF-060" tests (`it.fails`; remove the marker when fixed).
 - Steps to reproduce: import an OPML whose folder `text` (or a feed's `title`) is only `U+200B U+200C U+200D`, or POST the same to `/api/import/opml`.
 - Expected: a name with no visible characters counts as blank: no folder is created and the feed is unfiled; no custom title is stored.
@@ -378,7 +378,7 @@ Entry template:
 
 - Story: TID-016, `apps/web/src/lib/opml.ts` and `clip()` in `packages/shared/src/schemas.ts`
 - Severity: S4. Owner: SE.
-- Status: Open
+- Status: Fixed (MVP fix batch). `clipCodePoints` / `cleanName`, used by the import schema and the OPML parser.
 - Found by: `opml.adversarial.test.ts` and `import-adversarial.test.ts`, the two "DEF-061" tests (`it.fails`).
 - Steps to reproduce: a folder name of 63 `a` followed by an emoji (or a 199-character title ending in one).
 - Expected: the clipped value is valid text.
