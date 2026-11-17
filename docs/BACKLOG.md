@@ -1,11 +1,12 @@
 # Tidings Backlog
 
-Owner: product-manager. Last updated 2026-11-17 (decision round 3).
+Owner: product-manager. Last updated 2026-11-17 (decision round 4).
 
 - Stories are in priority order within each milestone. Build top to bottom unless dependencies allow parallel work.
 - Each acceptance criterion (AC) must map to at least one automated test unless it is marked *(manual)*.
 - "Agents" lists who works on the story: **SE** software-engineer, **QA** tester, **UX** ux-engineer, **PM** product-manager.
 - References like FR-RD-8 or §7.3 point to `docs/PRODUCT_SPEC.md`.
+- **Standing rule (ADR 0012): per-user isolation grows with each story.** Any story that adds a route taking an ID (in the path, query string or body) adds a B-against-A case for each ID input to the isolation suite (two users seeded in D1; user B gets `404 not_found`, or the ID is ignored where the spec says so, and A's data is unchanged). The route-table guard from TID-013 AC11 fails the build if one is missing.
 - Status values: `Ready`, `Blocked`, `In progress`, `In review`, `In verification` (built; tester and UX checking, fixes in flight), `Done`, `Later`.
 
 ## Summary
@@ -19,12 +20,12 @@ Owner: product-manager. Last updated 2026-11-17 (decision round 3).
 | TID-005 | Test infrastructure and fixture corpus | M0 | Done | TID-001 |
 | TID-006 | Design system and app shell with theming | M0 | Done | TID-001 |
 | TID-007 | First-run setup with a passkey and recovery codes | M1 | Done | TID-003, 004, 005, 006 |
-| TID-008 | Passkey sign-in, sessions, sign-out and API security middleware | M1 | Ready (merge TID-007 first) | TID-007 |
-| TID-009 | Sign in with a recovery code | M1 | Blocked | TID-008 |
+| TID-008 | Passkey sign-in, sessions, sign-out and API security middleware | M1 | Done | TID-007 |
+| TID-009 | Sign in with a recovery code | M1 | Ready | TID-008 |
 | TID-010 | SSRF-safe fetcher | M1 | Done | TID-004 |
 | TID-011 | Feed parser and normalisation | M1 | Done | TID-002 |
-| TID-012 | Background refresh pipeline | M1 | Ready (merge TID-010 and TID-011 first) | TID-003, 010, 011 |
-| TID-013 | Subscribe to a feed | M1 | Blocked | TID-008, 012 |
+| TID-012 | Background refresh pipeline | M1 | Done (AC13 moved to TID-039) | TID-003, 010, 011 |
+| TID-013 | Subscribe to a feed | M1 | Ready | TID-008, 012 |
 | TID-014 | Folders and subscription management | M1 | Blocked | TID-013 |
 | TID-015 | Feed health and "Refresh now" | M1 | Blocked | TID-014 |
 | TID-016 | Import subscriptions from OPML | M1 | Blocked | TID-014 |
@@ -32,13 +33,15 @@ Owner: product-manager. Last updated 2026-11-17 (decision round 3).
 | TID-018 | Article lists, navigation and unread counts | M1 | Blocked | TID-013 |
 | TID-019 | Article view and read state | M1 | Blocked | TID-018 |
 | TID-020 | Mark all as read | M1 | Blocked | TID-018 |
-| TID-021 | Retention and maintenance job | M1 | Blocked | TID-012 |
+| TID-021 | Retention and maintenance job | M1 | Ready | TID-012 |
 | TID-022 | Settings: theme, reading, account | M1 | Blocked | TID-008, 009 |
 | TID-023 | Persisted client cache and installable PWA shell | M1 | Blocked | TID-018, 019 |
-| TID-024 | Production deployment, runbook and budget check | M1 | Blocked | all M1 |
+| TID-024 | Production deployment, runbook and budget check | M1 | Blocked | all M1, including TID-039 |
 | TID-036 | SSRF guard hardening (TID-010 follow-up) | M1 | Ready | TID-010 |
 | TID-037 | Design-token drift and contrast check in CI (TID-006 follow-up) | M1 | Ready | TID-006 |
-| TID-038 | E2E harness stability: Playwright stalls (TID-007 follow-up) | M1 | Ready (small, tester) | TID-005 |
+| TID-038 | E2E harness stability: host sleep and shared local state | M1 | Ready (**next**; small, tester) | TID-005 |
+| TID-039 | Deployed CPU gate (TID-012 AC13) | M1 | Blocked (user approval, Q12) | TID-012 |
+| TID-046 | GUID churn guard and per-feed daily cap (DEF-013) | M1 | Ready | TID-012 |
 | TID-025 … TID-035 | Comfort features | M2 | Later | M1 |
 | TID-040 … TID-045 | Later features | M3 | Later | M2 |
 
@@ -240,7 +243,7 @@ Owner: product-manager. Last updated 2026-11-17 (decision round 3).
 - **Agents:** UX, SE, QA, PM
 - **Depends on:** TID-007
 - **Spec:** FR-AU-3, FR-AU-5, §8.1, §10.2, §10.3, §10.4, §10.7, §10.8, ADR 0011
-- **Status:** Ready (merge TID-007 to `main` first; build on its rate limiter and session code)
+- **Status:** Done (accepted 2026-11-17 on `tid-008-verification`, tip `f38e3fa`; merge to `main` next)
 
 **User story:** As the owner, I want to sign in with my passkey on any of my devices and stay signed in, so that opening the app is instant and my data stays mine.
 
@@ -254,7 +257,7 @@ Owner: product-manager. Last updated 2026-11-17 (decision round 3).
 6. Given **every** route in spec §8 not marked Public, when called with no cookie, then it returns `401 unauthenticated` (one generated test per route from the route table).
 7. Given a valid session, when a mutating request has `Origin: https://evil.example`, or no `Origin` and no `Sec-Fetch-Site: same-origin`, or a non-JSON `Content-Type`, then it returns `403 csrf_failed`.
 8. Given any API response, then it carries `Cache-Control: no-store`, `X-Content-Type-Options: nosniff` and `Cross-Origin-Resource-Policy: same-origin`, and no `Access-Control-Allow-Origin` header.
-9. Given user B's session and user A's folder/subscription/entry/passkey IDs, when B calls any route with those IDs, then the response is `404 not_found` and A's data is unchanged (isolation suite).
+9. Given user B's session and user A's folder/subscription/entry/passkey IDs, when B calls any route with those IDs, then the response is `404 not_found` and A's data is unchanged (isolation suite). *(Accepted as partial 2026-11-17, ADR 0012: no route takes an ID yet, and a tripwire fails when the first one appears. The suite is built in TID-013 AC11 and extended by every later story with an ID input.)*
 10. Given 10 failed sign-ins from one IP in 10 minutes, when an 11th is attempted, then `429 rate_limited`.
 11. Given the `API_RL` Rate Limiting binding (spec §4.6, §10.7) reports the limit exceeded for my user ID, when I call any authenticated route, then it returns `429 rate_limited` with `Retry-After: 60`; auth routes never consult it (integration test with a stubbed binding).
 12. *(Added 2026-11-17.)* Given the shared `ErrorCode` type, then it matches spec §8.1 exactly, including `internal` (rename the current `internal_error`) and `config_error`, and an unhandled exception returns `500 internal` with a fixed message (no exception text).
@@ -264,13 +267,21 @@ Owner: product-manager. Last updated 2026-11-17 (decision round 3).
 
 **Out of scope:** session list (M2).
 
+**Acceptance (2026-11-17): Accepted.** AC1-AC8 and AC10-AC15 pass. AC9 is accepted as partial (above). The tester's 28 guard mutations were all caught, and an 80-test attack suite found no bypass. Rulings are in ADR 0012:
+- **Deviations ratified:** deny by default for unknown routes; `GET /api/auth/session` slides the session; two login counters; `wrangler dev --infer-origin-from-routes=false`; the `tidings.hasSession` localStorage hint; a stand-in Sign out on the `/settings` placeholder until TID-022; the IndexedDB name `tidings-cache` for TID-023; no index on `webauthn_challenges(purpose, expires_at)`. The spec (§8.1, §8.3, §10.3, §10.7, §11.3, §14.1) says so.
+- **Engineer's questions:** the E2E base `request` fixture sending the app `Origin` is fine (`bareRequest` covers CSRF). A bodyless `DELETE` must send `Content-Type: application/json` (§10.3).
+- **DEF-018 (S4, `HEAD /api/health` is 401):** `HEAD /api/health` becomes Public, answered like GET with no body. Built in TID-009 AC6.
+- **DEF-019 (E2E "stalls"):** host sleep, not a product defect. It feeds TID-038.
+- **UX review of `/login`:** doesn't gate this story, because the E2E suite covered it at 375 px in both themes. UX reviews `/login` with `/recover` in TID-009 AC7.
+
 ---
 
 ### TID-009: Sign in with a recovery code
 
 - **Agents:** UX, SE, QA, PM
 - **Depends on:** TID-008
-- **Spec:** FR-AU-4, §10.1
+- **Spec:** FR-AU-4, §10.1, §8.8, ADR 0012
+- **Status:** Ready (TID-008 accepted; merge `tid-008-verification` to `main` first)
 
 **User story:** As the owner who has lost my passkey, I want to sign in with a recovery code and add a new passkey, so that I'm never locked out of my reader.
 
@@ -281,6 +292,8 @@ Owner: product-manager. Last updated 2026-11-17 (decision round 3).
 3. Given an invalid code, when submitted, then `401 invalid_recovery_code` and the response time doesn't differ by code validity by more than noise (single hashed lookup; no early return before hashing).
 4. Given 10 attempts from one IP in 10 minutes or 30 globally in an hour, when another is made, then `429 rate_limited`.
 5. *(Added 2026-11-17, ADR 0010; amended by ADR 0011.)* Given the `sessions.auth_method` column (migration `0002_session_auth_method.sql`, already shipped in TID-007; don't add another migration for it), when I sign in with a recovery code, then the session has `auth_method = 'recovery'` and `GET /api/auth/session` returns `mustAddPasskey: true`, so the banner is still there after a reload (E2E reloads). Given a passkey is then registered from any session, then the next session fetch returns `mustAddPasskey: false` and the banner is gone. Given a passkey or setup session, `mustAddPasskey` is always false, and computing it adds no D1 writes.
+6. *(Added 2026-11-17, DEF-018, ADR 0012.)* Given no session, when `HEAD /api/health` is called, then it returns `200` with the same headers as GET and an empty body; `HEAD` on any other route without a session still returns `401`. The `it.fails` test "HEAD /api/health is answered like GET" in `security-attack.test.ts` becomes `it`.
+7. *(Added 2026-11-17, ADR 0012.)* Given the built `/login` and `/recover` screens at 375 × 812 in light and dark themes (including the session-ended, cancelled-prompt and "Add a new passkey" banners), then UX reviews them against `docs/ux/screens/login.md`, `recover.md` and `auth-common.md` and files any findings in `docs/testing/DEFECTS.md`. S1-S3 findings are fixed in this story *(UX review)*.
 
 ---
 
@@ -356,7 +369,7 @@ Owner: product-manager. Last updated 2026-11-17 (decision round 3).
 - **Agents:** SE, QA, PM
 - **Depends on:** TID-003, TID-010, TID-011
 - **Spec:** FR-RF-1 to FR-RF-5, §7.1 to §7.4, ADR 0004
-- **Status:** Built on `tid-012-refresh` (SE, 2026-11-17). AC1 to AC12 and AC14 to AC16 have tests; **AC13 is pending deployment** (needs the user's approval, runbook below).
+- **Status:** Done (accepted 2026-11-17 on `tid-012-gate-closure`, tip `5f01e52`; merge to `main` next). AC13 moved to TID-039 (ADR 0013).
 
 **User story:** As the owner, I want my feeds refreshed in the background every 30 minutes, so that new articles are already there when I open the app.
 
@@ -374,7 +387,7 @@ Owner: product-manager. Last updated 2026-11-17 (decision round 3).
 10. Given a callee that rejects, when the dispatcher's `allSettled` sees the rejection, then it records `last_error_code = 'cpu_limit'` if the message is `Worker exceeded CPU time limit.` (the message observed in TID-003) and `'internal'` otherwise, increments `error_count` and applies backoff (one test per case).
 11. Given a feed with no subscriptions, then it is never leased (parked at `next_fetch_at = 253402300799`).
 12. Given `npm run dev`, when I call `/cdn-cgi/local/scheduled?cron=*+*+*+*+*`, then the dispatcher runs against the fixture server *(manual check documented in README)*.
-13. **Deployed CPU gate (ADR 0006, spec §9.7).** Given a time-boxed benchmark deployment of this branch on the Workers Free plan (a separate throwaway Worker name, fixtures from `generate-feeds.ts` served over HTTPS from a separate throwaway origin, both deleted afterwards), when the real `FeedRefresher.refresh` runs ≥ 200 times per fixture with new-item content every time, then CPU read from Cloudflare GraphQL Analytics (never `performance.now()`) shows:
+13. *(Moved to TID-039 on 2026-11-17, ADR 0013. Kept here for reference.)* **Deployed CPU gate (ADR 0006, spec §9.7).** Given a time-boxed benchmark deployment of this branch on the Workers Free plan (a separate throwaway Worker name, fixtures from `generate-feeds.ts` served over HTTPS from a separate throwaway origin, both deleted afterwards), when the real `FeedRefresher.refresh` runs ≥ 200 times per fixture with new-item content every time, then CPU read from Cloudflare GraphQL Analytics (never `performance.now()`) shows:
     - for `rss-small`, `rss-typical`, `atom-typical` and `rdf-typical`: **zero `exceededCpu`** and **p95 ≤ 8 ms** for the whole invocation;
     - for unchanged bodies (hash match) and for `rss-large`/`rss-huge` (rejected as `too_large` at 1 MiB): zero `exceededCpu` and p95 ≤ 2 ms;
     - recorded but not gated: p50, p99, p99.9, cold first refresh, and the body-read + SHA-256 cost at a 1 MiB body and at a 2 MiB body (with the cap temporarily raised in the benchmark only).
@@ -385,6 +398,16 @@ Owner: product-manager. Last updated 2026-11-17 (decision round 3).
 16. *(Added 2026-11-17.)* Given `ALLOW_FETCH_HOSTS` set with a non-localhost `APP_ORIGIN`, when the `FeedRefresher` entrypoint is invoked directly, then it makes no fetch and logs the configuration error.
 
 **Out of scope:** adaptive intervals (M2), first-fetch-for-user behaviour (TID-013), raising `MAX_BODY_BYTES` (PM decision after AC13).
+
+**Acceptance (2026-11-17): Accepted without AC13.** AC1-AC12 and AC14-AC16 pass. DEF-014, DEF-016 and DEF-017 are fixed and closed by the tester, and the benchmark gate can no longer pass vacuously. Rulings are in ADR 0013:
+- **AC13** (deployed CPU gate) moves to **TID-039**, Blocked on the user's approval (Q12), and must be Done before TID-024. TID-039 also takes the DEF-016 S4 residuals. 3 new items per `changed` call is accepted for the gate, plus one recorded all-new run. Runner warnings give NEEDS PM, not FAIL (confirmed).
+- **DEF-013 (GUID churn):** new story **TID-046**: a secondary dedup key checked against the previous fetch, plus a cap of 200 new entries per feed per UTC day, with no new reads or rows written.
+- **DEF-015 (import cost):** §9.8 corrected to about 209 rows per imported feed (≈ 52,250 for 250). TID-016 caps import first fetches at 250 per UTC day (AC3 and AC8 changed, AC9 added).
+- **Dead feeds:** 20 consecutive failures only, about 15 days. FR-RF-3 and §7.4 amended; no `failing_since` column.
+- **Reads:** about 121 per changed fetch. §9.5 is now 20% (A) and 40% (B).
+- **`http_304` message:** the code is confirmed. UX rewords it and reviews the whole draft table in `packages/shared/src/feed-errors.ts` in TID-015 AC6.
+- **Resubscribing** to a parked, dead or gone feed resets it (TID-013 AC12; the `it.todo` becomes a test).
+- **Concurrent-vitest 409s:** TID-038.
 
 **Engineer's notes (2026-11-17)**
 
@@ -460,7 +483,8 @@ Known risks: (a) a Worker fetching another workers.dev Worker on the same accoun
 
 - **Agents:** UX, SE, QA, PM
 - **Depends on:** TID-008, TID-012
-- **Spec:** FR-SU-1 to FR-SU-4, FR-SU-7, FR-SU-8, §7.5, §8.4
+- **Spec:** FR-SU-1 to FR-SU-4, FR-SU-7, FR-SU-8, §7.1, §7.5, §8.4, §10.8, ADR 0012, ADR 0013
+- **Status:** Ready (merge `tid-008-verification` and `tid-012-gate-closure` to `main` first)
 
 **User story:** As the owner, I want to paste a feed or website URL and see its articles straight away, so that adding a source feels instant.
 
@@ -476,6 +500,8 @@ Known risks: (a) a Worker fetching another workers.dev Worker on the same accoun
 8. Given I choose a folder and custom title while adding, then the subscription is created with them.
 9. Given the first fetch runs, then it runs via the `FeedRefresher` entrypoint (integration test asserts the entrypoint was called, not in-request parsing).
 10. *(Added 2026-11-17, §10.6 rule 8.)* Given a URL whose origin returns an error, a redirect or a non-feed page with distinctive markers in the body, headers and `Location`, then the `POST /api/subscriptions` response (any status) and the UI contain only the error code and the fixed plain-language message, and no marker. The same holds for discovery's `422 no_feed_found`, and for `feed_choice_required` candidates, which show only the URL and title parsed from `<link>` tags.
+11. *(Added 2026-11-17, TID-008 AC9, ADR 0012.)* Given the route table in `apps/worker/test/support/route-table.ts`, then each route lists its ID inputs (path params, query params, body fields), and the guard test fails for any route with an ID input but no isolation case. This replaces the `no registered route takes an ID yet` tripwire. Given two users seeded in D1 and user B's session, when B calls `POST /api/subscriptions` with A's `folderId`, then it returns `404 not_found`, creates nothing, and A's folders and subscriptions are unchanged. Given B subscribes to a feed A already has, then B's response and `GET /api/subscriptions` contain only B's subscription, and A's `user_entries` are unchanged.
+12. *(Added 2026-11-17, ADR 0013 decision 7, spec §7.1.)* Given an existing feed that is parked (`next_fetch_at = 253402300799`), `dead` or `gone`, when I subscribe to it, then `next_fetch_at` is reset to now (within 60 s of jitter), and a `dead` or `gone` feed returns to `pending` with `error_count = 0` before the first fetch runs. The `it.todo` in `apps/worker/test/refresh-adversarial.test.ts` becomes a passing test.
 
 ---
 
@@ -516,6 +542,7 @@ Known risks: (a) a Worker fetching another workers.dev Worker on the same accoun
 3. Given I tap "Refresh now", then `POST /api/subscriptions/:id/refresh` fetches it immediately and the UI updates its state and counts.
 4. Given I tap "Refresh now" again within 5 minutes, then `429 rate_limited` and the button shows when it'll be available.
 5. *(Added 2026-11-17, §10.6 rule 8, FR-FH-1.)* Given each `last_error_code`, then Manage and the `refresh` response show only the message from the fixed table (HTTP errors as "The server returned {status} {reason}" with the reason from our own table, never upstream `statusText`). A test asserts that every code in the set has a message and that unknown codes fall back to "Something went wrong fetching this feed".
+6. *(Added 2026-11-17, ADR 0013 decision 6.)* Given the engineer's draft table in `packages/shared/src/feed-errors.ts`, then UX reviews every message, including `http_304` (today "The server returned 304 Not Modified", which reads like success) and the `new_item_cap` warning from TID-046, and the shipped table matches the UX copy doc exactly (a unit test compares them). `feedErrorMessage` returns the fallback message, not null, for an unknown code.
 
 ---
 
@@ -531,12 +558,13 @@ Known risks: (a) a Worker fetching another workers.dev Worker on the same accoun
 
 1. Given the 250-feed Inoreader fixture, when I pick it on `/manage/import`, then the preview shows feed and folder counts, how many are already subscribed, how many are invalid, and how many feeds appeared in more than one folder, before anything is sent.
 2. Given I confirm, then the SPA sends ≤ 100 feeds per `POST /api/import/opml` and, when done, all valid feeds are subscribed in folders matching the top-level OPML folders (nested folders flattened; first folder wins for duplicates).
-3. Given the import completes, then no feed was fetched during the import requests (integration test: injected `fetch` not called) and every new feed has `next_fetch_at` within the next `ceil(n / 20)` minutes.
+3. Given the import completes, then no feed was fetched during the import requests (integration test: injected `fetch` not called) and every new feed has `next_fetch_at` within the next `ceil(n / 20)` minutes, except feeds deferred by AC9.
 4. Given import progress, then the screen shows "Fetched X of N feeds" updating every 5 s until all new feeds have left `pending` (or the user navigates away).
 5. Given I import the same file again, then `created = 0`, no folders are duplicated, and `existing` equals the number of feeds.
 6. Given an OPML file with an invalid URL and a private-address URL, then they're reported as `invalid_url` and `blocked_address` and the rest import.
 7. Given a malformed (non-XML) file, then the UI shows an error and sends nothing.
-8. Given the import's write cost, then a 250-feed import followed by first fetches writes ≤ 25,000 rows in total (integration test with fixtures summing `rows_written`).
+8. *(Corrected 2026-11-17, DEF-015, ADR 0013.)* Given the import's write cost, then a 250-feed import (every fixture feed serving 50 items) followed by first fetches writes ≤ 53,000 rows in total, about 209 per feed (integration test with fixtures summing `rows_written`; the test prints the actual total).
+9. *(Added 2026-11-17, ADR 0013 decision 5.)* Given 250 new feeds already have a first fetch scheduled from imports in the current UTC day, when another import creates more new feeds, then those are scheduled from 00:05 UTC the next day (staggered at 20 a minute), the response's `deferred` counts them (spec §8.7), and the import screen says how many feeds will start fetching tomorrow (UX copy). Given a 300-feed import, then 250 are scheduled today and `deferred = 50`.
 
 ---
 
@@ -634,6 +662,7 @@ Known risks: (a) a Worker fetching another workers.dev Worker on the same accoun
 - **Agents:** SE, QA, PM
 - **Depends on:** TID-012
 - **Spec:** FR-RF-6, §6.3 tombstones, §7.6
+- **Status:** Ready (merge `tid-012-gate-closure` to `main` first)
 
 **User story:** As the owner, I want old articles cleaned up automatically, so that the database stays within the free storage limit without me doing anything.
 
@@ -695,7 +724,7 @@ Known risks: (a) a Worker fetching another workers.dev Worker on the same accoun
 ### TID-024: Production deployment, runbook and budget check
 
 - **Agents:** SE, QA, PM
-- **Depends on:** all other M1 stories
+- **Depends on:** all other M1 stories, including TID-039 (the deployed CPU gate must pass before production)
 - **Spec:** §9, §14.3, §10.1 break-glass, Q2
 
 **User story:** As the owner, I want Tidings deployed on my Cloudflare account with automatic deploys and a runbook, so that I can rely on it daily and fix it if something goes wrong.
@@ -755,24 +784,68 @@ Known risks: (a) a Worker fetching another workers.dev Worker on the same accoun
 
 ---
 
-### TID-038: E2E harness stability: Playwright stalls (TID-007 follow-up, time-box: 1 day)
+### TID-038: E2E harness stability: host sleep and shared local state (time-box: 1 day)
 
 - **Agents:** QA (owner), SE if a config change touches app code, PM
 - **Depends on:** TID-005
-- **Status:** Ready (small; tester; can run alongside TID-008 and TID-012)
+- **Status:** Ready (**next**; small, tester; rewritten 2026-11-17 from DEF-019, ADR 0012)
 
 **User story:** As the team, I want the E2E suite to finish quickly and fail only on real defects, so that its results can be trusted at acceptance time.
 
-**Context:** Recurring Playwright context-setup and teardown stalls ("Tearing down context exceeded 30000ms", "setting up request" timeouts) have hit different tests in each run. They've caused 15-minute runs and an 8.7-minute hang. No assertion has failed.
+**Context:** The "Playwright stalls" were the Mac going to sleep mid-run (DEF-019). Each stall matched a `pmset -g log` sleep to the second, every process was idle and healthy during it, and the test in flight failed because the wall clock jumped past its timeout. The same tests passed 16 of 16 under `caffeinate -ims`. Separately, the TID-007 setup tests intermittently get `409` instead of `201` when several vitest processes run at once, which points to local state (D1 or `.wrangler` persistence) shared between processes.
 
 **Acceptance criteria**
 
-1. Given `e2e/playwright.config.ts`, then it sets an explicit global timeout, a per-test timeout, an action and navigation timeout, and a browser launch timeout. A stalled test fails within its per-test timeout instead of hanging the run, and the global timeout stops a hung run (a deliberately hanging test proves both, then is removed or skipped with a reason).
-2. Given a test fails from a fixture or teardown error, then the worker restarts and the remaining tests still run (shown with the same deliberate-failure test).
-3. Given 5 consecutive full E2E runs on an idle machine, then the tester records pass counts, wall time and every stall in `docs/testing/TEST_STRATEGY.md`. The target is zero stalls and a run under 10 minutes. If stalls persist, the root-cause findings (wrangler dev, D1 resets, browser contexts or machine load) are written up with a proposed fix.
-4. Given CI, then E2E retries stay at the current setting or lower, so flakiness isn't hidden. Any retry that passes is reported as flaky in the run summary.
+1. Given macOS, when I run `npm run test:e2e:full`, then the full E2E suite runs under `caffeinate -ims` (on other platforms the script runs the suite directly), and `docs/testing/TEST_STRATEGY.md` says to use it for every full local run.
+2. Given a run in which the time between two consecutive test events exceeds the per-test timeout by more than 30 s, then the run summary prints a "host slept or stalled: N s gap before <test>" note naming the test. A unit test of the detector feeds it synthetic timestamps; a deliberate `sleep`-style gap proves it end to end once, then is removed or skipped with a reason.
+3. Given `e2e/playwright.config.ts`, then it sets an explicit global timeout, per-test timeout, action and navigation timeouts, and a browser launch timeout, and a test that fails from a fixture or teardown error doesn't stop the remaining tests (shown once with a deliberate failure, then removed or skipped with a reason).
+4. Given 3 vitest processes for `@tidings/worker` started at the same time, then all pass with no `409` in the setup tests, or the tester documents the shared state that causes it and the SE isolates it (for example, a per-process persistence directory or database name). Proven by a script that runs 3 in parallel 5 times.
+5. Given 3 consecutive full E2E runs via `npm run test:e2e:full` on an unattended machine, then the tester records pass counts, wall time and any gap notes in `TEST_STRATEGY.md`. The target is zero failures not caused by a product defect.
+6. Given CI, then E2E retries stay at the current setting or lower, so flakiness isn't hidden, and any retry that passes is reported as flaky in the run summary.
 
-**Out of scope:** per-worker databases for parallel E2E (a later story if run time demands it).
+**Out of scope:** per-worker databases for parallel E2E (a later story if run time demands it); retrying tests locally after a clock jump (the gap note is enough).
+
+---
+
+### TID-039: Deployed CPU gate (TID-012 AC13)
+
+- **Agents:** SE (runs it), QA (checks the analysis), PM (reads the table)
+- **Depends on:** TID-012
+- **Status:** Blocked until the user approves the throwaway deployment and provides an Analytics token (spec Q12). Must be Done before TID-024.
+- **Spec:** §7.3 CPU budget, §9.7, ADR 0006, ADR 0013; runbook in TID-012's engineer's notes (on `tid-012-gate-closure`)
+
+**User story:** As the owner, I want proof on the real Free plan that refreshing a typical feed stays within its CPU limit, so that I don't deploy a reader that silently drops feeds.
+
+**Acceptance criteria**
+
+1. *(Before the run, DEF-016 residuals.)* Given a run file, then `analyze.ts` takes each scenario's ceiling from the current plan by scenario ID, not from the run file (a run file with a looser ceiling still fails against the plan's); a run file without `runs` and `warnings` fields is refused; and a measured window where Analytics saw more than 102% of the calls made gives NEEDS PM. Each has a unit test in `bench-gate.test.ts`.
+2. Given the benchmark deployment described in TID-012 AC13 (throwaway Worker names, fixtures served from a throwaway origin, 3 new items per `changed` call, ≥ 200 calls per scenario), when `analyze.ts` runs, then it prints "Overall: PASS": for `rss-small`, `rss-typical`, `atom-typical` and `rdf-typical` every invocation `success` and p95 ≤ 8 ms; for the four unchanged and two `too_large` scenarios every invocation `success` and p95 ≤ 2 ms. NEEDS PM goes to the PM for a ruling; FAIL stops the story and the PM applies ADR 0006's ladder *(manual deployment, PM reviews)*.
+3. Given one extra run of `--new-items 50 --only changed:rss-typical --runs 50` (on a different UTC day from AC2's run if together they would exceed 50,000 rows written), then its p50, p95, p99 and status counts are recorded. Any non-success invocation goes to the PM *(manual)*.
+4. Given the runs are finished, then the results table (both runs, plus the recorded p50, p99, p99.9, cold and 1 MiB and 2 MiB body-read figures) is in ADR 0006 under "Results (TID-012)", and the account's Workers and D1 lists show no `tidings-bench*` resources *(PM checks)*.
+
+**Out of scope:** raising `MAX_BODY_BYTES` (a PM decision after the results).
+
+---
+
+### TID-046: GUID churn guard and per-feed daily cap (DEF-013)
+
+- **Agents:** SE, QA, PM (UX copy for the warning lands in TID-015 AC6)
+- **Depends on:** TID-012
+- **Status:** Ready. Build before TID-016 and TID-024.
+- **Spec:** §6.3 "GUID churn guard", §6.5 planned migration, §8.2 `health.warning`, §9.8, ADR 0013 decision 2
+
+**User story:** As the owner, I want a feed that reissues its article IDs on every fetch to show each article once, so that one badly built feed can't bury my reading list or use up the free plan.
+
+**Acceptance criteria**
+
+1. Given a feed serving the same 50 items (same links and titles) with new GUIDs on every fetch, when it is refreshed 10 times after its first fetch, then no new `entries` or `user_entries` are created after the first fetch, and each of those refreshes writes exactly 1 row (the feed `UPDATE`).
+2. Given a feed whose 50 items all link to the same URL (for example the homepage) and have new GUIDs and new titles, when 3 new items appear, then exactly those 3 are inserted (the shared secondary key is ignored). Given 3 items with new GUIDs whose link and title match an item from the previous fetch, then they're treated as known.
+3. Given a feed whose GUIDs, links and titles all change every fetch, then it gets at most 200 new entries per UTC day; once the cap is reached, further items aren't stored, `warning_code = 'new_item_cap'`, and the subscription's `health.warning` is the fixed message. On the first refresh in a new UTC day that stays under the cap, the warning clears. A fixed-clock test crosses midnight UTC.
+4. Given normal feeds (the TID-012 fixtures with 3 new items in 50), then rows written and rows read per refresh are unchanged from TID-012's measurements (40 written and 121 read for 2 subscribers; a test asserts both). The guard adds no D1 statement to the refresh.
+5. Given migration `0003_feed_churn_guard.sql`, then it adds only the columns in spec §6.5, with no index, and applies cleanly to a database at migration 0002.
+6. Given a first fetch (`last_success_at IS NULL`), then the guard doesn't drop items (there is no previous fetch to compare against), and the 200 cap counts its inserted entries.
+
+**Out of scope:** detecting churn across non-consecutive fetches; merging entries already duplicated before this ships; a UI to override the cap.
 
 ---
 

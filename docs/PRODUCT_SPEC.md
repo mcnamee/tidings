@@ -2,7 +2,7 @@
 
 | | |
 |---|---|
-| Status | Draft v1.3: decision round 3 applied (TID-007 and TID-011 accepted; auth hardening rulings, ADR 0011) |
+| Status | Draft v1.4: decision round 4 applied (TID-008 and TID-012 accepted; ADR 0012 and ADR 0013) |
 | Owner | product-manager |
 | Last updated | 2026-11-17 |
 | Cloudflare limits checked | **2026-11-16** against developers.cloudflare.com (see §9.1 for sources); spike measurements TID-002/TID-003 on 2026-11-16 |
@@ -112,7 +112,7 @@ Full design in §7.
 
 - **FR-RF-1** Every active feed is fetched every 30 minutes (`fetch_interval_s = 1800`) regardless of whether anyone has the app open.
 - **FR-RF-2** Fetches use conditional GET (`If-None-Match`, `If-Modified-Since`) and skip parsing if the body is byte-identical to the last one.
-- **FR-RF-3** Failing feeds back off exponentially, capped at 24 hours. `410 Gone` stops fetching. Feeds that fail for 7 days are marked `dead` and retried daily.
+- **FR-RF-3** Failing feeds back off exponentially, capped at 24 hours. `410 Gone` stops fetching. A feed that fails 20 times in a row (about 15 days on the backoff schedule) is marked `dead` and retried daily (ADR 0013).
 - **FR-RF-4** All fetches go through the SSRF-safe fetcher (§10.6).
 - **FR-RF-5** Articles are stored once per feed and deduplicated by a stable key (§6.3), however many users subscribe.
 - **FR-RF-6** Retention: read, unstarred articles older than 30 days and unread articles older than 90 days are removed for the user; stored content of articles nobody needs is purged. Starred articles are kept forever (M2).
@@ -479,6 +479,11 @@ For each parsed item the dedup key is `guid_hash = base64url(SHA-256(feedId + "\
 
 Edited articles (same key, changed content) are **not** updated in MVP. Cross-feed duplicates (the same story in two feeds) are not merged.
 
+**GUID churn guard (ADR 0013, TID-046).** Some feeds change every item's GUID on each fetch (timestamped or random GUIDs), which would make all 50 items look new every 30 minutes. Two guards apply, neither adding D1 reads or rows written:
+
+1. **Secondary key against the previous fetch.** Each parsed item also gets a secondary key: SHA-256 of canonical link + `\n` + title, or of title + published date when there's no link. A secondary key shared by two or more items in the same fetch is ignored. An item that is new by `guid_hash` but whose secondary key appears in `feeds.recent_keys` (the previous fetch's secondary keys, at most 50) is treated as already known and not inserted. Every changed fetch replaces `recent_keys` in the feed `UPDATE` it already makes.
+2. **Daily cap.** At most `MAX_NEW_ENTRIES_PER_FEED_PER_DAY = 200` new entries per feed per UTC day, counted in feed columns on the same `UPDATE`. Items past the cap aren't stored, and the feed's `warning_code` is set to `new_item_cap` (shown in Manage) until a UTC day ends under the cap.
+
 ### 6.4 URL canonicalisation (feeds and links)
 
 Lower-case scheme and host; drop default ports (`:80` for http, `:443` for https); drop the fragment; keep path and query exactly; percent-encoding left as is; IDN hosts converted to punycode via `new URL()`. `feed://` and `feed:https://` are rewritten to `https://`. Only `http` and `https` are accepted.
@@ -495,6 +500,7 @@ Lower-case scheme and host; drop default ports (`:80` for http, `:443` for https
 - Hostile-input bounds: at most 64 nested XML elements (`MAX_DEPTH`). Past that the parser stops and returns the items closed so far, or `parse_error` if there are none. U+0000 is removed and lone surrogates are replaced with U+FFFD in every stored string (ADR 0009).
 - Atom is recognised only with the unprefixed namespace (`<feed xmlns="http://www.w3.org/2005/Atom">`). A prefixed root is `parse_error` (accepted for MVP).
 - Per-user limits: 1,000 subscriptions, 200 folders.
+- **Planned migration `0003_feed_churn_guard.sql` (TID-046):** `feeds` gains `recent_keys TEXT` (JSON array of short hashes), `new_entries_day INTEGER` (UTC day number), `new_entries_count INTEGER NOT NULL DEFAULT 0` and `warning_code TEXT` (null or `new_item_cap`). None is indexed, so they add no rows written.
 
 ---
 
@@ -515,7 +521,7 @@ Lower-case scheme and host; drop default ports (`:80` for http, `:443` for https
   RETURNING id, url, etag, last_modified, body_hash, error_count, state;
   ```
 
-  Feeds with no subscribers are parked rather than filtered here (a per-row `EXISTS` would double the scan's reads): when the last subscription to a feed is deleted, the same transaction sets `next_fetch_at = 253402300799` (year 9999); a new subscription resets it to `now`.
+  Feeds with no subscribers are parked rather than filtered here (a per-row `EXISTS` would double the scan's reads): when the last subscription to a feed is deleted, the same transaction sets `next_fetch_at = 253402300799` (year 9999); a new subscription resets it to `now` (plus jitter), and if the feed is `dead` or `gone` it also returns to `pending` with `error_count = 0`, because the user re-adding it is a reason to try again (ADR 0013, TID-013).
 
   Because the lease moves `next_fetch_at` forward atomically, overlapping ticks (or a second dispatcher cron) never fetch the same feed twice. If a refresh crashes, the feed is simply retried at its next interval.
 
@@ -532,7 +538,7 @@ When an RPC rejects (exception, CPU limit, timeout), the dispatcher records the 
 ### 7.3 Refreshing one feed (`refreshFeed(job)`)
 
 1. **Fetch** via `safeFetch` (§10.6): `GET`, `User-Agent: Tidings/1.0 (+<APP_ORIGIN>)`, `Accept: application/rss+xml, application/atom+xml, application/rdf+xml, application/xml;q=0.9, text/xml;q=0.8, */*;q=0.1`, `If-None-Match: etag`, `If-Modified-Since: last_modified`. Timeout 10 s. Redirects followed manually, max 3, each hop re-validated.
-2. **304** → if `error_count > 0` or `state != 'ok'`: write `state='ok', error_count=0, last_success_at=now`. Otherwise **no write**. Done.
+2. **304** → if the job sent neither `If-None-Match` nor `If-Modified-Since`, the 304 is meaningless: record a failure `http_304` (§7.4) and don't set `last_success_at` (DEF-014). Otherwise, if `error_count > 0` or `state != 'ok'`: write `state='ok', error_count=0, last_success_at=now`. Otherwise **no write**. Done.
 3. **Non-2xx** → handle per §7.4. Done.
 4. **200** → stream the body through `crypto.DigestStream` and into a buffer, aborting at **1 MiB** of **decoded** bytes (after the runtime's transparent `Content-Encoding` decompression; `MAX_BODY_BYTES` = 1,048,576; `too_large`). The cap bounds what we hash and parse, so it is measured after decoding. TID-024 verifies that deployed workerd decompresses before the cap applies. If `SHA-256(body) == body_hash` → same as 304. Done.
 5. **Parse** with `packages/feed-parser` (htmlparser2, ADR 0006), stopping the tokenizer after the first **50 items** in document order (`MAX_ITEMS_PER_FETCH`; first fetch for a new subscription: 10 items are linked to the user, FR-SU-3). Parse errors → `parse_error`.
@@ -551,7 +557,7 @@ When an RPC rejects (exception, CPU limit, timeout), the dispatcher records the 
 | 410 Gone | `state = 'gone'`; never fetched again. User sees it in Manage and can unsubscribe. |
 | 301 / 308 to a valid URL | Fetch the target; on success, update `feeds.url` to the new canonical URL unless another feed already has it (then keep the old URL; merging feeds is M3). |
 | `blocked_address` (SSRF guard) | `state = 'failing'`, `error_count += 1`; same backoff. |
-| `error_count` reaches 20, or failing for 7 days | `state = 'dead'`; `next_fetch_at = now + 86,400` on every subsequent failure. |
+| `error_count` reaches 20 (about 15 days after the first failure: 1, 2, 4, 8 and 16 h, then daily) | `state = 'dead'`; `next_fetch_at = now + 86,400` on every subsequent failure. There's no time-based rule (ADR 0013). |
 | Any success | `error_count = 0`, `state = 'ok'`. |
 
 ### 7.5 Newly added feeds
@@ -617,7 +623,8 @@ type Subscription = {
   feedUrl: string; siteUrl: string | null;
   createdAt: string;
   health: { state: FeedState; lastSuccessAt: string | null; lastAttemptAt: string | null;
-            errorCode: string | null; errorMessage: string | null; nextFetchAt: string };
+            errorCode: string | null; errorMessage: string | null; nextFetchAt: string;
+            warning: string | null };   // fixed message for feeds.warning_code (e.g. new_item_cap, TID-046); null otherwise
 };
 
 type EntrySummary = {
@@ -707,13 +714,14 @@ Continuation pages read the boundary rows that share the cursor's `published_at`
 
 | Method & path | Request | Response |
 |---|---|---|
-| `POST /api/import/opml` | `{ folders: { name: string, feeds: ImportFeed[] }[], feeds: ImportFeed[] }` where `ImportFeed = { xmlUrl: string, title?: string, htmlUrl?: string }`; total feeds ≤ 100 per request | `200 { created: number, existing: number, invalid: { url: string, reason: 'invalid_url' \| 'blocked_address' \| 'limit_reached' }[] }` |
+| `POST /api/import/opml` | `{ folders: { name: string, feeds: ImportFeed[] }[], feeds: ImportFeed[] }` where `ImportFeed = { xmlUrl: string, title?: string, htmlUrl?: string }`; total feeds ≤ 100 per request | `200 { created: number, existing: number, deferred: number, invalid: { url: string, reason: 'invalid_url' \| 'blocked_address' \| 'limit_reached' }[] }`. `deferred` counts new feeds whose first fetch is scheduled for the next UTC day because 250 import first fetches are already scheduled today (ADR 0013, TID-016). |
 | `GET /api/export/opml` | – | `200 text/x-opml; charset=utf-8`, `Content-Disposition: attachment; filename="tidings-YYYY-MM-DD.opml"` |
 
 ### 8.8 Health
 
 | `GET /api/health` | Public | `200 { ok: true, version: string }` (no DB access) |
 |---|---|---|
+| `HEAD /api/health` | Public | `200`, same headers as GET, no body. For uptime monitors, which default to HEAD (DEF-018, ADR 0012). No other route answers HEAD without a session. |
 
 ---
 
@@ -798,12 +806,15 @@ Ceiling: one dispatcher leasing a full batch every minute is 1,440 × (1 + 20) =
 | Source | A | B |
 |---|---|---|
 | Dispatcher scan (feeds × 1,440) | 360,000 | 432,000 |
-| Refresh dedup lookups (≤ 50 per changed fetch) + subscriber lookups | 92,000 | 166,000 |
+| Refresh feed-row check (1 per fetch: parked or not) | 12,000 | 21,600 |
+| Refresh dedup and subscriber lookups (**≈ 121 per changed fetch, measured in TID-012**: D1 counts every key in the `IN` list plus every hit; 1,800 / 3,240 changed fetches) | 218,000 | 392,000 |
 | Unread counts (200 calls × 1,000 unread rows per user) | 200,000 | 600,000 |
 | List pages (150 × ~150 rows) + folder pages (50 × ~3,000 rows) per user (folder ceiling and worst case 12,100 rows/page: ADR 0008) | 172,500 | 517,500 |
 | Session lookups, misc | 5,000 | 15,000 |
 | Cleanup (indexed) | 10,000 | 30,000 |
-| **Total** | **≈ 840,000 (17%)** | **≈ 1,760,000 (35%)** |
+| **Total** | **≈ 980,000 (20%)** | **≈ 2,010,000 (40%)** |
+
+Updated 2026-11-17 from TID-012's measurements (ADR 0013). A 304 or an identical body reads 1 row and writes none.
 
 ### 9.6 Storage
 
@@ -826,9 +837,9 @@ All rows: the gate is **zero `exceededCpu`** plus the p95 shown; p99 is recorded
 ### 9.8 Headline: first limit we'll hit
 
 1. **First limit overall: 10 ms CPU per invocation, on large or verbose feeds.** It's per invocation, not daily, so a few big feeds will fail individually long before any daily quota is stressed. Mitigations, in order: per-feed fan-out (one feed per invocation); conditional GET and body-hash skip (most fetches never parse); streaming parse that stops after 50 items and ignores unused elements; 1 MiB body cap; recording `cpu_limit` and backing off so a pathological feed costs one failed invocation per backoff period; showing the error in Manage. TID-002 measured it (2026-11-16): typical feeds parse at p95 4.4–6.9 ms with a GC/JIT tail at p99 of 10–13 ms and cold first parses of 13–23 ms. These finished `ok` because enforcement tolerates infrequent overruns. If Cloudflare enforced 10 ms strictly, roughly 1–2% of changed-feed refreshes would fail and retry after backoff. TID-012 re-measures the full refresh.
-2. **First daily quota: D1 rows written.** 25% at baseline (4× headroom), 67% in the heavy multi-user case (1.5×). Mitigations: no index on `next_fetch_at`; no write on unchanged fetches; first-fetch cap of 10 items per new subscription; adaptive refresh intervals for quiet feeds (M2; halves lease writes for typical feed mixes); denormalisation only where it saves reads without adding writes. **An OPML import of 250 feeds costs about 20,000 extra writes** (250 × 10 items × 8 rows), so import day in scenario A peaks near 45%.
+2. **First daily quota: D1 rows written.** 25% at baseline (4× headroom), 67% in the heavy multi-user case (1.5×). Mitigations: no index on `next_fetch_at`; no write on unchanged fetches; first-fetch cap of 10 items per new subscription; adaptive refresh intervals for quiet feeds (M2; halves lease writes for typical feed mixes); denormalisation only where it saves reads without adding writes. **An OPML import of 250 feeds costs about 52,250 extra writes** (corrected 2026-11-17, DEF-015): a first fetch stores up to 50 entries so that items 11-50 don't arrive as unread later, and links 10 (50 × 3 + 10 × 5 + 1 = 201 rows), plus about 8 rows for the feed, subscription and lease: about 209 per feed. Import day in scenario A peaks near **77%**. To keep larger files from exhausting the quota, imports schedule at most **250 first fetches per UTC day** and defer the rest to the next day (TID-016, ADR 0013). A feed with churning GUIDs is bounded at 200 new entries a day (≈ 1,600 rows, §6.3).
 3. **Requests/day** (callee invocations count, verified 2026-11-16): 16% at baseline, 31% heavy; capped at ≈ 38% per dispatcher cron. Only adding dispatcher crons could exhaust it (§9.3).
-4. Everything else is under 40% in both scenarios. KV and Queues are unused.
+4. Everything else is at or under 40% in both scenarios (D1 reads are 20% / 40% after TID-012's measurements). KV and Queues are unused.
 
 **Monitoring:** the maintenance job logs daily counts; the README (TID-021) documents where to see D1 and Workers usage in the dashboard. If writes exceed 70% on 3 days in a week, the PM opens an ADR (options: longer interval, adaptive scheduling, Workers Paid at $5/month: Q6).
 
@@ -866,7 +877,7 @@ Parameters: `rpID = RP_ID` (the production hostname), expected origin `APP_ORIGI
 
 The SPA and API share one origin, so no CORS headers are sent at all (cross-origin reads are blocked by default). For every mutating request, including the Public auth routes (setup, login, recover), the Worker requires **both**:
 1. `Origin` header equal to `APP_ORIGIN` (if `Origin` is absent, `Sec-Fetch-Site: same-origin` is accepted instead; if both are absent, reject), and
-2. `Content-Type: application/json` (forces a CORS preflight for any cross-site attempt, which we never approve).
+2. `Content-Type: application/json` (forces a CORS preflight for any cross-site attempt, which we never approve). This applies to bodyless requests too: a `DELETE` with no body must still send it, and the SPA's API client always does (ADR 0012).
 
 Plus `SameSite=Lax` on the session cookie. Failing requests get `403 csrf_failed`.
 
@@ -964,6 +975,8 @@ Typography (ratified 2026-11-16): UI and titles are sans; the article body is se
 
 ### 11.3 Query keys and caching
 
+Device-local keys (UI hints only, never auth signals, no tokens or user data; ADR 0012): `localStorage['tidings.hasSession']` is `'1'` from sign-in until Sign out and decides whether a `401` shows the "Your session ended" banner. The persisted query cache (TID-023) uses the IndexedDB database **`tidings-cache`**, version 1; Sign out deletes it by that name.
+
 `['session']`, `['me']`, `['folders']`, `['subscriptions']`, `['counts']`, `['entries', view, id, state]` (infinite), `['entry', id]`. `staleTime`: 30 s for entries and counts, 5 min for folders and subscriptions. Mark-read mutations update the `entry` cache, every cached list containing the entry, and `counts` optimistically.
 
 ---
@@ -1008,7 +1021,8 @@ No test touches the real network. Clocks are injected.
 ### 14.1 Local
 
 - Prereqs: Node 22 LTS+, npm 10+. `npm install` at the root.
-- `npm run dev`: runs `wrangler dev` (Worker, local D1, cron testable via `/cdn-cgi/local/scheduled`) on :8787 and `vite` on :5173 with `/api` proxied to :8787.
+- `npm run dev`: runs `wrangler dev --infer-origin-from-routes=false` (Worker, local D1, cron testable via `/cdn-cgi/local/scheduled`) on :8787 and `vite` on :5173 with `/api` proxied to :8787. The flag keeps the browser's real `Origin`, so the CSRF check (§10.3) runs locally as in production (ADR 0012). The E2E server uses it too.
+- Long local E2E runs on macOS: `npm run test:e2e:full` wraps the run in `caffeinate -ims`, because a Mac that sleeps mid-run fails whichever test is in flight (DEF-019, TID-038).
 - `npm run db:migrate:local` applies migrations; `npm run db:seed:local` loads sample folders, feeds and entries for a seed user. To sign in locally, run first-run setup against the local DB with the `SETUP_TOKEN` from `.dev.vars` (passkeys work on `localhost`). There is **no** auth bypass, in any environment.
 - `.dev.vars` (gitignored) holds `SETUP_TOKEN` and dev flags.
 
@@ -1028,7 +1042,7 @@ On push to `main` after CI passes: `wrangler d1 migrations apply tidings --remot
 |---|---|---|---|---|
 | R1 | Feed parsing exceeds 10 ms CPU for typical feeds, not just large ones | Medium (p99 already ≈ 10–13 ms; tolerated today) | Medium | Measured in TID-002: p95 within budget, tail tolerated. htmlparser2 with early stop at 50; 1 MiB body cap; `cpu_limit` backoff; TID-012 gate; ladder in ADR 0006 (25 items, 50 KB content, Q6). If Cloudflare enforces 10 ms strictly, ≈ 1–2% of changed refreshes fail and retry. |
 | R2 | `ctx.exports`/service-binding callees share the caller's CPU or subrequest budget | Retired 2026-11-16 | – | TID-003 verified isolation. Remaining cost: callees count as requests (§9.3). |
-| R3 | D1 write quota exhausted (e.g. multiple users, aggressive intervals, import day) | Low (A) / Medium (B) | High (DB read-only until 00:00 UTC) | Budget in §9; no unchanged-fetch writes; first-fetch cap; adaptive intervals (M2); daily usage log. |
+| R3 | D1 write quota exhausted (e.g. multiple users, aggressive intervals, import day) | Low (A) / Medium (B) | High (DB read-only until 00:00 UTC) | Budget in §9; no unchanged-fetch writes; first-fetch cap; import first fetches capped at 250 per UTC day (TID-016); GUID churn guard and 200 new entries per feed per day (TID-046); adaptive intervals (M2); daily usage log. |
 | R4 | Some origins block Cloudflare Worker fetches (bot protection, `CF-Worker` header, 403/429) | Medium | Medium | Clear error in Manage; honest User-Agent; backoff. No proxying in MVP. |
 | R5 | DNS-rebinding SSRF (hostname resolving to a private IP) | Low | Low–Medium | Workers have no private-network access; host/IP guards; documented residual risk. |
 | R6 | Passkey lock-out (lost device, changed domain) | Low | High | Recovery codes; multiple passkeys; break-glass runbook; decide the domain before setup (Q2). |
@@ -1058,3 +1072,9 @@ The user accepted every recommended default on 2026-11-16 and chose the hostname
 | Q9 | Article images load directly from publishers' servers (they see your IP, not what you read, thanks to `no-referrer`). Proxy them instead? | **Load directly.** Proxying would cost a Worker request per image and blow the request budget. |
 | Q10 | Inoreader lets a feed sit in several folders. OK to allow only one folder per feed in MVP? | **Yes, one folder**; on import the first folder wins. Multi-folder (tags) in M3. |
 | Q11 | First fetch of a new feed: OK to bring in the 10 newest items, with items older than 7 days pre-marked read? | **Yes.** |
+
+### 16.1 Open questions (pending the user)
+
+| # | Question | Recommended default |
+|---|---|---|
+| Q12 | TID-039 (the deployed CPU gate moved out of TID-012) deploys three throwaway Workers (`tidings-bench`, `tidings-bench-origin`, `tidings-bench-driver`) and a throwaway D1 database on your Cloudflare account for about 30 minutes, then deletes them. It uses about 5% of a day's Worker requests and up to about 45,000 D1 rows written (account-wide, before production exists). It needs a Cloudflare API token with only "Account Analytics: Read". Approve the run? | **Approve**, and run it before TID-024. Nothing touches the real `tidings` Worker or database, and production can't be deployed until this gate passes. |
