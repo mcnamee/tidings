@@ -9,6 +9,7 @@ import {
   createSubscriptionRoutes,
   type SubscriptionDeps,
 } from '../subscriptions/routes';
+import { createImportRoutes } from '../subscriptions/import';
 import { fail } from './respond';
 import { apiGuard, securityHeaders, type ApiRateLimiter, type AppEnv } from './security';
 
@@ -52,6 +53,10 @@ export function createApp(deps?: Partial<AppDeps>): Hono<AppEnv> {
     createSubscriptionRoutes({ clock: deps?.clock, ...deps?.subscriptions }),
   );
 
+  app.route(
+    '/import',
+    createImportRoutes({ clock: deps?.clock, random: deps?.subscriptions?.random }),
+  );
   app.route('/entries', createEntryRoutes({ clock: deps?.clock }));
   app.route('/counts', createCountsRoutes());
 

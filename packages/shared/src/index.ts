@@ -208,6 +208,32 @@ export interface AlreadySubscribedDetails {
   subscriptionId: string;
 }
 
+/** Spec 8.7, FR-OP-1: feeds per `POST /api/import/opml`. */
+export const IMPORT_CHUNK_SIZE = 100;
+/** ADR 0013 decision 5: import first fetches per UTC day; the rest start from 00:05 UTC the next day. */
+export const IMPORT_FIRST_FETCH_DAILY_CAP = 250;
+
+export interface ImportFeed {
+  xmlUrl: string;
+  title?: string;
+  htmlUrl?: string;
+}
+
+/** `POST /api/import/opml` (spec 8.7). Folders are matched by name; the server never sees IDs. */
+export interface ImportOpmlRequest {
+  folders: { name: string; feeds: ImportFeed[] }[];
+  feeds: ImportFeed[];
+}
+
+export type ImportInvalidReason = 'invalid_url' | 'blocked_address' | 'limit_reached';
+
+export interface ImportOpmlResponse {
+  created: number;
+  existing: number;
+  deferred: number;
+  invalid: { url: string; reason: ImportInvalidReason }[];
+}
+
 /** FR-FO-1 and FR-FO-5. */
 export const FOLDER_NAME_MAX = 64;
 export const FOLDER_LIMIT = 200;

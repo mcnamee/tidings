@@ -35,13 +35,17 @@ export function useFolders(enabled = true) {
   });
 }
 
-export function useSubscriptions(enabled = true) {
+export const fetchSubscriptions = async (signal?: AbortSignal) =>
+  (await apiGet<SubscriptionsResponse>('/api/subscriptions', signal ? { signal } : {})).items;
+
+/** `refetchIntervalMs` is for the import screen's progress (FR-OP-3); false stops polling. */
+export function useSubscriptions(enabled = true, refetchIntervalMs: number | false = false) {
   return useQuery({
     queryKey: SUBSCRIPTIONS_KEY,
-    queryFn: async ({ signal }) =>
-      (await apiGet<SubscriptionsResponse>('/api/subscriptions', { signal })).items,
+    queryFn: ({ signal }) => fetchSubscriptions(signal),
     staleTime: 5 * MINUTE,
     enabled,
+    refetchInterval: refetchIntervalMs,
   });
 }
 

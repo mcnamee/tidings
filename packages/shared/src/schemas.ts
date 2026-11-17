@@ -1,5 +1,10 @@
 import { z } from 'zod';
-import { DISPLAY_NAME_MAX, FOLDER_NAME_MAX, SUBSCRIPTION_TITLE_MAX } from './index';
+import {
+  DISPLAY_NAME_MAX,
+  FOLDER_NAME_MAX,
+  IMPORT_CHUNK_SIZE,
+  SUBSCRIPTION_TITLE_MAX,
+} from './index';
 
 /** Request schemas for the auth routes (spec 8.3). Worker only: see the note in index.ts. */
 
@@ -103,3 +108,32 @@ export const entriesQuerySchema = z
     message: 'id is required unless view=all',
     path: ['id'],
   });
+
+const clip = (max: number) => (t: string) => t.trim().slice(0, max);
+
+const importFeedSchema = z.object({
+  // Over-long or odd URLs are reported per feed as `invalid_url`, not by failing the request.
+  xmlUrl: z.string().max(4096),
+  title: z.string().transform(clip(SUBSCRIPTION_TITLE_MAX)).optional(),
+  htmlUrl: z.string().max(4096).optional(),
+});
+
+/** `POST /api/import/opml` (spec 8.7): at most 100 feeds in total, folders given by name. */
+export const importOpmlRequestSchema = z
+  .object({
+    folders: z
+      .array(
+        z.object({
+          name: z.string().transform(clip(FOLDER_NAME_MAX)),
+          feeds: z.array(importFeedSchema).max(IMPORT_CHUNK_SIZE),
+        }),
+      )
+      .max(IMPORT_CHUNK_SIZE),
+    feeds: z.array(importFeedSchema).max(IMPORT_CHUNK_SIZE),
+  })
+  .refine(
+    (v) => v.feeds.length + v.folders.reduce((n, f) => n + f.feeds.length, 0) <= IMPORT_CHUNK_SIZE,
+    {
+      message: `At most ${IMPORT_CHUNK_SIZE} feeds per request`,
+    },
+  );

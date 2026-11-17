@@ -14,6 +14,7 @@ import { setUnauthenticatedHandler } from './api';
 import { Login } from './auth/Login';
 import { ArticleList } from './lists/ArticleList';
 import { AddFeed } from './manage/AddFeed';
+import { ImportOpml } from './manage/ImportOpml';
 import { Manage } from './manage/Manage';
 import { useFolders, useSubscriptions } from './lib/queries';
 import { Setup } from './auth/Setup';
@@ -196,6 +197,7 @@ function screenFor(path: string) {
   if (path === '/settings') return <SettingsPlaceholder />;
   if (path === '/manage') return <Manage />;
   if (path === '/manage/add') return <AddFeed />;
+  if (path === '/manage/import') return <ImportOpml />;
   if (path === '/all') return <ArticleList view="all" id={null} />;
   if (path === '/folders/:folderId') return <FolderList />;
   if (path === '/feeds/:subscriptionId') return <FeedList />;

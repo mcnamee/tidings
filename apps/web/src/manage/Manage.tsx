@@ -106,6 +106,12 @@ export function Manage() {
         <Plus aria-hidden="true" className="size-5" strokeWidth={1.75} />
         Add feed
       </Link>
+      <Link
+        to="/manage/import"
+        className="mt-2 flex min-h-12 w-full items-center justify-center rounded-md border border-line-strong bg-surface px-4 text-base font-medium text-fg"
+      >
+        Import from OPML
+      </Link>
 
       <section aria-labelledby="folders-h" className="mt-6">
         <h2 id="folders-h" className="text-lg font-semibold text-fg">
