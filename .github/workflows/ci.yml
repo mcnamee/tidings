@@ -38,7 +38,12 @@ jobs:
             e2e/playwright-report/
             e2e/test-results/
           retention-days: 7
+      # Blocking: anything that ships (runtime dependencies).
+      - run: npm audit --audit-level=high --omit=dev
+      # Reported, not blocking (owner decision 2026-11-17): build and test tooling, which never
+      # ships. Advisories here can have no fixed release yet (e.g. picomatch GHSA-fc5q-39xc-vjpf).
       - run: npm audit --audit-level=high
+        continue-on-error: true
 
   # TID-024 AC1: deploy only after the ci job passes, only from main, never for PRs.
   deploy:
