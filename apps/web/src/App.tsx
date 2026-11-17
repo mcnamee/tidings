@@ -1,8 +1,14 @@
-import { Link, Navigate, Route, Routes, useLocation } from 'react-router';
+import { useEffect, useState } from 'react';
+import { Link, Navigate, Outlet, Route, Routes, useLocation } from 'react-router';
+import { useQueryClient } from '@tanstack/react-query';
+import { setUnauthenticatedHandler } from './api';
+import { Login } from './auth/Login';
 import { Setup } from './auth/Setup';
 import { BannerSlot } from './auth/ui';
 import { readLastList } from './lib/lastList';
-import { useSession } from './lib/session';
+import { SESSION_KEY, SIGNED_OUT, useSession } from './lib/session';
+import { hasSignedInHint } from './lib/signedInHint';
+import { isExplicitSignOut, signOut } from './lib/signOut';
 import { AppShell } from './shell/AppShell';
 import { AuthLayout } from './shell/AuthLayout';
 import { useDocumentTitle } from './shell/useDocumentTitle';
@@ -25,7 +31,7 @@ function NotFound() {
   );
 }
 
-/** /login and /recover arrive with TID-008 and TID-009. Until then they show their title only. */
+/** /recover arrives with TID-009. Until then it shows its title only. */
 function AuthPlaceholder({ title }: { title: string }) {
   useDocumentTitle(title);
   const session = useSession();
@@ -58,10 +64,96 @@ function SetupRedirect() {
   return null;
 }
 
-const authRoutes = ROUTES.filter((r) => r.kind === 'auth' && r.path !== '/setup');
+/**
+ * Every route under the shell needs a session (auth-common.md 7): a signed-out visitor goes to
+ * /login, remembering where they were. The server stays the authority; this only saves the trip.
+ */
+function RequireAuth() {
+  const session = useSession();
+  const location = useLocation();
+  if (session.isPending) {
+    return (
+      <div className="min-h-dvh bg-canvas" aria-busy="true" data-testid="auth-pending">
+        <span className="sr-only" role="status">
+          Loading
+        </span>
+      </div>
+    );
+  }
+  // If the session can't be checked, /login says so and offers Try again.
+  if (session.isError || !session.data.user) {
+    // The first-run redirect (SetupRedirect) wins while no owner exists.
+    if (session.data?.setupRequired) return null;
+    // An explicit sign out lands on a plain /login; a session that ended says so (login.md 2.7).
+    const state = isExplicitSignOut()
+      ? undefined
+      : {
+          from: `${location.pathname}${location.search}`,
+          ...(hasSignedInHint() ? { reason: 'expired' } : {}),
+        };
+    return <Navigate to="/login" replace state={state} />;
+  }
+  return <Outlet />;
+}
+
+/**
+ * Stands in for the Settings screen (TID-022) so there is somewhere to Sign out. TID-022 replaces
+ * it with the Account section (FR-ST-3).
+ */
+function SettingsPlaceholder() {
+  const client = useQueryClient();
+  const [busy, setBusy] = useState(false);
+  const [failed, setFailed] = useState(false);
+  async function onSignOut() {
+    if (busy) return;
+    setBusy(true);
+    setFailed(false);
+    const ok = await signOut(client);
+    if (!ok) {
+      setFailed(true);
+      setBusy(false);
+    }
+  }
+  return (
+    <>
+      <Placeholder />
+      <section aria-labelledby="account-h2" className="mt-6">
+        <h2 id="account-h2" className="text-lg font-semibold text-fg">
+          Account
+        </h2>
+        <div role="alert" className="mt-2">
+          {failed && (
+            <p className="rounded-md bg-danger-subtle p-3 text-sm text-danger-subtle-fg">
+              Couldn&apos;t sign out. Check your connection and try again.
+            </p>
+          )}
+        </div>
+        <button
+          type="button"
+          onClick={() => void onSignOut()}
+          aria-disabled={busy ? true : undefined}
+          className="mt-2 inline-flex min-h-11 items-center rounded-md border border-line-strong bg-surface px-4 text-base font-medium text-fg"
+        >
+          {busy ? 'Signing out...' : 'Sign out'}
+        </button>
+      </section>
+    </>
+  );
+}
+
+const authRoutes = ROUTES.filter(
+  (r) => r.kind === 'auth' && r.path !== '/setup' && r.path !== '/login',
+);
 const shellRoutes = ROUTES.filter((r) => r.kind !== 'auth');
 
 export function App() {
+  const queryClient = useQueryClient();
+  // Any 401 unauthenticated means the session is gone: drop the signed-in state and the guard
+  // routes to /login. The persisted cache is kept (ADR 0010 item 4); only sign out clears it.
+  useEffect(() => {
+    setUnauthenticatedHandler(() => queryClient.setQueryData(SESSION_KEY, SIGNED_OUT));
+    return () => setUnauthenticatedHandler(null);
+  }, [queryClient]);
   return (
     <>
       <SetupRedirect />
@@ -69,15 +161,22 @@ export function App() {
         <Route path="/" element={<Navigate to={readLastList()} replace />} />
         <Route element={<AuthLayout />}>
           <Route path="/setup" element={<Setup />} />
+          <Route path="/login" element={<Login />} />
           {authRoutes.map((r) => (
             <Route key={r.path} path={r.path} element={<AuthPlaceholder title={r.title} />} />
           ))}
         </Route>
-        <Route element={<AppShell />}>
-          {shellRoutes.map((r) => (
-            <Route key={r.path} path={r.path} element={<Placeholder />} />
-          ))}
-          <Route path="*" element={<NotFound />} />
+        <Route element={<RequireAuth />}>
+          <Route element={<AppShell />}>
+            {shellRoutes.map((r) => (
+              <Route
+                key={r.path}
+                path={r.path}
+                element={r.path === '/settings' ? <SettingsPlaceholder /> : <Placeholder />}
+              />
+            ))}
+            <Route path="*" element={<NotFound />} />
+          </Route>
         </Route>
       </Routes>
       <Toasts />

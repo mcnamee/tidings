@@ -636,11 +636,17 @@ test.describe('AC6: setup attempts are rate limited', () => {
     await noHorizontalScroll(page);
   });
 
-  test('a successful setup does not count against the limit', async ({ page, authenticator }) => {
+  test('a successful setup does not count against the limit', async ({
+    page,
+    authenticator,
+    baseURL,
+  }) => {
     void authenticator;
     await reachCodes(page);
+    // page.request carries no Origin of its own, and TID-008's CSRF check (AC14) refuses that.
     const next = await page.request.post('/api/auth/setup/options', {
       data: { setupToken: 'x', displayName: 'y' },
+      headers: { Origin: baseURL ?? '' },
     });
     expect(next.status()).toBe(409); // closed, not limited
   });

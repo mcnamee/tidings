@@ -12,7 +12,6 @@ import type { VerifiedPasskey } from './webauthn';
 
 /** Spec 10.1: the deploy-time secret must be at least 32 characters. */
 export const SETUP_TOKEN_MIN_LENGTH = 32;
-export const CHALLENGE_TTL_SECONDS = 300;
 
 export type SetupTokenCheck = 'ok' | 'invalid' | 'misconfigured';
 
@@ -30,48 +29,6 @@ export function normalizePasskeyName(raw: unknown): string {
   const trimmed = raw.trim();
   if (trimmed === '') return PASSKEY_NAME_DEFAULT;
   return Array.from(trimmed).slice(0, PASSKEY_NAME_MAX).join('');
-}
-
-export async function storeSetupChallenge(
-  db: Db,
-  input: { id: string; pendingUserId: string; challenge: string },
-  clock: Clock,
-): Promise<void> {
-  await db.run(
-    sql(
-      `INSERT INTO webauthn_challenges (id, user_id, purpose, challenge, expires_at)
-       VALUES (?, ?, 'setup', ?, ?)`,
-      input.id,
-      input.pendingUserId,
-      input.challenge,
-      nowSeconds(clock) + CHALLENGE_TTL_SECONDS,
-    ),
-  );
-}
-
-export interface ConsumedChallenge {
-  challenge: string;
-  pendingUserId: string | null;
-}
-
-/**
- * Single use: the row is deleted by the same statement that reads it, so a challenge can never
- * be replayed, and an expired one is cleaned up as it is refused (AC8).
- */
-export async function consumeSetupChallenge(
-  db: Db,
-  id: string,
-  clock: Clock,
-): Promise<ConsumedChallenge | null> {
-  const row = await db.first<{ challenge: string; user_id: string | null; expires_at: number }>(
-    sql(
-      `DELETE FROM webauthn_challenges WHERE id = ? AND purpose = 'setup'
-       RETURNING challenge, user_id, expires_at`,
-      id,
-    ),
-  );
-  if (!row || row.expires_at <= nowSeconds(clock)) return null;
-  return { challenge: row.challenge, pendingUserId: row.user_id };
 }
 
 export interface CreatedOwner {

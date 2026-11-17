@@ -12,6 +12,8 @@ export interface BannerContent {
   icon?: 'alert' | 'warning' | 'offline' | 'info';
   title?: string;
   text: string;
+  /** Rich replacement for `text` (a sentence with a link in it). `text` stays as the plain form. */
+  content?: ReactNode;
 }
 
 const TONE: Record<BannerTone, string> = {
@@ -42,7 +44,7 @@ export function BannerSlot({ banner }: { banner: BannerContent | null }) {
             <BannerIcon icon={b.icon ?? (b.tone === 'info' ? 'info' : 'alert')} />
             <p>
               {b.title && <strong className="font-semibold">{b.title} </strong>}
-              {b.text}
+              {b.content ?? b.text}
             </p>
           </div>
         )}

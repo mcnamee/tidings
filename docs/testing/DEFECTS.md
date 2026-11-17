@@ -21,6 +21,27 @@ Entry template:
 
 ## Open
 
+### DEF-018: HEAD /api/health is 401, so a HEAD uptime check fails
+- Story: TID-008 (spec 8.1 deny by default, 8.8 health)
+- Severity: S4. Owner: SE (or PM, if HEAD is out of scope).
+- Status: Open
+- Found by: `apps/worker/test/security-attack.test.ts` > "HEAD /api/health is answered like GET" (`it.fails`)
+- Steps to reproduce: `HEAD /api/health` with no session.
+- Expected: 200 with no body, like GET (monitoring services default to HEAD).
+- Actual: 401 `unauthenticated`. The public list matches method and exact path, and `HEAD` is not in it. Safe by default, which is why this is S4: a HEAD probe sees an outage that is not there.
+- Suggested fix: treat `HEAD` as `GET` in `isPublicRoute` for the two public GET routes, or document that monitors must use GET.
+
+### DEF-019: E2E run is not robust to the host sleeping (the "Playwright stalls")
+- Story: TID-008 verification, feeds TID-038 (E2E stability)
+- Severity: S3 (the suite reports failures that are not product failures). Owner: SE (TID-038).
+- Status: Open
+- Found by: full `npm run test:e2e` on `tid-008-sign-in` (tip b964f3d), 3 failed, 669 passed, 80 skipped, 40.6 min.
+- Steps to reproduce: start the full run and leave the machine alone. macOS enters dark-wake cycles and goes back to sleep after about 3 minutes unless something holds a system-sleep assertion. Playwright and `wrangler dev` hold none (Chromium's "Capturing" assertion only stops display sleep).
+- Expected: either no failures, or failures that say what happened.
+- Actual: three tests failed, each after a silence that equals a system sleep in `pmset -g log` to the second: test 147 (mobile-light, tid-007-setup `a cancelled prompt...`) 1002 s silent, "Test timeout of 30000ms exceeded while setting up context", sleep 16:09:43 to 16:26:23; test 359 (mobile-dark, tid-008-session `a session past expires_at...`) 190 s, "Test timeout exceeded" then "apiRequestContext.post: Target page, context or browser has been closed", sleep 16:29:27 to 16:32:33; test 544 (desktop-light, tid-008-session `AC5: sign out`) 648 s, "page.evaluate: Test timeout exceeded", sleep 16:34:47 to 16:45:34. A watcher that dumped state 60 s into the second stall showed every process at 0% CPU, `/api/health` answering in 5 ms, Chromium alive: nothing was hung. After wake the wall clock has jumped past the 30 s test timeout, so the test in flight is failed. desktop-dark had no sleep and no failure. The same three tests plus their siblings passed 16 of 16, in all four projects, in 65 s under `caffeinate -ims`.
+- Stall pattern for TID-038: phase is whatever the test was doing when the machine slept (context setup, an API request, `page.evaluate`), so it looks random; the duration equals the sleep (190 s to 17 min); it hits one to three tests per run, on any project; it needs an unattended machine and a run longer than about 3 minutes; the app, wrangler and Chromium are healthy throughout. Nothing in the harness (`execFileSync` to wrangler, the shared D1) was involved.
+- Suggested fix: run local full runs under `caffeinate -ims` (done in TEST_STRATEGY), add `npm run test:e2e:full` that wraps it on macOS, have the harness log a "host slept" note when two consecutive test timestamps differ by far more than the test timeout, and consider `retries: 1` locally for tests that fail after a wall-clock jump. The pattern does not need a Playwright or wrangler fix.
+
 ## Closed
 
 ### DEF-011: Stripping HTML tags from plain-text fields in one pass re-forms a tag

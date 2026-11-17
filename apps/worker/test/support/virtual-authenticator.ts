@@ -33,6 +33,21 @@ function b64urlToBytes(s: string): Uint8Array {
   return Uint8Array.from(b, (c) => c.charCodeAt(0));
 }
 
+/** WebCrypto signs as raw r||s; WebAuthn carries an ASN.1 DER ECDSA signature. */
+function derSignature(raw: Uint8Array): Uint8Array {
+  const half = raw.length / 2;
+  const int = (bytes: Uint8Array): number[] => {
+    let i = 0;
+    while (i < bytes.length - 1 && bytes[i] === 0) i++;
+    const body = Array.from(bytes.slice(i));
+    if ((body[0] ?? 0) & 0x80) body.unshift(0);
+    return [0x02, body.length, ...body];
+  };
+  const r = int(raw.slice(0, half));
+  const s = int(raw.slice(half));
+  return Uint8Array.from([0x30, r.length + s.length, ...r, ...s]);
+}
+
 export interface CreationOptionsLike {
   challenge: string;
   rp: { id?: string };
@@ -50,7 +65,38 @@ export interface FakeRegistrationOptions {
   backedUp?: boolean;
 }
 
+export interface FakeAssertionOptions {
+  /** Defaults to the origin the passkey was registered with. */
+  origin?: string;
+  rpId?: string;
+  /** Clear the user-verified flag to simulate a failed biometric. */
+  userVerified?: boolean;
+  /** Override the signed challenge (to prove a wrong challenge is refused). */
+  challenge?: string;
+  /** Signature counter written into the assertion. Default 0 (synced passkeys report 0). */
+  counter?: number;
+  /** Sign with a different key, to prove a bad signature is refused. */
+  wrongKey?: boolean;
+  userHandle?: string;
+}
+
+export interface FakeAssertion {
+  id: string;
+  rawId: string;
+  type: 'public-key';
+  response: {
+    clientDataJSON: string;
+    authenticatorData: string;
+    signature: string;
+    userHandle?: string;
+  };
+  clientExtensionResults: Record<string, never>;
+  authenticatorAttachment: 'platform';
+}
+
 export interface FakeRegistration {
+  /** Signs a sign-in challenge with this passkey's private key, like the platform prompt. */
+  assert(challenge: string, opts?: FakeAssertionOptions): Promise<FakeAssertion>;
   credentialId: string;
   response: {
     id: string;
@@ -115,7 +161,50 @@ export async function fakeRegistration(
     }),
   );
   const id = toBase64Url(credId);
+  const rpIdForAssertion = opts.rpId ?? options.rp.id ?? '';
   return {
+    async assert(challenge, a = {}) {
+      const signer = a.wrongKey
+        ? ((await crypto.subtle.generateKey({ name: 'ECDSA', namedCurve: 'P-256' }, true, [
+            'sign',
+            'verify',
+          ])) as CryptoKeyPair)
+        : pair;
+      const counter = a.counter ?? 0;
+      const authData = Uint8Array.from([
+        ...(await sha256(a.rpId ?? rpIdForAssertion)),
+        0x01 | (a.userVerified === false ? 0 : 0x04),
+        (counter >>> 24) & 255,
+        (counter >>> 16) & 255,
+        (counter >>> 8) & 255,
+        counter & 255,
+      ]);
+      const clientData = new TextEncoder().encode(
+        JSON.stringify({
+          type: 'webauthn.get',
+          challenge: a.challenge ?? challenge,
+          origin: a.origin ?? opts.origin,
+          crossOrigin: false,
+        }),
+      );
+      const signed = Uint8Array.from([...authData, ...(await sha256(clientData))]);
+      const raw = new Uint8Array(
+        await crypto.subtle.sign({ name: 'ECDSA', hash: 'SHA-256' }, signer.privateKey, signed),
+      );
+      return {
+        id,
+        rawId: id,
+        type: 'public-key',
+        response: {
+          clientDataJSON: toBase64Url(clientData),
+          authenticatorData: toBase64Url(authData),
+          signature: toBase64Url(derSignature(raw)),
+          ...(a.userHandle === undefined ? {} : { userHandle: a.userHandle }),
+        },
+        clientExtensionResults: {},
+        authenticatorAttachment: 'platform',
+      };
+    },
     credentialId: id,
     response: {
       id,

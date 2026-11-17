@@ -47,6 +47,12 @@ Ports: app 8788 (`E2E_APP_PORT`), fixture feed server 8790 (`E2E_FIXTURE_PORT`).
 (`workers: 1`) because every project shares one app instance, one local D1 and one fixture server port.
 Locally an already-running app on 8788 is reused; in CI a fresh one is always started.
 
+Long local runs: wrap them in `caffeinate -ims` (macOS). A full run takes about 40 minutes, and a Mac that
+goes to sleep mid-run (maintenance and "Sleep Service" dark-wake cycles when nobody is at the keyboard)
+makes whichever test is in flight fail on wake with a 30 s timeout, after a "stall" as long as the sleep.
+That is the host, not Playwright or the app (DEF-019, TID-038). Check `pmset -g log | grep -E " (Sleep|Wake) "`
+against the gap before blaming a test.
+
 ## Worker integration tests (workerd + D1)
 
 - Config: `apps/worker/vitest.config.ts`. It reads `apps/worker/migrations/*.sql` and passes them to the
@@ -250,6 +256,38 @@ Hostile-text rule (ADR 0009 section 2). The XSS payload tests in `adversarial.te
 tag (the WHATWG list plus obsolete names, `svg`, `math`, kept in the test file independently of the parser's list), no
 comment and no script or style body survives in `title`, `author` or `summary`. Non-HTML angle text (`<circle r=1 />`,
 `Vec<T>`) is deliberately kept and rendered as text. DEF-011 (a single strip pass re-formed a tag) is fixed by a fixed-point strip, except the 16-pass cap fallback, which can still leave `<b>` (reopened; `it.fails` test "cap fallback cannot leave an element tag"). Also covered: "deep nesting of split tags" and the 2 KB timing test.
+
+## TID-008 traceability (sign-in, sessions, API security middleware)
+
+Worker tests: `apps/worker/test/login.test.ts`, `api-guard.test.ts`, `auth-csrf.test.ts`,
+`security-attack.test.ts` (tester, adversarial), `src/api/security.test.ts`, `app.test.ts`. E2E:
+`e2e/specs/tid-008-sign-in.spec.ts`, `tid-008-session.spec.ts`. SPA: `apps/web/src/auth/Login.test.tsx`,
+`returnPath.test.ts`. The route table (`test/support/route-table.ts`) is diffed against the spec's section 8
+route list when this story is verified; a new route must be added to it or `api-guard.test.ts` fails.
+
+| AC | Result | Tests |
+|---|---|---|
+| 1 | pass | `login.test.ts` AC1 (6 tests); E2E `AC1: sign in with a passkey` (4); `Login.test.tsx` AC1 |
+| 2 | pass | `login.test.ts` AC2 (wrong signature, unknown credential, origin, RP ID, UV, counter, replay, expiry, cross-purpose) |
+| 3 | pass | `api-guard.test.ts` AC3 (7 tests, fixed clock, statement spy); E2E AC3 |
+| 4 | pass | `api-guard.test.ts` AC4 (7); E2E `AC4 and AC13` (2); `Login.test.tsx` AC4 |
+| 5 | pass | `api-guard.test.ts` AC5 (3); E2E `AC5: sign out` (2); `Login.test.tsx` AC5 |
+| 6 | pass | `api-guard.test.ts` AC6, one test per row of the 34-route table, bare and well-formed; E2E AC6 |
+| 7 | pass | `api-guard.test.ts` AC7 (10); `security-attack.test.ts` origin, Sec-Fetch-Site and Content-Type variants; E2E AC7 |
+| 8 | pass | `api-guard.test.ts` AC8 (2); E2E AC8 |
+| 9 | partial | `api-guard.test.ts` AC9 (3). No route takes an ID yet, so there is no B-reads-A suite; `no registered route takes an ID yet` fails when the first `:param` route is registered, which forces the suite to be written |
+| 10 | pass | `login.test.ts` AC10 and AC15 (11th verify 429, window rollover); E2E AC10 |
+| 11 | pass | `api-guard.test.ts` AC11 (7, stubbed binding, key, 429 and Retry-After, auth routes never consult it, fail open) |
+| 12 | pass | `api-guard.test.ts` AC12; `shared-contract.test.ts` |
+| 13 | pass | `login.test.ts` (auth_method); `Login.test.tsx` AC4 and AC13 and AC5 and AC13; E2E `AC4 and AC13`, `AC5` (IndexedDB, against a planted database: the persister itself arrives with TID-023) |
+| 14 | pass | `auth-csrf.test.ts` AC14, five public routes x six cases; E2E AC14 |
+| 15 | pass | `auth-csrf.test.ts` AC15 (7); `login.test.ts` AC10 and AC15 (11th options, 10 full sign-ins) |
+
+Mutation checks run for this story (each guard broken in turn, the suite must fail, then reverted): deny by
+default, CSRF origin, Sec-Fetch-Site fallback, Content-Type, sliding write and threshold, parallel slide guard,
+absolute cap (slide and lookup), expiry, logout delete and cookie clear, challenge purpose, `API_RL` key and
+use, login counter keys and refunds, public-route CSRF, cookie Secure, HttpOnly and SameSite, session token
+fixation, security headers: 28 mutants, 28 killed.
 
 ## Security and free-tier checks (applied per story)
 

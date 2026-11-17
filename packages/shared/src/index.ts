@@ -11,15 +11,29 @@ export interface HealthResponse {
   version: string;
 }
 
+/** Spec 8.1, exactly. */
 export type ErrorCode =
+  | 'unauthenticated'
+  | 'reauth_required'
+  | 'csrf_failed'
+  | 'forbidden'
   | 'not_found'
-  | 'internal_error'
-  | 'config_error'
   | 'validation_failed'
   | 'rate_limited'
+  | 'limit_reached'
+  | 'conflict'
+  | 'already_subscribed'
+  | 'feed_choice_required'
+  | 'no_feed_found'
+  | 'fetch_failed'
+  | 'blocked_address'
   | 'setup_unavailable'
   | 'invalid_setup_token'
-  | 'webauthn_failed';
+  | 'webauthn_failed'
+  | 'invalid_recovery_code'
+  | 'last_passkey'
+  | 'internal'
+  | 'config_error';
 
 export interface ApiError {
   error: { code: ErrorCode; message: string; details?: unknown };
@@ -87,4 +101,39 @@ export interface SetupVerifyRequest {
 export interface SetupVerifyResponse {
   user: User;
   recoveryCodes: string[];
+}
+
+// ── Sign in (spec 8.3) ─────────────────────────────────────────
+
+/** PublicKeyCredentialRequestOptionsJSON. `allowCredentials` is empty (discoverable credentials). */
+export interface RequestOptionsJSON {
+  challenge: string;
+  rpId?: string;
+  userVerification?: 'required' | 'preferred' | 'discouraged';
+  allowCredentials?: Array<{ id: string; type: 'public-key' }>;
+  [key: string]: unknown;
+}
+
+/** The browser's `AuthenticationResponseJSON`, as far as the API envelope is concerned. */
+export interface AuthenticationResponse {
+  id: string;
+  rawId: string;
+  type: 'public-key';
+  response: {
+    clientDataJSON: string;
+    authenticatorData: string;
+    signature: string;
+    userHandle?: string;
+  };
+  clientExtensionResults: Record<string, unknown>;
+  authenticatorAttachment?: string;
+  [key: string]: unknown;
+}
+
+export interface LoginVerifyRequest {
+  response: AuthenticationResponse;
+}
+
+export interface LoginVerifyResponse {
+  user: User;
 }

@@ -2,3 +2,7 @@
 # Required for first-run setup (TID-007): at least 32 random characters, for example
 #   openssl rand -base64 36
 SETUP_TOKEN=replace-me-with-at-least-32-random-characters
+# Sign-in and the CSRF check compare the browser's Origin with APP_ORIGIN, and passkeys are bound to
+# RP_ID. `npm run dev` serves the SPA on Vite (5173) and proxies /api to the Worker, so use:
+APP_ORIGIN=http://localhost:5173
+RP_ID=localhost

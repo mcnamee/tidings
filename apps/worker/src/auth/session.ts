@@ -6,6 +6,8 @@ import { randomToken, sha256Hex } from './crypto';
 export const SESSION_COOKIE = '__Host-tid_session';
 export const SESSION_TTL_SECONDS = 30 * 24 * 60 * 60;
 export const SESSION_ABSOLUTE_TTL_SECONDS = 180 * 24 * 60 * 60;
+/** Spec 10.2: `expires_at` is pushed out only when fewer than this many seconds remain (about one write a week). */
+export const SESSION_RENEW_BELOW_SECONDS = 23 * 24 * 60 * 60;
 
 export type AuthMethod = 'setup' | 'passkey' | 'recovery';
 
@@ -45,9 +47,11 @@ interface SessionUserRow {
   settings_json: string;
   auth_method: AuthMethod;
   session_created_at: number;
+  expires_at: number;
+  absolute_expires_at: number;
 }
 
-function parseSettings(json: string): User['settings'] {
+export function parseSettings(json: string): User['settings'] {
   try {
     const value: unknown = JSON.parse(json);
     return value && typeof value === 'object' && !Array.isArray(value)
@@ -62,49 +66,97 @@ export async function anyUserExists(db: Db): Promise<boolean> {
   return (await db.first<{ one: number }>(sql('SELECT 1 AS one FROM users LIMIT 1'))) !== null;
 }
 
-/** `GET /api/auth/session`. Read-only: sliding expiry is the sign-in story's job (TID-008). */
-export async function describeSession(
+export interface ResolvedSession {
+  user: User;
+  authMethod: AuthMethod;
+  sessionCreatedAt: number;
+  idHash: string;
+  /**
+   * Set when this request pushed `expires_at` out: the new cookie lifetime in seconds. The
+   * caller re-issues the cookie with it so the browser's copy slides with the row.
+   */
+  renewedMaxAge: number | null;
+}
+
+/**
+ * Looks up a session by its cookie token (one primary-key read joined to the user) and applies
+ * sliding expiry (spec 10.2, TID-008 AC3). A session past `expires_at` or `absolute_expires_at`
+ * is simply not found. Writes at most one row, and only when fewer than 23 days remain.
+ */
+export async function resolveSession(
   db: Db,
   token: string | undefined,
   clock: Clock,
-): Promise<SessionResponse> {
-  if (token) {
-    const now = nowSeconds(clock);
-    const row = await db.first<SessionUserRow>(
+): Promise<ResolvedSession | null> {
+  // Tokens are 43 base64url characters; anything much longer cannot match, so skip the hash and read.
+  if (!token || token.length > 256) return null;
+  const now = nowSeconds(clock);
+  const idHash = await sha256Hex(token);
+  const row = await db.first<SessionUserRow>(
+    sql(
+      `SELECT u.id, u.display_name, u.role, u.settings_json, s.auth_method,
+              s.created_at AS session_created_at, s.expires_at, s.absolute_expires_at
+       FROM sessions s JOIN users u ON u.id = s.user_id
+       WHERE s.id_hash = ? AND s.expires_at > ? AND s.absolute_expires_at > ?`,
+      idHash,
+      now,
+      now,
+    ),
+  );
+  if (!row) return null;
+
+  let renewedMaxAge: number | null = null;
+  if (row.expires_at - now < SESSION_RENEW_BELOW_SECONDS) {
+    const next = Math.min(now + SESSION_TTL_SECONDS, row.absolute_expires_at);
+    // The guard makes a burst of parallel requests write once, not once each.
+    const meta = await db.run(
       sql(
-        `SELECT u.id, u.display_name, u.role, u.settings_json, s.auth_method,
-                s.created_at AS session_created_at
-         FROM sessions s JOIN users u ON u.id = s.user_id
-         WHERE s.id_hash = ? AND s.expires_at > ? AND s.absolute_expires_at > ?`,
-        await sha256Hex(token),
-        now,
-        now,
+        'UPDATE sessions SET expires_at = ? WHERE id_hash = ? AND expires_at < ?',
+        next,
+        idHash,
+        next,
       ),
     );
-    if (row) {
-      let mustAddPasskey = false;
-      if (row.auth_method === 'recovery') {
-        // ADR 0010: one indexed read, only for recovery sessions.
-        const added = await db.first<{ one: number }>(
-          sql(
-            'SELECT 1 AS one FROM passkeys WHERE user_id = ? AND created_at >= ? LIMIT 1',
-            row.id,
-            row.session_created_at,
-          ),
-        );
-        mustAddPasskey = added === null;
-      }
-      return {
-        user: {
-          id: row.id,
-          displayName: row.display_name,
-          role: row.role,
-          settings: parseSettings(row.settings_json),
-        },
-        setupRequired: false,
-        mustAddPasskey,
-      };
+    if (meta.changes > 0) renewedMaxAge = next - now;
+  }
+  return {
+    user: {
+      id: row.id,
+      displayName: row.display_name,
+      role: row.role,
+      settings: parseSettings(row.settings_json),
+    },
+    authMethod: row.auth_method,
+    sessionCreatedAt: row.session_created_at,
+    idHash,
+    renewedMaxAge,
+  };
+}
+
+/** Deletes one session (sign out). Scoped by the user as well, so it can only ever be your own. */
+export async function deleteSession(db: Db, userId: string, idHash: string): Promise<void> {
+  await db.run(sql('DELETE FROM sessions WHERE id_hash = ? AND user_id = ?', idHash, userId));
+}
+
+/** `GET /api/auth/session` for an already resolved (or absent) session. */
+export async function describeSession(
+  db: Db,
+  session: ResolvedSession | null,
+): Promise<SessionResponse> {
+  if (session) {
+    let mustAddPasskey = false;
+    if (session.authMethod === 'recovery') {
+      // ADR 0010: one indexed read, only for recovery sessions.
+      const added = await db.first<{ one: number }>(
+        sql(
+          'SELECT 1 AS one FROM passkeys WHERE user_id = ? AND created_at >= ? LIMIT 1',
+          session.user.id,
+          session.sessionCreatedAt,
+        ),
+      );
+      mustAddPasskey = added === null;
     }
+    return { user: session.user, setupRequired: false, mustAddPasskey };
   }
   return { user: null, setupRequired: !(await anyUserExists(db)), mustAddPasskey: false };
 }

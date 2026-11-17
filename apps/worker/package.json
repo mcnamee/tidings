@@ -4,7 +4,7 @@
   "version": "0.0.0",
   "type": "module",
   "scripts": {
-    "dev": "mkdir -p ../web/dist && wrangler dev --port 8787",
+    "dev": "mkdir -p ../web/dist && wrangler dev --port 8787 --infer-origin-from-routes=false",
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
     "build": "wrangler deploy --dry-run --outdir .wrangler/dry-run",

@@ -439,7 +439,7 @@ describe('step 1: running the ceremony', () => {
   it('a 500 shows the server error banner', async () => {
     api.set('POST /api/auth/setup/verify', {
       status: 500,
-      body: { error: { code: 'internal_error' } },
+      body: { error: { code: 'internal' } },
     });
     renderSetup();
     const user = await fill();

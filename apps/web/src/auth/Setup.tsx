@@ -10,7 +10,7 @@ import {
 } from '@tidings/shared';
 import { ApiRequestError, NetworkError, apiPost } from '../api';
 import { readLastList } from '../lib/lastList';
-import { SESSION_KEY, useSession } from '../lib/session';
+import { publishSignedIn, SESSION_KEY, useSession } from '../lib/session';
 import { useOnline } from '../lib/hooks';
 import { useAuthLayout } from '../shell/AuthLayout';
 import { useDocumentTitle } from '../shell/useDocumentTitle';
@@ -91,8 +91,7 @@ export function Setup() {
     // Drop the codes first, then publish only the user (never the codes) to the session cache.
     setCodes(null);
     if (verified) {
-      const next: SessionResponse = { user: verified, setupRequired: false, mustAddPasskey: false };
-      queryClient.setQueryData(SESSION_KEY, next);
+      publishSignedIn(queryClient, verified);
     }
     void navigate('/all', { replace: true });
   }
