@@ -21,26 +21,28 @@ async function closeDrawer(page: Page, mobile: boolean) {
 }
 
 /** Leaves the shared seeded owner with no folders or feeds, before and after. */
-async function clean(page: Page) {
+// State-changing requests need the app's Origin, or the CSRF guard refuses them with 403.
+async function clean(page: Page, origin: string) {
+  const headers = { 'Content-Type': 'application/json', Origin: origin };
   const subs = (await (await page.request.get('/api/subscriptions')).json()) as {
     items: { id: string }[];
   };
-  for (const s of subs.items)
-    await page.request.delete(`/api/subscriptions/${s.id}`, {
-      headers: { 'Content-Type': 'application/json' },
-    });
+  for (const s of subs.items) {
+    const res = await page.request.delete(`/api/subscriptions/${s.id}`, { headers });
+    expect(res.ok()).toBe(true);
+  }
   const folders = (await (await page.request.get('/api/folders')).json()) as {
     items: { id: string }[];
   };
-  for (const f of folders.items)
-    await page.request.delete(`/api/folders/${f.id}`, {
-      headers: { 'Content-Type': 'application/json' },
-    });
+  for (const f of folders.items) {
+    const res = await page.request.delete(`/api/folders/${f.id}`, { headers });
+    expect(res.ok()).toBe(true);
+  }
 }
 
 test.describe('TID-014 folders and subscription management', () => {
-  test.beforeEach(async ({ page }) => clean(page));
-  test.afterEach(async ({ page }) => clean(page));
+  test.beforeEach(async ({ page, baseURL }) => clean(page, baseURL!));
+  test.afterEach(async ({ page, baseURL }) => clean(page, baseURL!));
 
   test('golden path: add a feed, create a folder, move the feed into it, see it in the drawer, unsubscribe', async ({
     page,
