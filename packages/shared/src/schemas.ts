@@ -149,3 +149,19 @@ export const readStateRequestSchema = z
     isRead: z.boolean(),
   })
   .strict();
+
+/** `POST /api/entries/mark-all-read` (spec 8.5): `before` is an ISO timestamp, the list's `asOf`. */
+export const markAllReadRequestSchema = z
+  .object({
+    view: z.enum(['all', 'folder', 'feed']),
+    id: z.string().min(1).max(64).optional(),
+    before: z
+      .string()
+      .max(40)
+      .refine((v) => !Number.isNaN(Date.parse(v)), { message: 'before must be an ISO timestamp' }),
+  })
+  .strict()
+  .refine((q) => q.view === 'all' || q.id !== undefined, {
+    message: 'id is required unless view=all',
+    path: ['id'],
+  });

@@ -4,8 +4,8 @@
  * only touches rows whose state really changes: repeating a request writes nothing. Every query
  * puts `user_id = ?` in its SQL (spec 10.8).
  */
-import { Db, sql, type Meta } from './client';
-import type { EntrySummaryRow } from './entries';
+import { Db, sql, type Meta, type SqlValue } from './client';
+import type { EntrySummaryRow, EntryView } from './entries';
 
 export interface EntryRow extends EntrySummaryRow {
   content_html: string | null;
@@ -73,4 +73,41 @@ export async function setReadMany(
     ),
   );
   return { updated: Number(meta.changes ?? 0), meta };
+}
+
+/**
+ * Marks every unread entry of a view read, in one set-based statement (FR-RD-9, spec 9.4). Only
+ * rows that are unread, belong to `userId`, are in the view and have `published_at <= beforeSeconds`
+ * are touched, so nothing that arrived after the list was loaded changes, and a repeat writes
+ * nothing. `RETURNING` gives the changed IDs for Undo without a second query. `id` is the feed ID
+ * (view=feed) or the folder ID (view=folder), already checked as the caller's.
+ */
+export async function markAllRead(
+  db: Db,
+  userId: string,
+  view: EntryView,
+  id: string | number | undefined,
+  beforeSeconds: number,
+  nowSeconds: number,
+): Promise<{ entryIds: number[]; meta: Meta }> {
+  const binds: SqlValue[] = [nowSeconds, userId, beforeSeconds];
+  let scope = '';
+  if (view === 'feed') {
+    scope = ' AND feed_id = ?';
+    binds.push(Number(id));
+  } else if (view === 'folder') {
+    scope =
+      ' AND feed_id IN (SELECT feed_id FROM subscriptions WHERE user_id = ? AND folder_id = ?)';
+    binds.push(userId, String(id));
+  }
+  const { rows, meta } = await db.all<{ entry_id: number }>(
+    sql(
+      'UPDATE user_entries SET is_read = 1, read_at = ? ' +
+        'WHERE user_id = ? AND is_read = 0 AND published_at <= ?' +
+        scope +
+        ' RETURNING entry_id',
+      ...binds,
+    ),
+  );
+  return { entryIds: rows.map((r) => r.entry_id), meta };
 }

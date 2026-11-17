@@ -1,19 +1,27 @@
 import { useEffect, useLayoutEffect, useRef, useState, type ReactNode } from 'react';
 import { Link, useLocation, useNavigationType, useSearchParams } from 'react-router';
 import { useQueryClient } from '@tanstack/react-query';
-import { Filter, Loader2, RefreshCw } from 'lucide-react';
-import type { EntryListState, EntryListView, Subscription } from '@tidings/shared';
+import { CheckCheck, Filter, Loader2, RefreshCw } from 'lucide-react';
+import {
+  MARK_ALL_CONFIRM_OVER,
+  type EntryListState,
+  type EntryListView,
+  type Subscription,
+} from '@tidings/shared';
 import { ApiRequestError } from '../api';
 import {
   COUNTS_KEY,
   entriesKey,
   trimToFirstPage,
+  useCounts,
   useEntries,
   useSubscriptions,
 } from '../lib/queries';
+import { markAllRead } from '../lib/markAllRead';
 import { useSession } from '../lib/session';
 import { unreadOnlyDefault } from '../lib/settings';
 import { usePullToRefresh } from '../lib/usePullToRefresh';
+import { SHEET_BUTTON, Sheet } from '../manage/Sheet';
 import { BottomBar, HeaderActions } from '../shell/slots';
 import { ArticleRow } from './ArticleRow';
 import { clearOpened, markOpened, scrollOf, wasOpenedFrom } from './returning';
@@ -167,6 +175,25 @@ export function ArticleList({ view, id }: { view: EntryListView; id: string | nu
   }
   const pull = usePullToRefresh(refresh);
 
+  // FR-RD-9. The watermark is the first page's `asOf`; the number for the confirm step is the
+  // unread count the sidebar already holds for this view (or the loaded unread rows, if more).
+  const counts = useCounts();
+  const [confirming, setConfirming] = useState(false);
+  const asOf = entries.data?.pages[0]?.asOf;
+  const loadedUnread = items.filter((i) => !i.isRead).length;
+  const known =
+    view === 'all'
+      ? counts.data?.total
+      : view === 'folder'
+        ? counts.data?.folders[id ?? '']
+        : counts.data?.subscriptions[id ?? ''];
+  const toMark = Math.max(known ?? 0, loadedUnread);
+  function markAll() {
+    if (!asOf) return;
+    setConfirming(false);
+    void markAllRead(client, { view, id, before: asOf });
+  }
+
   const sentinel = useRef<HTMLDivElement>(null);
   const { hasNextPage, isFetchingNextPage, fetchNextPage } = entries;
   const canObserve = typeof IntersectionObserver !== 'undefined';
@@ -272,6 +299,15 @@ export function ArticleList({ view, id }: { view: EntryListView; id: string | nu
       <BottomBar>
         <button
           type="button"
+          onClick={() => (toMark > MARK_ALL_CONFIRM_OVER ? setConfirming(true) : markAll())}
+          disabled={!asOf || toMark === 0}
+          className="inline-flex min-h-11 items-center gap-2 rounded-md px-3 text-base font-medium text-fg active:bg-sunken disabled:text-fg-muted"
+        >
+          <CheckCheck aria-hidden="true" className="size-5" strokeWidth={1.75} />
+          Mark all as read
+        </button>
+        <button
+          type="button"
           onClick={() => void refresh()}
           disabled={pull === 'refreshing'}
           className="inline-flex min-h-11 items-center gap-2 rounded-md px-3 text-base font-medium text-fg active:bg-sunken disabled:text-fg-muted"
@@ -280,6 +316,22 @@ export function ArticleList({ view, id }: { view: EntryListView; id: string | nu
           Refresh
         </button>
       </BottomBar>
+      {confirming && (
+        <Sheet title={`Mark ${toMark} articles as read?`} onClose={() => setConfirming(false)}>
+          <div className="mt-4 space-y-2">
+            <button
+              type="button"
+              onClick={markAll}
+              className="flex min-h-12 w-full items-center justify-center gap-2 rounded-md bg-accent px-4 text-base font-medium text-accent-fg"
+            >
+              Mark {toMark} as read
+            </button>
+            <button type="button" onClick={() => setConfirming(false)} className={SHEET_BUTTON}>
+              Cancel
+            </button>
+          </div>
+        </Sheet>
+      )}
       <div role="status" className="sr-only">
         {pull === 'refreshing' ? 'Refreshing' : ''}
       </div>
