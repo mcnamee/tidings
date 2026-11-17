@@ -160,3 +160,100 @@ describe('AC6: relative URLs and images', () => {
     expect(img?.hasAttribute('class')).toBe(false);
   });
 });
+
+// Tester additions (TID-019): payloads beyond the engineer's corpus. jsdom is not a browser, so
+// the E2E spec renders the same list in Chromium as well.
+const SAFE_TAGS = new Set(
+  'p br a strong em b i u s blockquote q cite code pre kbd ul ol li dl dt dd h1 h2 h3 h4 h5 h6 hr img picture source figure figcaption table thead tbody tfoot tr th td caption sup sub small abbr time mark del ins details summary video audio div'.split(
+    ' ',
+  ),
+);
+
+function assertInert(out: string): void {
+  const box = document.createElement('div');
+  box.innerHTML = out;
+  for (const el of Array.from(box.querySelectorAll('*'))) {
+    expect(SAFE_TAGS.has(el.tagName.toLowerCase()), `tag ${el.tagName}`).toBe(true);
+    for (const attr of Array.from(el.attributes)) {
+      expect(attr.name.startsWith('on'), `attr ${attr.name}`).toBe(false);
+      expect([
+        'style',
+        'class',
+        'id',
+        'srcdoc',
+        'formaction',
+        'xlink:href',
+        'srcset',
+      ]).not.toContain(attr.name);
+      if (['href', 'src', 'poster'].includes(attr.name)) {
+        expect(attr.value).toMatch(/^(https?:|mailto:)/);
+      }
+    }
+  }
+}
+
+const ADVERSARIAL: Record<string, string> = {
+  'leading space javascript href': '<a href=" javascript:window.__pwned=1">x</a>',
+  'leading tab/newline javascript href': '<a href="\t\n javascript:window.__pwned=1">x</a>',
+  'entity-encoded javascript href': '<a href="&#106;&#97;vascript&colon;window.__pwned=1">x</a>',
+  'vbscript href': '<a href="vbscript:msgbox(1)">x</a>',
+  'data html src on img': '<img src="data:image/svg+xml,<svg onload=window.__pwned=1>">',
+  'svg use':
+    '<svg><use href="data:image/svg+xml,<svg id=x xmlns=http://www.w3.org/2000/svg><script>window.__pwned=1</script></svg>#x"/></svg>',
+  'svg use xlink': '<svg><use xlink:href="https://evil.example/x.svg#a"/></svg>',
+  'style @import': '<style>@import url(https://evil.example/x.css);</style><p>x</p>',
+  'style attr css url': '<p style="background:url(https://evil.example/t.gif)">x</p>',
+  'style attr expression': '<p style="width:expression(window.__pwned=1)">x</p>',
+  'link stylesheet': '<link rel="stylesheet" href="https://evil.example/x.css"><p>x</p>',
+  formaction: '<form><button formaction="javascript:window.__pwned=1">go</button></form>',
+  'input formaction': '<input type="submit" formaction="javascript:window.__pwned=1" value="go">',
+  'mXSS svg style': '<svg></p><style><a id="</style><img src=1 onerror=window.__pwned=1>">',
+  'mXSS math mglyph':
+    '<math><mtext><table><mglyph><style><!--</style><img title="--&gt;&lt;img src=1 onerror=window.__pwned=1&gt;">',
+  'mXSS noscript': '<noscript><style></noscript><img src=x onerror=window.__pwned=1>',
+  'mXSS xmp': '<xmp><p title="</xmp><img src=x onerror=window.__pwned=1>">',
+  'mXSS textarea': '<textarea></textarea><img src=x onerror=window.__pwned=1>',
+  'mXSS template': '<template><img src=x onerror=window.__pwned=1></template>',
+  'mXSS form nesting':
+    '<form><math><mtext></form><form><mglyph><style></math><img src onerror=window.__pwned=1>',
+  'namespace confusion foreignObject':
+    '<svg><foreignObject><iframe srcdoc="<script>parent.__pwned=1</script>"></iframe></foreignObject></svg>',
+  'details ontoggle': '<details open ontoggle="window.__pwned=1"><summary>x</summary></details>',
+  'video onerror and poster js':
+    '<video poster="javascript:1" onerror="window.__pwned=1"><source src="javascript:1" onerror="window.__pwned=1"></video>',
+  'audio src js':
+    '<audio src="javascript:window.__pwned=1" autoplay onloadstart="window.__pwned=1"></audio>',
+  'dom clobbering': '<img name="cookie" id="body"><a id="x" name="y">x</a>',
+  'protocol-relative link': '<a href="//evil.example/x">x</a><img src="//evil.example/t.gif">',
+  'object data': '<object data="javascript:1"></object>',
+  'plaintext and listing': '<plaintext><img src=x onerror=window.__pwned=1>',
+  'comment break': '<!--><img src=x onerror=window.__pwned=1>-->',
+  cdata: '<![CDATA[<img src=x onerror=window.__pwned=1>]]>',
+  'null bytes': '<scr\u0000ipt>window.__pwned=1</scr\u0000ipt><a href="java\u0000script:1">x</a>',
+  'uppercase and slash attrs': '<IMG/SRC="x"/ONERROR="window.__pwned=1">',
+};
+
+describe('tester: adversarial XSS', () => {
+  for (const [name, html] of Object.entries(ADVERSARIAL)) {
+    it(`${name}: output holds only allowed tags and safe attributes`, () => {
+      assertInert(sanitizeArticleHtml(html, URL));
+      assertInert(sanitizeArticleHtml(html, null));
+    });
+    it(`${name}: sanitising the output again changes nothing (no mXSS mutation)`, () => {
+      const once = sanitizeArticleHtml(html, URL);
+      expect(sanitizeArticleHtml(once, URL)).toBe(once);
+    });
+  }
+
+  it('a protocol-relative URL resolves against the entry URL scheme, not to a script', () => {
+    const box = clean('<a href="//evil.example/x">x</a>');
+    expect(box.querySelector('a')?.getAttribute('href')).toBe('https://evil.example/x');
+  });
+});
+
+// DEF-071: an image with no alt text fails WCAG 1.1.1 (axe image-alt, critical). Feed images
+// usually have none, so the sanitiser should add alt="" (decorative) when it is missing.
+it.fails('DEF-071: an image with no alt attribute gets alt=""', () => {
+  const img = clean('<img src="/a.png">').querySelector('img');
+  expect(img?.getAttribute('alt')).toBe('');
+});

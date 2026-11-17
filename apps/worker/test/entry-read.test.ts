@@ -91,6 +91,28 @@ describe('GET /api/entries/:id', () => {
   });
 });
 
+describe('GET /api/entries/:id: isolation when the feed is shared', () => {
+  // Tester addition. B follows feed 1, so the label lookup would succeed for any entry of that
+  // feed; only the user_id in the entry query keeps A's per-user row (read state, content) from B.
+  it('AC9: B subscribed to the same feed still gets 404 for an entry only A has a row for', async () => {
+    const onlyA = await db.first<{ entry_id: number }>(
+      sql(
+        'SELECT entry_id FROM user_entries WHERE user_id = ? AND feed_id = 1 ' +
+          'AND entry_id NOT IN (SELECT entry_id FROM user_entries WHERE user_id = ?) LIMIT 1',
+        A,
+        B,
+      ),
+    );
+    expect(onlyA).not.toBeNull();
+    const { res, json } = await call(B, 'GET', `/api/entries/${onlyA!.entry_id}`);
+    expect(res.status).toBe(404);
+    expect(code(json)).toBe('not_found');
+    const patch = await call(B, 'PATCH', `/api/entries/${onlyA!.entry_id}`, { isRead: true });
+    expect(patch.res.status).toBe(404);
+    expect((await state(A, onlyA!.entry_id))?.is_read).toBe(0);
+  });
+});
+
 describe('PATCH /api/entries/:id', () => {
   it('AC2, AC4: marks read, then unread, and returns the summary', async () => {
     const read = await call(A, 'PATCH', '/api/entries/1', { isRead: true });

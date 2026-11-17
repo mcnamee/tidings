@@ -309,6 +309,17 @@ describe('AC7: Next and Previous', () => {
     expect(api.calls.filter((c) => c.path.startsWith('/api/entries?'))).toHaveLength(1);
   });
 
+  // DEF-070: current Chromium's window.scrollTo returns a Promise; the article's mount effect
+  // returned it, so React treated it as a cleanup and threw when the article was replaced.
+  it.fails('DEF-070: Next works when window.scrollTo returns a Promise', async () => {
+    vi.spyOn(window, 'scrollTo').mockImplementation((() => Promise.resolve()) as never);
+    const user = userEvent.setup();
+    renderApp('/all');
+    await user.click(await screen.findByRole('link', { name: /Title 1/ }));
+    await user.click(screen.getByRole('button', { name: 'Next' }));
+    expect(await screen.findByRole('heading', { level: 2, name: 'Title 2' })).toBeInTheDocument();
+  });
+
   it('Next at the end of the loaded pages loads the next page first', async () => {
     api.set(LIST('all'), page([entry(1), entry(2)], 'CUR1'));
     api.set(LIST('all', 'unread', undefined, 'CUR1'), page([entry(3)]));
