@@ -139,8 +139,27 @@ step and the Worker is not deployed. Add two repository secrets (Settings, Secre
   manage the custom domain record).
 - `CLOUDFLARE_ACCOUNT_ID`: shown on the Workers and Pages overview page.
 
+Two optional secrets switch on email sign-in (TID-053, ADR 0016). If they are set in GitHub, the deploy
+job copies them to Workers secrets (`wrangler-action` `secrets:`); if not, it skips them and the deploy still
+passes:
+
+- `RESEND_API_KEY`: a Resend sending-only API key restricted to the `tidings.mcn.am` domain.
+- `MAGIC_LINK_EMAIL`: your own address, the only recipient.
+
 Migrations must stay backward compatible with the previous Worker version: add columns first, use them in
 a later deploy (spec 14.3). Pull requests and other branches never deploy.
+
+### Email sign-in (Resend)
+
+Setup, once: create a Resend account, **Domains > Add Domain** `tidings.mcn.am`, add the DNS records it lists
+(all under `tidings.mcn.am`; none on the `mcn.am` apex, whose MX records belong to Google Workspace), wait for
+Verified, then create an API key with Sending access restricted to that domain. Add `RESEND_API_KEY` and
+`MAGIC_LINK_EMAIL` as GitHub secrets (or run `npx wrangler secret put` for each in `apps/worker`) and deploy.
+`MAGIC_LINK_FROM` (`signin@tidings.mcn.am`) is a var in `wrangler.jsonc`. Free tier: 3,000 emails/month and
+100/day; Tidings caps itself at 10 sends/day. Turn it off with `npx wrangler secret delete MAGIC_LINK_EMAIL`
+(and remove the GitHub secret). If no email arrives, check the Worker logs for `email_send_rejected` (the
+HTTP status only) or `email_link_failed` (the error class), then Resend's dashboard for the domain status.
+Resend sees your address and the link, so treat the key like a password and rotate it in Resend if it leaks.
 
 ### Local development
 

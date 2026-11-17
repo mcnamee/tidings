@@ -33,7 +33,7 @@ export interface Harness {
 
 /**
  * `envOverrides` replaces bindings for this harness only (`undefined` removes one), for the
- * "configuration item missing" tests. By default `SIGNIN_EMAIL` is a stub that sends nothing.
+ * "configuration item missing" tests. By default `RESEND_API_KEY` is a fake key (the sender is injected, so nothing is sent).
  */
 export function createHarness(
   deps?: Partial<AppDeps>,
@@ -72,7 +72,7 @@ export function createHarness(
       // Built per call so a test that changes `env` mid-test (a missing secret) is honoured.
       const testEnv = {
         ...env,
-        SIGNIN_EMAIL: { send: () => Promise.resolve() },
+        RESEND_API_KEY: 're_test_not_a_real_key',
         ...envOverrides,
       } as unknown as typeof env;
       const ctx = createExecutionContext();

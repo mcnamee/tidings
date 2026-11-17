@@ -53,9 +53,9 @@ export default defineConfig({
       `--var APP_ORIGIN:${baseURL} --var RP_ID:localhost --var RP_NAME:Tidings-E2E ` +
       // Passed here, not read from apps/worker/.dev.vars, so a developer's real token is never used.
       `--var SETUP_TOKEN:${E2E_SETUP_TOKEN} ` +
-      // TID-053: a fake recipient, and capture mode (outgoing mail is recorded in D1, never sent;
+      // TID-053: a fake recipient and key, and capture mode (outgoing mail is recorded in D1, never sent;
       // the Worker honours it only for a http://localhost origin).
-      '--var MAGIC_LINK_EMAIL:owner@example.test --var E2E_CAPTURE_EMAIL:1 ' +
+      '--var MAGIC_LINK_EMAIL:owner@example.test --var RESEND_API_KEY:e2e-not-a-key --var E2E_CAPTURE_EMAIL:1 ' +
       `--var ALLOW_FETCH_HOSTS:127.0.0.1:${FIXTURE_PORT}`,
     url: `${baseURL}/api/health`,
     reuseExistingServer: !CI,

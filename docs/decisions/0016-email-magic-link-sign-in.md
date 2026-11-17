@@ -85,3 +85,14 @@ Per sign-in: about 4 Worker requests (session, request, landing page session che
 - Corporate mail can delay delivery by minutes. 15 minutes allows for that. If it proves too short, change the constant in an ADR amendment, not ad hoc.
 - Multi-user (M3) would need `users.email` and a per-user verified destination. The `send_email` restriction makes that unsuitable, so a provider decision is needed then.
 - The apex `mcn.am` mail is untouched. Getting the subdomain setup wrong could affect Google Workspace mail, so the owner's steps include checking the apex MX afterwards. Email Routing adds MX and SPF TXT records on `tidings.mcn.am`. These coexist with the custom-domain record that serves the app, and TID-053 AC15 confirms the app still loads afterwards.
+
+## Amendment 2026-11-17: Resend replaces the `send_email` binding
+
+Owner decision, same day. On the Workers Free plan, Cloudflare email sending needs Email Routing on the apex `mcn.am`, which would replace the owner's Google Workspace MX records, and Email Sending onboarding needs Workers Paid. Neither is acceptable. This supersedes the "Delivery" bullets above and the Email Routing steps; everything else in this ADR (flow, token, limits, step-up) is unchanged.
+
+- **Sender:** one `fetch` POST to `https://api.resend.com/emails` (JSON `from`, `to`, `subject`, `text`; `Authorization: Bearer RESEND_API_KEY`), 5 s `AbortSignal` timeout, inside the existing `ctx.waitUntil`. Plain text, fixed subject, one link. Failures are logged by HTTP status or error class only. There is no `send_email` binding and no MIME builder.
+- **Configuration:** Workers secrets `RESEND_API_KEY` and `MAGIC_LINK_EMAIL`, and the var `MAGIC_LINK_FROM` (`signin@tidings.mcn.am`). The feature is off unless all three are present and exactly one user exists. Deleting either secret is the kill switch. The CI deploy syncs both from GitHub secrets when they are set.
+- **DNS:** the domain `tidings.mcn.am` is verified in Resend, with all its records under `tidings.mcn.am`. Nothing is added to or changed on the apex, so Google Workspace mail is untouched.
+- **Free tier:** Resend free is 3,000 emails/month and 100/day. Our own cap is 10 sends/day, and one sign-in is one email and one subrequest. Unverified here (vendor numbers); AC15 checks delivery.
+- **Privacy:** Resend sees the owner's address and the sign-in link (which holds a live token for up to 15 minutes). That is accepted for a single-owner reader. The API key is a Workers secret (never in the repo or logs) and should be a sending-only key restricted to the `tidings.mcn.am` domain, so a leak can send mail but not read or manage the account.
+- **Consequence:** the verified-recipient restriction of `send_email` is gone, so "mail only the owner" rests on the code (the recipient is the `MAGIC_LINK_EMAIL` secret, never user input). Multi-user (M3) still needs a per-user address decision.

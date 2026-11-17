@@ -25,7 +25,7 @@ What remains before the MVP is released:
 
 TID-039 (deployed CPU gate) is deferred and runs only if TID-047 shows trouble.
 
-**Next to build: TID-053** (sign in with an emailed link, ADR 0016). It can be built and tested locally now, alongside TID-024's owner setup. Its AC15 production check needs TID-024 deployed and the owner's dashboard setup (steps in the story). The owner's address is a secret (`MAGIC_LINK_EMAIL`) and must never be committed.
+**Next to build: TID-053** (sign in with an emailed link, ADR 0016). It can be built and tested locally now, alongside TID-024's owner setup. Its AC15 production check needs TID-024 deployed and the owner's Resend setup (steps in the story; sender swapped from `send_email` to Resend on 2026-11-17, ADR 0016 amendment). The owner's address (`MAGIC_LINK_EMAIL`) and the Resend key (`RESEND_API_KEY`) are secrets and must never be committed.
 
 **Next free IDs:** TID-054 and DEF-091.
 

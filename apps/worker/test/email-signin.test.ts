@@ -6,7 +6,9 @@ import { sha256Hex } from '../src/auth/crypto';
 import {
   buildMagicLinkMail,
   captureEnabled,
+  createResendSender,
   defaultSender,
+  RESEND_URL,
   type OutgoingMail,
 } from '../src/auth/mail';
 import { createHarness, resetAuthTables, setCookies, type Harness } from './support/auth-harness';
@@ -43,7 +45,7 @@ async function issueLink(ip?: string): Promise<string> {
   const res = await request(ADDRESS, ip);
   expect(res.status).toBe(202);
   await h.settle();
-  const body = sent.at(-1)?.raw ?? '';
+  const body = sent.at(-1)?.text ?? '';
   const token = /#token=([A-Za-z0-9_-]+)/.exec(body)?.[1];
   if (!token) throw new Error('no token in the sent message');
   return token;
@@ -65,7 +67,8 @@ async function sessionInfo(): Promise<SessionResponse> {
 
 describe('AC1: disabled unless configured', () => {
   const cases: Array<[string, Record<string, unknown>]> = [
-    ['SIGNIN_EMAIL binding missing', { SIGNIN_EMAIL: undefined }],
+    ['RESEND_API_KEY secret missing', { RESEND_API_KEY: undefined }],
+    ['RESEND_API_KEY empty', { RESEND_API_KEY: '' }],
     ['MAGIC_LINK_EMAIL secret missing', { MAGIC_LINK_EMAIL: undefined }],
     ['MAGIC_LINK_EMAIL empty', { MAGIC_LINK_EMAIL: '' }],
     ['MAGIC_LINK_EMAIL without @', { MAGIC_LINK_EMAIL: 'nobody' }],
@@ -195,25 +198,18 @@ describe('AC2 and AC3: request a link, without enumeration', () => {
 });
 
 describe('AC4: the email', () => {
-  it('builds the exact MIME (snapshot)', () => {
+  it('builds the exact plain-text message (snapshot)', () => {
     const mail = buildMagicLinkMail({
       from: 'signin@tidings.example',
       to: 'owner@example.test',
       link: 'https://tidings.example/login/email#token=TOKEN',
       now: new Date(Date.UTC(2026, 10, 17, 9, 5, 7)),
-      messageIdLocal: 'abc123',
     });
-    expect(mail.raw).toBe(
-      [
-        'From: Tidings <signin@tidings.example>',
-        'To: owner@example.test',
-        'Subject: Your Tidings sign-in link',
-        'Date: Tue, 17 Nov 2026 09:05:07 +0000',
-        'Message-ID: <abc123@tidings.example>',
-        'MIME-Version: 1.0',
-        'Content-Type: text/plain; charset=utf-8',
-        'Content-Transfer-Encoding: 7bit',
-        '',
+    expect(mail).toEqual({
+      from: 'signin@tidings.example',
+      to: 'owner@example.test',
+      subject: 'Your Tidings sign-in link',
+      text: [
         'Use this link to sign in to Tidings:',
         '',
         'https://tidings.example/login/email#token=TOKEN',
@@ -222,29 +218,119 @@ describe('AC4: the email', () => {
         '',
         "If you didn't ask for this, ignore this email. Nobody can sign in without the link.",
         '',
-      ].join('\r\n'),
-    );
+      ].join('\n'),
+    });
   });
 
-  it('the sent message is plain text with one URL, no token in the subject, Message-ID on the sender domain', async () => {
+  it('the sent message is plain text with one URL and no token in the subject', async () => {
     const token = await issueLink();
-    const raw = sent[0]?.raw ?? '';
-    const cut = raw.indexOf('\r\n\r\n');
-    const head = raw.slice(0, cut);
-    const body = raw.slice(cut + 4);
-    expect(head).toContain('Content-Type: text/plain; charset=utf-8');
-    expect(head).toContain('Subject: Your Tidings sign-in link');
-    expect(head).toMatch(/^Date: /m);
-    expect(head).toMatch(/^Message-ID: <[A-Za-z0-9_-]+@tidings\.mcn\.am>$/m);
-    expect(head).not.toContain(token);
-    expect(raw.toLowerCase()).not.toContain('<html');
-    expect(raw).not.toMatch(/<img|content-type: text\/html/i);
-    expect(body.match(/https?:\/\/\S+/g)).toEqual([`${env.APP_ORIGIN}/login/email#token=${token}`]);
-    expect(body).toContain('expires in 15 minutes');
-    expect(body).toContain('(requested 2026-11-10 12:00 UTC)');
-    expect(body).toContain(
+    const { subject, text } = sent[0] ?? { subject: '', text: '' };
+    expect(subject).toBe('Your Tidings sign-in link');
+    expect(subject).not.toContain(token);
+    expect(text.toLowerCase()).not.toContain('<html');
+    expect(text).not.toMatch(/<img/i);
+    expect(text.match(/https?:\/\/\S+/g)).toEqual([`${env.APP_ORIGIN}/login/email#token=${token}`]);
+    expect(text).toContain('expires in 15 minutes');
+    expect(text).toContain('(requested 2026-11-10 12:00 UTC)');
+    expect(text).toContain(
       "If you didn't ask for this, ignore this email. Nobody can sign in without the link.",
     );
+  });
+});
+
+describe('Resend sender (ADR 0016 amendment)', () => {
+  const sendEnv = {
+    ...env,
+    RESEND_API_KEY: 're_test_key_123',
+    APP_ORIGIN: 'https://tidings.mcn.am',
+  };
+  const mail: OutgoingMail = {
+    from: 'signin@tidings.mcn.am',
+    to: ADDRESS,
+    subject: 'Your Tidings sign-in link',
+    text: 'link: https://tidings.mcn.am/login/email#token=SECRETTOKEN',
+  };
+  const ok = () => Promise.resolve(new Response('{"id":"x"}', { status: 200 }));
+
+  it('POSTs the documented JSON to api.resend.com with a bearer key and a timeout signal', async () => {
+    const fetchFn = vi.fn<typeof fetch>(ok);
+    await createResendSender(fetchFn)(sendEnv as unknown as typeof env, mail);
+    expect(fetchFn).toHaveBeenCalledTimes(1);
+    const [url, init] = fetchFn.mock.calls[0] ?? [];
+    expect(url).toBe('https://api.resend.com/emails');
+    expect(url).toBe(RESEND_URL);
+    expect(init?.method).toBe('POST');
+    const headers = new Headers(init?.headers);
+    expect(headers.get('Authorization')).toBe('Bearer re_test_key_123');
+    expect(headers.get('Content-Type')).toBe('application/json');
+    const body = JSON.parse(String(init?.body)) as Record<string, unknown>;
+    expect(body).toEqual({
+      from: 'Tidings <signin@tidings.mcn.am>',
+      to: [ADDRESS],
+      subject: 'Your Tidings sign-in link',
+      text: mail.text,
+    });
+    expect(String(body.subject)).not.toContain('SECRETTOKEN');
+    expect(init?.signal).toBeInstanceOf(AbortSignal);
+  });
+
+  it('aborts a request that outlives the timeout', async () => {
+    const hang = vi.fn<typeof fetch>(
+      (_url, init) =>
+        new Promise<Response>((_resolve, reject) => {
+          init?.signal?.addEventListener('abort', () => reject(init.signal?.reason));
+        }),
+    );
+    await expect(
+      createResendSender(hang, 20)(sendEnv as unknown as typeof env, mail),
+    ).rejects.toMatchObject({ name: 'TimeoutError' });
+  });
+
+  it('a non-2xx answer throws ResendError and logs only the status', async () => {
+    const err = vi.spyOn(console, 'error').mockImplementation(() => undefined);
+    const fetchFn = vi.fn<typeof fetch>(() =>
+      Promise.resolve(new Response(`bad ${ADDRESS} re_test_key_123`, { status: 422 })),
+    );
+    await expect(
+      createResendSender(fetchFn)(sendEnv as unknown as typeof env, mail),
+    ).rejects.toMatchObject({ name: 'ResendError' });
+    const logged = JSON.stringify(err.mock.calls);
+    expect(logged).toContain('422');
+    for (const secret of [ADDRESS, 're_test_key_123', 'SECRETTOKEN']) {
+      expect(logged).not.toContain(secret);
+    }
+    err.mockRestore();
+  });
+
+  it('makes no request without a key, or for a non-matching address', async () => {
+    const fetchFn = vi.fn<typeof fetch>(ok);
+    await expect(
+      createResendSender(fetchFn)(
+        { ...sendEnv, RESEND_API_KEY: undefined } as unknown as typeof env,
+        mail,
+      ),
+    ).rejects.toThrow();
+    const real = createHarness({ sendEmail: createResendSender(fetchFn) });
+    const res = await real.call('POST', '/api/auth/email/request', {
+      body: { email: 'someone@example.test' },
+      ip: '198.51.100.77',
+    });
+    expect(res.status).toBe(202);
+    await real.settle();
+    expect(fetchFn).not.toHaveBeenCalled();
+  });
+
+  it('through the route: a matching request makes exactly one fetch, with the link in the text', async () => {
+    const fetchFn = vi.fn<typeof fetch>(ok);
+    const real = createHarness({ sendEmail: createResendSender(fetchFn) });
+    await real.call('POST', '/api/auth/email/request', {
+      body: { email: ADDRESS },
+      ip: '198.51.100.78',
+    });
+    await real.settle();
+    expect(fetchFn).toHaveBeenCalledTimes(1);
+    const body = JSON.parse(String(fetchFn.mock.calls[0]?.[1]?.body)) as { text: string };
+    expect(body.text).toMatch(/#token=[A-Za-z0-9_-]+/);
   });
 });
 
@@ -664,14 +750,19 @@ describe('test-only capture mode is never active in production', () => {
     expect(captureEnabled({ APP_ORIGIN: 'http://localhost:8788' })).toBe(false);
   });
 
-  it('with the var set on a production origin, the real binding is used and nothing is recorded', async () => {
-    const binding = { send: vi.fn(() => Promise.resolve()) };
-    await defaultSender({ ...env, ...prod, SIGNIN_EMAIL: binding } as unknown as typeof env, {
+  it('with the var set on a production origin, Resend is called and nothing is recorded', async () => {
+    const fetchSpy = vi
+      .spyOn(globalThis, 'fetch')
+      .mockResolvedValue(new Response('{}', { status: 200 }));
+    await defaultSender({ ...env, ...prod } as unknown as typeof env, {
       from: 'signin@tidings.mcn.am',
       to: ADDRESS,
-      raw: `From: a\r\nTo: ${ADDRESS}\r\n\r\nhi`,
+      subject: 'Your Tidings sign-in link',
+      text: 'hi',
     });
-    expect(binding.send).toHaveBeenCalledTimes(1);
+    expect(fetchSpy).toHaveBeenCalledTimes(1);
+    expect(fetchSpy.mock.calls[0]?.[0]).toBe(RESEND_URL);
+    fetchSpy.mockRestore();
     const table = await env.DB.prepare(
       "SELECT name FROM sqlite_master WHERE name = 'e2e_outbox'",
     ).first();
