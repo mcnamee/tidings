@@ -54,7 +54,7 @@ Entry template:
 ### DEF-016: AC13 gate ignores invocations that died for any reason other than exceededCpu
 - Story: TID-012 (AC13), `apps/worker/bench/analysis.ts`
 - Severity: S2 for the gate's validity (it could pass vacuously). Owner: SE.
-- Status: Fixed (SHA), awaiting tester closure
+- Status: Fixed (commit 8a3c1dc), awaiting tester closure
 - Found by: `apps/worker/test/bench-gate.test.ts` > "a window with killed or crashed invocations is not a PASS" and "analytics seeing far fewer invocations..." (markers removed)
 - Expected: any non-`success` status in a measured window (`exceededResources`, `exceededMemory`, `scriptThrewException`, `internalError`) fails the gate, and a window where Analytics saw less than 98% of the calls is not a PASS.
 - Actual: only the literal status `exceededCpu` fails. Quantiles come from the `success` group only, so killed invocations drop out of the p95 (survivorship), and the 98% coverage check only adds a note. I could not check offline which status Cloudflare reports for a CPU kill, so the literal may never match.
@@ -64,7 +64,7 @@ Entry template:
 ### DEF-017: AC13 gate can PASS on too few calls or on a subset of the scenarios
 - Story: TID-012 (AC13), `apps/worker/bench/analysis.ts`
 - Severity: S3. Owner: SE.
-- Status: Fixed (SHA), awaiting tester closure
+- Status: Fixed (commit 8a3c1dc), awaiting tester closure
 - Found by: `apps/worker/test/bench-gate.test.ts` > "fewer than 200 measured calls cannot PASS..." and "overall is not PASS with no gated rows..." (markers removed)
 - Expected: AC13 requires at least 200 calls per fixture and all 8 gated scenarios.
 - Actual: `evaluate` ignores `window.calls` (5 calls can PASS, for example `--runs 5`), and `overall` returns PASS for an empty list or for one row (`[].every(...)` is true; the existing test even asserts `overall([rowPass]) === 'PASS'`). The engineer's suggested `--only changed:rss-typical` run would print "Overall: PASS".
