@@ -122,6 +122,10 @@ export interface FeedRow {
   last_error_code: string | null;
   last_status: number | null;
   state: string;
+  recent_keys: string | null;
+  new_entries_day: number | null;
+  new_entries_count: number;
+  warning_code: string | null;
 }
 
 export async function feedRow(id: number): Promise<FeedRow> {
@@ -144,6 +148,10 @@ export async function jobFor(id: number): Promise<RefreshJob> {
     state: r.state as RefreshJob['state'],
     fetchIntervalS: r.fetch_interval_s,
     lastSuccessAt: r.last_success_at,
+    recentKeys: r.recent_keys,
+    newEntriesDay: r.new_entries_day,
+    newEntriesCount: r.new_entries_count,
+    warningCode: r.warning_code,
   };
 }
 

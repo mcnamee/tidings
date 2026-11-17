@@ -71,3 +71,18 @@ export function feedErrorMessage(code: string | null): string | null {
     ? FIXED_MESSAGES[code as keyof typeof FIXED_MESSAGES]
     : null;
 }
+
+/** `feeds.warning_code` values (spec §6.1, TID-046). A warning is not an error: the feed still works. */
+export type FeedWarningCode = 'new_item_cap';
+
+/** Draft text; UX reviews it with the rest of this file in TID-015 AC6. */
+const WARNING_MESSAGES: Record<FeedWarningCode, string> = {
+  new_item_cap: 'This feed publishes too many new items. Some were skipped today.',
+};
+
+/** The fixed message for a stored warning code, or null for null or an unknown code. */
+export function feedWarningMessage(code: string | null): string | null {
+  return code !== null && Object.hasOwn(WARNING_MESSAGES, code)
+    ? WARNING_MESSAGES[code as FeedWarningCode]
+    : null;
+}

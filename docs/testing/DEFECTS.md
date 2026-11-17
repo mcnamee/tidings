@@ -21,7 +21,19 @@ Entry template:
 
 ## Open
 
+### DEF-020: A capped feed that stops changing keeps its `new_item_cap` warning indefinitely
+
+- Story: TID-046 (AC3, "on the first refresh in a new UTC day that stays under the cap, the warning clears")
+- Severity: S4. Owner: SE.
+- Status: Open
+- Found by: `apps/worker/test/churn-guard-adversarial.test.ts` > "DEF-020: a quiet feed (identical body) on a later UTC day clears the warning" (`it.fails`; remove the marker when fixed).
+- Steps to reproduce: a feed hits the cap and gets `warning_code = 'new_item_cap'`; it then stops publishing (the origin answers 304 or an identical body). Refresh it on the next UTC day.
+- Expected: the refresh is under the cap (it stored nothing), so the warning clears.
+- Actual: an identical-body refresh (tested; a 304 takes the same unchanged path, not separately tested) does not run the code that clears the warning, so "This feed publishes too many new items" stays until the feed next changes, possibly weeks.
+- Suggested fix: PM decision. Either accept it (reword AC3 to "first changed fetch") or clear the warning in the existing 304/unchanged `UPDATE` when `new_entries_day` is before today (no extra statement; that update already runs).
+
 ### DEF-018: HEAD /api/health is 401, so a HEAD uptime check fails
+
 - Story: TID-008 (spec 8.1 deny by default, 8.8 health)
 - Severity: S4. Owner: SE (or PM, if HEAD is out of scope).
 - Status: Open
@@ -32,6 +44,7 @@ Entry template:
 - Suggested fix: treat `HEAD` as `GET` in `isPublicRoute` for the two public GET routes, or document that monitors must use GET.
 
 ### DEF-019: E2E run is not robust to the host sleeping (the "Playwright stalls")
+
 - Story: TID-008 verification, feeds TID-038 (E2E stability)
 - Severity: S3 (the suite reports failures that are not product failures). Owner: SE (TID-038).
 - Status: Open
@@ -43,9 +56,10 @@ Entry template:
 - Suggested fix: run local full runs under `caffeinate -ims` (done in TEST_STRATEGY), add `npm run test:e2e:full` that wraps it on macOS, have the harness log a "host slept" note when two consecutive test timestamps differ by far more than the test timeout, and consider `retries: 1` locally for tests that fail after a wall-clock jump. The pattern does not need a Playwright or wrangler fix.
 
 ### DEF-013: A feed whose guids change every fetch floods entries with no cap
+
 - Story: TID-012 (FR-RF-5, spec 9.4, risk to the D1 write budget)
 - Severity: S3 (design gap, PM decision). Owner: PM, then SE.
-- Status: Open
+- Status: Resolved by TID-046 (tester, commit 2be5f4b): secondary key against the previous fetch plus a 200/UTC day cap; verified by `apps/worker/test/churn-guard.test.ts` and `churn-guard-adversarial.test.ts`. Closed on PM acceptance of TID-046.
 - Found by: `apps/worker/test/refresh-adversarial.test.ts` > "CHARACTERISATION: a feed whose guids change every fetch..." (passes by asserting today's behaviour)
 - Steps to reproduce: serve 50 items with new guids on every fetch (timestamped or random guids, which exist in the wild).
 - Expected: some guard: a per-feed cap on new entries per day, or a flag for feeds that are all-new every fetch.
@@ -53,6 +67,7 @@ Entry template:
 - Suggested fix: PM to decide. Options: throttle a feed to N new entries/day, back off the interval when more than 80% of a fetch is new three times in a row, or only link items newer than the newest known `published_at`.
 
 ### DEF-014: A 304 on a never-fetched feed marks it ok and sets last_success_at
+
 - Story: TID-012 (AC2, spec 7.3 step 2)
 - Severity: S3. Owner: SE.
 - Status: Closed (tester, tip 522b2bb)
@@ -64,8 +79,8 @@ Entry template:
 - Fix: a 304 when the job sent no `etag` and no `lastModified` is a failure `http_304` (existing `http_<status>` family; added the reason phrase 'Not Modified' so the fixed message reads "The server returned 304 Not Modified"), with normal backoff and no `last_success_at`. PM note: no new code type was added; confirm that message wording is acceptable.
 - Closure (tester, 522b2bb): the two DEF-014 tests differ from the earlier `it.fails` only by `it.fails` to `it` (assertions unchanged); the new http_304 and 'after we sent an ETag is still success' tests are additions. The guard is `job.etag === null && job.lastModified === null` on the `not_modified` branch, which is correct: a 304 is only meaningful for a conditional request. A feed with a body hash but no validators (origin that sends neither ETag nor Last-Modified) also gets a 304 only if it is broken, so failing it is right. `npm test -w @tidings/worker`: 562 passed, 1 todo, 25 files, 5 consecutive solo runs.
 
-
 ### DEF-015: Spec 9.8 understates the cost of a first fetch and of an OPML import
+
 - Story: TID-012 (FR-SU-3, spec 9.8 item 2)
 - Severity: S3 (budget documentation, no AC fails). Owner: PM.
 - Status: Open
@@ -75,6 +90,7 @@ Entry template:
 - Suggested fix: PM updates 9.8 and 9.5, and decides whether import needs a longer stagger.
 
 ### DEF-016: AC13 gate ignores invocations that died for any reason other than exceededCpu
+
 - Story: TID-012 (AC13), `apps/worker/bench/analysis.ts`
 - Severity: S2 for the gate's validity (it could pass vacuously). Owner: SE.
 - Status: Closed (tester, tip 522b2bb)
@@ -85,8 +101,8 @@ Entry template:
 - Fix: any non-`success` status in a gated window fails (per-status counts are in the table); coverage under 98% gives NEEDS PM; the runner saves its warnings in the run file and `analyze.ts` refuses to PASS with any (NEEDS PM). The tester's CPU-kill status question is moot: no status other than `success` can pass.
 - Closure (tester, 522b2bb): the two DEF-016 tests differ only by marker removal. Any non-`success` count in a gated window now FAILs (including a missing status dimension, counted as `unknown`); coverage under 98% gives NEEDS PM and never hides a FAIL; the runner saves `runs` and `warnings` and `analyze.ts` passes them to `overall`. Residual S4 notes, not blocking: (1) ceilings are read from `run.scenarios` in the run file, not from the current plan, so a hand-edited or stale run file can carry a looser ceiling (a removed ceiling is caught as INCOMPLETE; a raised one is not); (2) run files written before this fix have no `warnings` or `runs` and are treated as none/200; (3) a window with more requests seen than calls made (overlapping windows or other traffic on the script) is not flagged and can contaminate the quantiles. Suggest the PM folds (1) into the first real AC13 run: have `analyze.ts` look ceilings up by id in the current plan.
 
-
 ### DEF-017: AC13 gate can PASS on too few calls or on a subset of the scenarios
+
 - Story: TID-012 (AC13), `apps/worker/bench/analysis.ts`
 - Severity: S3. Owner: SE.
 - Status: Closed (tester, tip 522b2bb)
@@ -97,10 +113,10 @@ Entry template:
 - Fix: each gated window needs at least max(`--runs`, 200) measured calls (else INCOMPLETE); `overall` requires every gated scenario of the full plan (10, not 8: 4 changed, 4 unchanged, 2 too_large). Empty, partial or `--only` runs print "PARTIAL: not a gate result". The old engineer assertion `overall([rowPass]) === 'PASS'` in `bench.test.ts` was wrong and now expects INCOMPLETE.
 - Closure (tester, 522b2bb): the two DEF-017 tests differ only by marker removal. The engineer also changed `bench.test.ts` `overall([rowPass])` from PASS to INCOMPLETE; that is right: the old assertion encoded the vacuous-truth bug (one row of ten gated scenarios is not a gate result), and the test keeps its intent via `overall([rowPass], { expectedIds: ['changed:rss-typical'] })` returning PASS. Gate review: PASS needs every gated id in the plan present (10), every row PASS (so NO DATA, PROVISIONAL, INFO-for-gated and NEEDS PM rows cannot pass), at least max(runs, 200) calls, no runner warnings, and an empty list is INCOMPLETE. I found no remaining vacuous path other than the S4 notes under DEF-016. Note the first worker run after `npm install` once showed 4 failures in setup.test.ts and setup-attack.test.ts (409 instead of 201); it did not recur in 6 solo runs, and 3 runs in parallel reproduce it, so it is shared local storage between concurrent vitest processes, not a product defect. Recorded for TID-038.
 
-
 ## Closed
 
 ### DEF-011: Stripping HTML tags from plain-text fields in one pass re-forms a tag
+
 - Story: TID-011 (ADR 0009 section 2, defence in depth)
 - Severity: S3 (minor). Owner: SE.
 - Status: Closed (tester, tip ec14a5c)
@@ -119,6 +135,7 @@ Entry template:
 - Closure (tester, ec14a5c): the residual test differs from the earlier `it.fails` only by `it.fails` to `it` and its comment; the new 17/18/40/1000-level and `script>x` tests are additions. `dropOpeners` is final: its loop exits only when `/<+(?=[/!A-Za-z])/` finds nothing, so the output has no `<` before `/`, `!` or a letter, and every element tag (`</?name`) and comment (`<!--`) opener needs one. Each round shortens the text, so it terminates. `npm test -w @tidings/feed-parser`: 181 tests pass (4 files), plus 6 in the second workspace run, no failures, no `it.fails` left for DEF-011.
 
 ### DEF-006: Atom `type="text"` (and untyped) content is stored unescaped
+
 - Story: TID-011 (hostile input requirement, spec 6.5, ADR 0006)
 - Severity: S2 (major). Owner: SE.
 - Status: Verified, closed (fix d5b27dc)
@@ -130,6 +147,7 @@ Entry template:
 - Verification: `parse.test.ts` "Atom text constructs (AC12, ADR 0009 section 1)" (6 tests) and `adversarial.test.ts` "Atom summary/content type=\"text\" is escaped" and "type=\"text\" in CDATA is escaped" now pass as plain `it` (`it.fails` removed, assertions unchanged). The untyped test was re-pointed per ADR 0009 section 1: untyped `&lt;script&gt;`, `&lt;iframe&gt;` and `&lt;style&gt;` stay escaped (new input, same intent); untyped text with an allowlisted tag such as `&lt;b&gt;` is HTML (AC12, `parse.test.ts` "untyped text with an allowlisted tag is stored as HTML").
 
 ### DEF-007: Deeply nested elements make parse time quadratic (CPU budget)
+
 - Story: TID-011 (AC4/AC6 robustness, spec 7.3, ADR 0006 CPU gate)
 - Severity: S2 (major). Owner: SE.
 - Status: Verified, closed (fix f65515a)
@@ -141,6 +159,7 @@ Entry template:
 - Verification: `adversarial.test.ts` "bounds work for deeply nested elements (DEF-007)" is a plain `it`. `parse.test.ts` "nesting bound (AC13)": 300k nested tags (about 890 KB) parse in <= 50 ms (best of 5), 2 good items then nesting gives those items with `truncated: too_deep`, nesting in the first item gives `parse_error`, exactly 64 levels parse and 65 truncate, a 40-deep xhtml content parses. The depth spy asserts <= 65 rather than 64 because htmlparser2 pushes the 65th tag onto its own stack before our `onopentag` runs; the pinned 64-accepted / 65-truncated test proves the accepted depth is 64 and no later open is processed. Judged acceptable.
 
 ### DEF-008: `xml:base` is ignored when resolving relative links
+
 - Story: TID-011 (real-world shapes)
 - Severity: S3 (minor). Owner: PM ruling, then SE.
 - Status: Verified, closed (fix 042fb8f)
@@ -151,6 +170,7 @@ Entry template:
 - Verification: `adversarial.test.ts` "xml:base on an Atom entry is honoured" is a plain `it`; `parse.test.ts` "xml:base (AC14)" (7 tests: entry, feed+entry+link composition, feed alone, imageUrl and RSS items, absolute href, non-http(s) is null, no leak between entries). The engineer honours `xml:base` on the root of any format, a small superset of ADR 0009 section 4; harmless, and still resolved only against `baseUrl` or an absolute base.
 
 ### DEF-009: RFC 822 dates with non-US zone names fall back to the fetch time
+
 - Story: TID-011 (AC5, spec 6.5)
 - Severity: S3 (minor). Owner: SE.
 - Status: Verified, closed (fix 55a9811)
@@ -161,6 +181,7 @@ Entry template:
 - Verification: `parse.test.ts` "dates and zones (AC15)": all 31 zones in the ADR table (`it.each`), IST/unknown/lower-case as UTC, zone-less RFC 822 and ISO as UTC, and a test that flips `process.env.TZ`. `adversarial.test.ts` "non-US named zones" is a plain `it`. The whole parser suite passes under `TZ=UTC` and `TZ=Pacific/Auckland`. Unparseable or impossible dates fall back to the fetch time, consistent with AC5 and ADR 0009 section 5 (which only turns alphabetic zones into UTC).
 
 ### DEF-010: Plain-text fields lose text around literal `<` and `>`
+
 - Story: TID-011 (AC1: title match)
 - Severity: S3 (minor). Owner: SE.
 - Status: Verified, closed (fix 049e81a)
@@ -171,6 +192,7 @@ Entry template:
 - Verification: `parse.test.ts` "literal angle brackets in plain text (AC16)" and the three `adversarial.test.ts` tests are plain `it`. The `rss2-cdata-entities` snapshot now keeps `<angle>`. `hostile-html.json` item summary `<scr ipt> <script>alert('double')</script>` was checked by hand: the real `<script>...</script>` span (which starts inside `<scr<script>ipt>` and ends at `</scr</script>`) is dropped and leaves a space, `<scr` and `ipt>` remain as literal text (not element names), and the entity-escaped `&lt;script&gt;` is decoded once, after stripping, to literal text. That matches ADR 0009 section 2 and is rendered as text (summary is a text node in the SPA, spec 10.5). The adversarial XSS assertions were rewritten to the ADR (see DEF-011 for the one remaining gap).
 
 ### DEF-001: All-unread page 2 reads 103 rows, one over the NFR-7 budget of 102
+
 - Story: TID-004 (AC5, NFR-7)
 - Severity: S3 (minor). Owner: PM (ruling needed), then SE if the query must change.
 - Status: Won't fix (budget relaxed, ADR 0008)
@@ -182,8 +204,8 @@ Entry template:
 - Related observation (not a defect): folder view reads 211 rows for limit 50 on a 150-entry folder, consistent with spec 8.6 ("reads every matching row in that folder"). It is guarded at <= 2 x folder size.
 - Resolution: PM ruling 2026-11-16, ADR 0008. NFR-7 on continuation pages is (limit + 1) x 2 + T, T being the user's rows in the view that share the cursor's `published_at` (T = 1 on the seed data, so <= 103). The test `apps/worker/test/entries-list.test.ts` > "AC5: All-unread page 2 reads <= 103 rows (cursor continuation; ADR 0008)" keeps the <= 103 assertion and its comment now cites ADR 0008. The tied-timestamp case belongs to TID-018 AC5.
 
-
 ### DEF-012: `config_error` responses are not `Cache-Control: no-store`
+
 - Story: TID-007 (spec 8.1: "Responses carry `Cache-Control: no-store`"; AC-adjacent, the story added the header)
 - Severity: S3. Owner: SE.
 - Status: Closed (tester, tip a8d00f5)
@@ -194,8 +216,8 @@ Entry template:
 - Suggested fix: register the no-store middleware first (it sets the header after `await next()`, which also covers short-circuits), then switch the `it.fails` to `it`.
 - Closure (tester, a8d00f5): the test differs from the `it.fails` version only by `it.fails` to `it` and its comment (assertions unchanged: status 500 and `Cache-Control: no-store`). The no-store middleware is now the first `app.use` in `createApp`, so it also wraps the config guard's short-circuit. `npm test -w @tidings/worker`: 452 tests pass (19 files).
 
-
 ### DEF-002: A stored theme opposite to the OS flashes the OS tone while the stylesheet loads
+
 - Story: TID-006 (AC1 spirit; FR-ST-1, NFR-10 "no flash of the wrong theme on load")
 - Severity: S3. Owner: SE.
 - Status: Verified, closed (fix 95792b2)
@@ -207,6 +229,7 @@ Entry template:
 - Verification: `test.fail` removed, assertion unchanged from a42605d; passes in all four projects, twice. Root cause fixed: `theme-init.js` `apply()` now sets `meta[name=color-scheme]` to the resolved theme, so the canvas follows the stored choice before the stylesheet loads.
 
 ### DEF-003: App crashes when `localStorage` access throws (storage blocked)
+
 - Story: TID-006 (robustness of the "/" redirect and last-list memory, FLOWS 1.8)
 - Severity: S2 for affected browsers (blank app), S3 overall. Owner: SE.
 - Status: Verified, closed (fix 95792b2)
@@ -218,6 +241,7 @@ Entry template:
 - Verification: `it.fails` and `test.fail` removed, assertions unchanged. Root cause fixed: the `localStorage` global is read inside the `try` in `readLastList` and `saveLastList`. Unit and E2E (blocked storage) tests pass.
 
 ### DEF-004: A throwing Undo action leaves the toast on screen
+
 - Story: TID-006 (toast region, UX app-shell 2.4)
 - Severity: S4. Owner: SE.
 - Status: Verified, closed (fix e16e62b)
@@ -229,6 +253,7 @@ Entry template:
 - Verification: `it.fails` removed, assertion unchanged. The toast is dismissed before `run()`; a throw is logged and an error toast is shown. Checked against the store rules: dismiss promotes any queued toast, the error toast then replaces it (errors win over non-undo kinds), and an Undo toast is never replaced because it is already gone. `toast.test.ts` "Undo runs once" and the queueing tests pass. Observation (copy, not a defect): the error text says "Try again" although the Undo is gone; UX may want to reword.
 
 ### DEF-005: Drawer close inputs are not idempotent, so a repeated input leaves the screen
+
 - Story: TID-006 (AC4, drawer closes on Escape and backdrop tap; UX app-shell 2.2 rule 1 "pushes one history entry")
 - Severity: S3. Owner: SE.
 - Status: Verified, closed (fix e16e62b)

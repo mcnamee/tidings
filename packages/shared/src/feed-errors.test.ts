@@ -1,5 +1,10 @@
 import { describe, expect, it } from 'vitest';
-import { feedErrorMessage, httpErrorCode, isFeedErrorCode } from './feed-errors';
+import {
+  feedErrorMessage,
+  feedWarningMessage,
+  httpErrorCode,
+  isFeedErrorCode,
+} from './feed-errors';
 
 describe('feed error table (FR-FH-1)', () => {
   it('maps fixed codes and http statuses to fixed messages', () => {
@@ -17,5 +22,13 @@ describe('feed error table (FR-FH-1)', () => {
     expect(isFeedErrorCode('http_4040')).toBe(false);
     expect(isFeedErrorCode('http_404')).toBe(true);
     expect(isFeedErrorCode('whatever')).toBe(false);
+  });
+});
+
+describe('feed warning table (TID-046)', () => {
+  it('maps new_item_cap to a fixed message and anything else to null', () => {
+    expect(feedWarningMessage('new_item_cap')).toMatch(/too many new items/);
+    expect(feedWarningMessage(null)).toBeNull();
+    expect(feedWarningMessage('toString')).toBeNull();
   });
 });

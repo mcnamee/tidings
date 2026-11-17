@@ -69,7 +69,7 @@ describe('success path (AC4) and write budget (spec 9.4, 9.5)', () => {
 
     // AC4: rows_written <= 3 x 3 + 3 x 5 x subscribers + 1.
     const subscribers = 2;
-    expect(second.usage.rowsWritten).toBeLessThanOrEqual(3 * 3 + 3 * 5 * subscribers + 1);
+    expect(second.usage.rowsWritten).toBe(3 * 3 + 3 * 5 * subscribers + 1); // 40, unchanged by TID-046
     // Reads, measured (spec 9.5 budgets "<= 50 per changed fetch" for dedup): D1 counts every key
     // of an IN list (50) plus every hit (47), so dedup costs 97, not 47. Whole refresh: 121
     // (1 probe + 97 dedup + 3 insert checks + 18 link + 2 feed update). The bound is the worst case
