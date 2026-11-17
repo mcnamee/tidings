@@ -680,6 +680,8 @@ Rate limits for Public routes: 10 requests / 10 min per IP per route family (set
 | `DELETE /api/subscriptions/:id` | – | `204` |
 | `POST /api/subscriptions/:id/refresh` | `{}` | `200 { subscription, fetch: {...} }`; `429 rate_limited` (once per 5 min per feed per user) |
 
+`POST /api/subscriptions` details (TID-013): `url` is trimmed, 1 to 2,048 characters; `title` is trimmed, at most 200 characters, and blank means none; a bad or non-http(s) URL, or one with credentials, is `400 validation_failed`. A `folderId` that is not the caller's is `404 not_found`, the same as one that does not exist. `fetch.newEntries` is how many articles the user has from the feed after the first fetch (at most 10 on a first fetch). An origin that errors, times out or serves something that is not a page still creates the subscription: the response is 201 with `fetch.ok = false` and a fixed `errorCode`. Discovery: a page whose `<link rel="alternate">` tags give exactly one feed subscribes to it; two or more give `feed_choice_required` with every candidate (JSON Feed ones with `supported: false`); none, or only JSON Feed, gives `no_feed_found`. A URL that is neither a feed nor an HTML page is `no_feed_found`. Candidate titles are cut to 120 characters. `GET /api/folders` and `GET /api/subscriptions` return only the caller's rows.
+
 ### 8.5 Entries and counts
 
 | Method & path | Request | Response |

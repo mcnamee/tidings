@@ -275,7 +275,7 @@ route list when this story is verified; a new route must be added to it or `api-
 | 6 | pass | `api-guard.test.ts` AC6, one test per row of the 34-route table, bare and well-formed; E2E AC6 |
 | 7 | pass | `api-guard.test.ts` AC7 (10); `security-attack.test.ts` origin, Sec-Fetch-Site and Content-Type variants; E2E AC7 |
 | 8 | pass | `api-guard.test.ts` AC8 (2); E2E AC8 |
-| 9 | partial | `api-guard.test.ts` AC9 (3). No route takes an ID yet, so there is no B-reads-A suite; `no registered route takes an ID yet` fails when the first `:param` route is registered, which forces the suite to be written |
+| 9 | pass | `api-guard.test.ts` AC9: the route-table guard (every `idInputs` entry needs an `isolation-cases.ts` row whose named test exists; replaces the "no route takes an ID yet" tripwire, TID-013 AC11) plus the isolation suite in `subscribe.test.ts` > `AC11` (B posting A's `folderId` is `404 not_found`, indistinguishable from a missing folder, A's rows unchanged). Grows with every story that adds an ID input (ADR 0012); only `POST /api/subscriptions body:folderId` is wired so far, other rows in the route table are placeholders until their routes exist |
 | 10 | pass | `login.test.ts` AC10 and AC15 (11th verify 429, window rollover); E2E AC10 |
 | 11 | pass | `api-guard.test.ts` AC11 (7, stubbed binding, key, 429 and Retry-After, auth routes never consult it, fail open) |
 | 12 | pass | `api-guard.test.ts` AC12; `shared-contract.test.ts` |
@@ -328,3 +328,24 @@ Files: `apps/worker/test/dispatcher.test.ts`, `refresh-feed.test.ts` (engineer),
 
 Tests marked `it.fails` (DEF-014, DEF-016, DEF-017) pass while the defect exists and error once it is fixed;
 the fix removes the marker without changing the assertion.
+
+## TID-013 traceability (subscribe to a feed)
+
+Worker tests run in workerd with local D1 and a fake network; the UI tests are jsdom. No Playwright spec covers `/manage/add` yet (gap, to be added after TID-013 is accepted).
+
+| AC | Verdict | Tests |
+|---|---|---|
+| 1 | pass (API); UI to `/feeds/:id` jsdom only | `subscribe.test.ts` AC1 (4), `AddFeed.test.tsx` AC1 and AC8 |
+| 2 | pass | `subscribe.test.ts` AC2 (6), `AddFeed.test.tsx` AC2 (3) |
+| 3 | pass | `subscribe.test.ts` AC3 (2) incl. canonicalisation; `AddFeed.test.tsx` AC3 |
+| 4 | pass | `subscribe.test.ts` AC4 (2) |
+| 5 | pass | `subscribe.test.ts` AC5 (4), `AddFeed.test.tsx` AC5 |
+| 6 | pass for typed URLs; fails for a discovered feed link (DEF-030) | `subscribe.test.ts` AC6 (12), `subscribe-adversarial.test.ts` SSRF spellings (18) |
+| 7 | pass | `subscribe.test.ts` AC7 (2), `subscribe-adversarial.test.ts` insert-level limit |
+| 8 | pass | `subscribe.test.ts` AC8 (4), `AddFeed.test.tsx` |
+| 9 | pass | `subscribe.test.ts` AC9 (2, incl. the real `ctx.exports.FeedRefresher` path) |
+| 10 | pass | `subscribe.test.ts` AC10 (7), `AddFeed.test.tsx` AC10 (3) |
+| 11 | pass | `api-guard.test.ts` AC9 guard, `subscribe.test.ts` AC11 (5) |
+| 12 | pass | `subscribe.test.ts` AC12 (5), `refresh-adversarial.test.ts` TID-013 AC12 (3) |
+
+Known limit of the guard: it trusts `idInputs` for body and query inputs; only `:path` params are cross-checked against the route pattern.

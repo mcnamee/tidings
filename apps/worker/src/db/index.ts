@@ -11,3 +11,17 @@ export {
   type EntryView,
   type ListEntriesParams,
 } from './entries';
+export {
+  countSubscriptions,
+  countUserEntriesForFeed,
+  createSubscription,
+  findFeedByUrl,
+  findSubscriptionIdByFeedUrl,
+  folderBelongsToUser,
+  getSubscription,
+  listFolders,
+  listSubscriptions,
+  NEW_SUBSCRIBER_LINK_LIMIT,
+  READ_AFTER_SECONDS,
+  type FeedRow,
+} from './subscriptions';

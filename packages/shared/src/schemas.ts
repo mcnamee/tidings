@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { DISPLAY_NAME_MAX } from './index';
+import { DISPLAY_NAME_MAX, SUBSCRIPTION_TITLE_MAX } from './index';
 
 /** Request schemas for the auth routes (spec 8.3). Worker only: see the note in index.ts. */
 
@@ -55,4 +55,16 @@ export const authenticationResponseSchema = z.looseObject({
 
 export const loginVerifyRequestSchema = z.object({
   response: authenticationResponseSchema,
+});
+
+/** `POST /api/subscriptions` (spec 8.4). A blank title means "no custom title". */
+export const subscribeRequestSchema = z.object({
+  url: z.string().trim().min(1).max(2048),
+  folderId: z.string().min(1).max(64).nullish(),
+  title: z
+    .string()
+    .trim()
+    .max(SUBSCRIPTION_TITLE_MAX)
+    .transform((t) => (t === '' ? undefined : t))
+    .optional(),
 });

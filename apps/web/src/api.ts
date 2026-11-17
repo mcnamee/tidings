@@ -16,6 +16,8 @@ export class ApiRequestError extends Error {
     readonly code: ErrorCode | null,
     /** `Retry-After` in seconds, when the server sent a usable one. */
     readonly retryAfterSeconds: number | null,
+    /** `error.details` from the body: candidates, an existing subscription ID, zod issues. */
+    readonly details: unknown = undefined,
   ) {
     super(`API ${status}${code ? ` ${code}` : ''}`);
     this.name = 'ApiRequestError';
@@ -72,13 +74,21 @@ async function request<T>(
   }
   if (!res.ok) {
     let code: ErrorCode | null = null;
+    let details: unknown;
     try {
-      code = ((await res.json()) as ApiError).error.code;
+      const error = ((await res.json()) as ApiError).error;
+      code = error.code;
+      details = error.details;
     } catch {
       // not JSON (a proxy error page, say): the status alone decides
     }
     if (res.status === 401 && code === 'unauthenticated') onUnauthenticated?.();
-    throw new ApiRequestError(res.status, code, parseRetryAfter(res.headers.get('Retry-After')));
+    throw new ApiRequestError(
+      res.status,
+      code,
+      parseRetryAfter(res.headers.get('Retry-After')),
+      details,
+    );
   }
   if (res.status === 204) return undefined as T;
   try {

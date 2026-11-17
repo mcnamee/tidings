@@ -8,7 +8,15 @@
  */
 import { httpErrorCode, type FeedErrorCode } from '@tidings/shared';
 import { itemGuidHash, parseFeed, type ParsedItem } from '@tidings/feed-parser';
-import { Db, nowSeconds, sql, tryCanonicalizeUrl, type Clock, type Statement } from '../db';
+import {
+  Db,
+  nowSeconds,
+  READ_AFTER_SECONDS,
+  sql,
+  tryCanonicalizeUrl,
+  type Clock,
+  type Statement,
+} from '../db';
 import { safeFetch, type FetchFn, type SafeFetchResult } from '../fetch';
 import { parseRetryAfter } from './backoff';
 import { MAX_RECENT_KEYS, parseRecentKeys, planDailyCap, secondaryKey, uniqueKeys } from './churn';
@@ -208,13 +216,20 @@ export async function refreshFeed(job: RefreshJob, deps: RefreshDeps): Promise<R
         .slice(0, FIRST_FETCH_LINK_LIMIT)
     : fresh;
   if (toLink.length > 0) {
+    // FR-SU-3: on a first fetch, items older than 7 days are linked already read. Later fetches
+    // pass a cutoff of 0, which no item is older than.
+    const readCutoff = firstFetch ? now - READ_AFTER_SECONDS : 0;
     statements.push(
       sql(
-        `INSERT INTO user_entries (user_id, entry_id, feed_id, published_at)
-         SELECT s.user_id, e.id, e.feed_id, e.published_at
+        `INSERT INTO user_entries (user_id, entry_id, feed_id, published_at, is_read, read_at)
+         SELECT s.user_id, e.id, e.feed_id, e.published_at,
+                e.published_at < ?, CASE WHEN e.published_at < ? THEN ? END
            FROM entries e JOIN subscriptions s ON s.feed_id = e.feed_id
           WHERE e.feed_id = ? AND e.guid_hash IN (${placeholders(toLink.length)})
          ON CONFLICT DO NOTHING`,
+        readCutoff,
+        readCutoff,
+        now,
         job.feedId,
         ...toLink.map((h) => h.hash),
       ),
