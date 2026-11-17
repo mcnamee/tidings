@@ -20,12 +20,14 @@ What remains before the MVP is released:
 | Release | Stories, in build order |
 |---|---|
 | MVP | TID-024 only (everything else Done) |
-| R2 | TID-009, TID-048, TID-017, TID-015, TID-022, TID-021, TID-049, TID-050, TID-047 (post-launch budget and CPU check) |
+| R2 | **TID-053 (email sign-in link, next to build; owner request, ADR 0016)**, TID-009, TID-048, TID-017, TID-015, TID-022, TID-021, TID-049, TID-050, TID-047 (post-launch budget and CPU check) |
 | R3 | TID-023, TID-036, TID-037, TID-038, TID-051, TID-052 |
 
 TID-039 (deployed CPU gate) is deferred and runs only if TID-047 shows trouble.
 
-**Next free IDs:** TID-053 and DEF-091.
+**Next to build: TID-053** (sign in with an emailed link, ADR 0016). It can be built and tested locally now, alongside TID-024's owner setup. Its AC15 production check needs TID-024 deployed and the owner's dashboard setup (steps in the story). The owner's address is a secret (`MAGIC_LINK_EMAIL`) and must never be committed.
+
+**Next free IDs:** TID-054 and DEF-091.
 
 The decision history lives in ADRs 0001–0015. Open questions for the owner are in spec §16.1.
 

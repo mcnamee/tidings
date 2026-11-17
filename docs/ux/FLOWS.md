@@ -109,6 +109,24 @@ Lost passkey: **[Recover]** accepts one recovery code, signs in, burns it, and s
 
 Session ended (any 401 while using the app): redirect to **[Login]** with the line "Your session ended. Sign in again." The previous route is remembered and restored after sign-in.
 
+### 2.1a Sign in with an emailed link (TID-053, ADR 0016)
+
+For a computer without the owner's passkey or recovery codes. Shown only when `GET /api/auth/session` returns `emailSignIn: true`. Layout, banners, offline and error messages follow `screens/auth-common.md`.
+
+1. **[Login]**: under "Lost your passkey?", a second text link, **Email me a sign-in link** (44 px hit area). Tapping it reveals the email form in the same card. There's no new route, and focus moves to the field.
+   - Field label **Email address**, `type="email"`, `autocomplete="email"`, `inputmode="email"`. Primary button **Email me a link** (48 px). Secondary text button **Use a passkey instead** hides the form again.
+   - Sending: button label **Sending...**, disabled.
+   - Sent (always the same after `202`, whatever the address): the form becomes a `role="status"` message. Heading **Check your email**. Text: **If that address is set up for Tidings, a sign-in link is on its way. It works once and expires in 15 minutes.** Text button **Send another link** (back to the form, address kept).
+   - `400`: inline field error **Enter an email address.**
+   - `429`: the shared rate-limit message from auth-common.
+2. **Email** (plain text). Subject **Your Tidings sign-in link**. Body: "Use this link to sign in to Tidings: <link>", "It works once and expires in 15 minutes (requested <time> UTC).", "If you didn't ask for this, ignore this email. Nobody can sign in without the link."
+3. **[Email sign-in]** `/login/email` (auth layout, title "Sign in"). The page strips `#token=` from the address bar on load and never signs in by itself.
+   - Ready: `h1` **Sign in to Tidings**. Intro: **Tap the button to finish signing in on this device.** Primary button **Sign in** (48 px, not auto-focused).
+   - Signing in: button label **Signing in...**, disabled. On success the app goes (`replace`) to the default view, as after a passkey sign-in.
+   - `401 invalid_link`, or no token in the URL: `h1` **This link has expired**. Text: **Sign-in links work once and expire after 15 minutes. Ask for a new one.** Primary button **Back to sign in** goes to `/login`.
+   - `404` (feature off): the same as `401`, but the text is **Email sign-in isn't available. Use a passkey or a recovery code.**
+4. Email sessions can't manage passkeys or regenerate recovery codes. Those actions show the passkey re-auth prompt (copy owned by TID-022).
+
 ### 2.2 Import OPML from Inoreader (the switch, TID-016)
 
 The first-run goal is to be reading within 15 minutes.

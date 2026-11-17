@@ -1,6 +1,6 @@
 # Tidings Backlog
 
-Owner: product-manager. Last updated 2026-11-17 (MVP feature stories accepted, ADR 0015; reorganised into releases: MVP, R2, R3, ADR 0014).
+Owner: product-manager. Last updated 2026-11-17 (TID-053 email sign-in added, ADR 0016; MVP feature stories accepted, ADR 0015; reorganised into releases: MVP, R2, R3, ADR 0014).
 
 - **Releases (ADR 0014):** MVP gets the owner reading their feeds on their phone as soon as possible; R2 and R3 follow over the next couple of weeks. Old "M1" stories are split across MVP, R2 and R3; M2 and M3 are unchanged.
 - Stories are in priority order within each release. Build top to bottom unless dependencies allow parallel work.
@@ -33,6 +33,7 @@ Owner: product-manager. Last updated 2026-11-17 (MVP feature stories accepted, A
 | TID-019 | Article view and read state | MVP | Done (ADR 0015) | TID-018 |
 | TID-020 | Mark all as read | MVP | Done (ADR 0015) | TID-018 |
 | TID-024 | Production deployment and runbook (MVP scope, ADR 0014) | MVP | Ready (**next**; needs the owner's approval and setup) | all MVP stories |
+| TID-053 | Sign in with an emailed link (ADR 0016) | R2 | Ready (**next to build**, before the rest of R2; AC15 after TID-024 and the owner's setup) | TID-008 |
 | TID-009 | Sign in with a recovery code | R2 | Ready | TID-008 |
 | TID-017 | Export subscriptions as OPML | R2 | Ready | TID-014 |
 | TID-015 | Feed health and "Refresh now" (now includes problem feeds first in Manage) | R2 | Ready | TID-014 |
@@ -282,6 +283,47 @@ Story details below keep their original order. The summary table gives each stor
 - **DEF-018 (S4, `HEAD /api/health` is 401):** `HEAD /api/health` becomes Public, answered like GET with no body. Built in TID-009 AC6.
 - **DEF-019 (E2E "stalls"):** host sleep, not a product defect. It feeds TID-038.
 - **UX review of `/login`:** doesn't gate this story, because the E2E suite covered it at 375 px in both themes. UX reviews `/login` with `/recover` in TID-009 AC7.
+
+---
+
+### TID-053: Sign in with an emailed link
+
+- **Agents:** UX, SE, QA, PM
+- **Depends on:** TID-008 (built and tested locally before TID-024; AC15 needs production and the owner's setup)
+- **Release:** R2, scheduled **next**, before the rest of R2 (owner's request, 2026-11-17)
+- **Spec:** FR-AU-9, §8.3, §9.4, §10.1, §10.2, §10.7, ADR 0016 (amends ADR 0002)
+- **Status:** Ready
+
+**User story:** As the owner signing in from a work computer that has neither my phone nor my password safe, I want Tidings to email me a one-time sign-in link, so that I can read my feeds there without a passkey or recovery code.
+
+**Acceptance criteria**
+
+1. **Disabled unless configured.** Given the `SIGNIN_EMAIL` binding, the `MAGIC_LINK_EMAIL` secret (non-empty, contains `@`) or the `MAGIC_LINK_FROM` var is missing, or the user count isn't exactly 1, then `GET /api/auth/session` returns `emailSignIn: false`, `/login` doesn't show "Email me a sign-in link", both `/api/auth/email/*` routes return `404 not_found`, and `send` is never called (one test per missing item). Given all are present, `emailSignIn` is `true`.
+2. **Request a link.** Given the feature is on, when I tap "Email me a sign-in link" on `/login`, type my address in any case or with surrounding spaces, and submit, then `POST /api/auth/email/request` returns `202 {}`, one `magic_links` row exists for the owner, and `SIGNIN_EMAIL.send` is called once with from `MAGIC_LINK_FROM` and to `MAGIC_LINK_EMAIL`, inside `ctx.waitUntil`. The screen shows the "Check your email" state (UX copy).
+3. **No enumeration.** Given an address that doesn't match, then the response is byte-for-byte the same `202 {}` with the same headers. No row is written, no email is sent, and the screen shows the same "Check your email" state. A test asserts that the handler awaits nothing that depends on the match before it responds. Malformed bodies (not JSON, missing or non-string `email`, over 254 characters) get `400 validation_failed`, whether or not the address matches.
+4. **Email content.** Given a sent email, then it is plain text (`text/plain; charset=utf-8`, no HTML, no remote images), with subject "Your Tidings sign-in link", a `Date` and a `Message-ID` on the sender's domain. The body contains exactly one URL, `APP_ORIGIN + "/login/email#token=" + token`, plus the expiry ("expires in 15 minutes"), the request time in UTC, and "If you didn't ask for this, ignore this email. Nobody can sign in without the link." The token is not in the subject. Snapshot test of the built MIME.
+5. **Token.** Given a request, then the token is 32 bytes from `crypto.getRandomValues`, base64url-encoded (43 characters). Only its SHA-256 hex is stored, and `expires_at = created_at + 15 min`. A new request deletes the owner's earlier unused links, so at most one is live.
+6. **GET has no effect.** Given a link, when `/login/email#token=…` is fetched with GET (as a mail scanner would), then the server returns the SPA shell, no `magic_links` or `sessions` row changes, and the token still works afterwards. The landing page removes the fragment from the address bar (`history.replaceState`) before it shows anything, and it makes no API call that consumes the token until I tap "Sign in" (E2E).
+7. **Sign in.** Given a valid link, when I tap "Sign in" on the landing page, then `POST /api/auth/email/verify { token }` returns `200 { user }`, sets `__Host-tid_session` as in §10.2, creates a session with `auth_method = 'email'` and `authenticated_at = now`, sets the link's `used_at`, and the app goes (`replace`) to the default view.
+8. **Single use and expiry.** Given a used token, an expired one (15 min + 1 s, fake clock), one superseded by a newer request, or a made-up one, then verify returns `401 invalid_link` and no session is created. The landing page shows the "link expired or used" state with a button back to `/login`. Two concurrent verifies of one token create exactly one session (atomic `UPDATE … WHERE used_at IS NULL AND expires_at > ?`).
+9. **Rate limits.** Given 5 requests from one IP in 10 minutes, the 6th returns `429 rate_limited` with `Retry-After`. Given 100 requests in an hour from any IPs, the next returns `429`. Given 10 emails sent in a UTC day, a further matching request returns `202` and sends nothing (logged `send_capped`). A non-matching request never uses a send slot. For verify, 10 failures per IP per 10 minutes or 30 a global hour return `429`, and a success refunds its own slots. Every `429` is returned before the address is compared or the token looked up.
+10. **CSRF.** Given either POST with a cross-site `Origin`, no `Origin` and no `Sec-Fetch-Site: same-origin`, or a non-JSON `Content-Type`, then `403 csrf_failed`, and nothing is written or sent.
+11. **Step-up for email sessions.** Given a session with `auth_method = 'email'`, when it calls `POST /api/auth/passkeys/options`, `POST /api/auth/passkeys/verify`, `DELETE /api/auth/passkeys/:id` or `POST /api/auth/recovery-codes`, then `403 reauth_required` and nothing changes. Feed, entry and settings routes work as for a passkey session. Renaming a passkey is allowed.
+12. **Migration.** Given `0004_email_sign_in.sql`, then `magic_links` exists and `sessions.auth_method` accepts `'email'` and still rejects unknown values. Existing sessions, their `auth_method` and the `sessions_user` index survive the rebuild (migration test on a seeded database).
+13. **Secrets stay secret, isolation holds.** Given any request or verify, then logs contain no token, no link URL and no email address (the log-capture test, extended). Given the route table (`apps/worker/test/support/route-table.ts`), both routes are listed as Public with no ID inputs. The "every non-Public route returns 401" guard still passes. The token resolves the user server-side only, and a token issued for user A never creates a session for anyone else (two-user test: verify returns A's ID only).
+14. **Screens at 375 px, both themes.** Given `/login` (with the email option open, sending, sent, rate-limited and offline) and `/login/email` (ready, signing in, invalid or expired, offline) at 375 × 812 in light and dark themes, then UX reviews them against `docs/ux/FLOWS.md` §2.1a and `screens/auth-common.md`, and files findings in `docs/testing/DEFECTS.md`. S1 to S3 findings are fixed in this story *(UX review)*. Axe finds no serious or critical violations (E2E).
+15. **Production check** *(manual, after TID-024 and the owner's setup).* Given production, then a link requested from `/login` arrives at the owner's inbox from `signin@tidings.mcn.am` within 2 minutes, signs in once, and fails on the second use. `dig MX mcn.am` still shows only Google Workspace, and `https://tidings.mcn.am` still serves the app. Record the result, and the date, in ADR 0016 (this also checks ADR 0016's unverified `send_email` facts).
+
+**Owner setup (Cloudflare dashboard, once; the agents can't do this because the API token lacks Email Routing permission):**
+
+1. Open the `mcn.am` zone, then **Email > Email Routing**. Don't enable Email Routing for the zone itself, and decline any prompt to add or replace the apex (`mcn.am`) MX records, because they belong to Google Workspace.
+2. In **Email Routing > Settings > Subdomains**, add `tidings` (giving `tidings.mcn.am`) and let Cloudflare add the MX and SPF TXT records it lists for that subdomain only.
+3. In **Email Routing > Destination addresses**, add your own address and click the link in the verification email Cloudflare sends.
+4. Check: under **DNS > Records**, the `mcn.am` MX records still point to Google, and `tidings.mcn.am` now has Cloudflare MX and TXT records next to its custom-domain record. Then open `https://tidings.mcn.am` to confirm the app still loads.
+5. From the repo, run `npx wrangler secret put MAGIC_LINK_EMAIL` (in `apps/worker`) and enter the same verified address. Never put it in a file. Then deploy as usual (the `send_email` binding and `MAGIC_LINK_FROM` are already in `wrangler.jsonc`).
+6. To turn the feature off at any time, run `npx wrangler secret delete MAGIC_LINK_EMAIL`.
+
+**Out of scope:** more than one user and per-user addresses (M3, needs a provider decision, ADR 0016); sending to any address that isn't the configured secret; HTML email; binding the link to the requesting browser; a "remember this device" option; the sessions list UI (TID-032 shows the method when built).
 
 ---
 
@@ -1007,7 +1049,7 @@ Known risks: (a) a Worker fetching another workers.dev Worker on the same accoun
 - **AC:** Given a desktop width, then `j/k` next/previous, `m` toggle read, `o` open original, `shift+a` mark all read, `?` shows help; shortcuts are disabled while typing in inputs.
 
 ### TID-032: Active sessions list
-- **AC:** Given settings, then I see my sessions (device hint, created, last seen) and can end any one except the current one.
+- **AC:** Given settings, then I see my sessions (device hint, sign-in method: passkey, recovery code, email link or setup; created, last seen) and can end any one except the current one. *(Method added 2026-11-17, ADR 0016.)*
 
 ### TID-033: Manual folder and feed ordering
 - **AC:** Given the manage screen, when I reorder folders (drag or move up/down buttons), then the drawer order persists via `folders.position`.

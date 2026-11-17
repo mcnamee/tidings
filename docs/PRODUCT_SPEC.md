@@ -70,7 +70,7 @@ Requirement IDs (`FR-xx-n`) are referenced from backlog acceptance criteria.
 
 ### 3.1 Authentication (AU)
 
-Decision: **passkeys (WebAuthn) with single-use recovery codes**, opaque server-side sessions. Single owner in MVP. See ADR 0002 and §10.
+Decision: **passkeys (WebAuthn) with single-use recovery codes**, opaque server-side sessions. Single owner in MVP. See ADR 0002 and §10. Email sign-in links are an additional method (FR-AU-9, ADR 0016).
 
 - **FR-AU-1 First-run setup.** When no user exists, the app shows a setup screen. The owner enters a display name and the `SETUP_TOKEN` (a deploy-time secret) and registers a passkey. Setup is impossible once any user exists.
 - **FR-AU-2 Recovery codes.** On successful setup, the app shows 10 single-use recovery codes once, with "copy" and "download as .txt". The owner must tick "I've saved these" to continue.
@@ -80,6 +80,7 @@ Decision: **passkeys (WebAuthn) with single-use recovery codes**, opaque server-
 - **FR-AU-6 Passkey management.** In settings the user can list passkeys (name, created, last used), add another, rename one, and remove one. Removing the last passkey is refused.
 - **FR-AU-7 Regenerate recovery codes.** Replaces all codes. Requires a sign-in within the last 15 minutes, otherwise the API returns `reauth_required` and the UI runs a passkey sign-in first.
 - **FR-AU-8 Closed sign-up.** There is no public registration. Additional users are M3 (invites).
+- **FR-AU-9 Email sign-in link** (TID-053, ADR 0016). When it is configured (the `SIGNIN_EMAIL` `send_email` binding, the `MAGIC_LINK_EMAIL` secret and the `MAGIC_LINK_FROM` var, with exactly one user), `/login` offers "Email me a sign-in link". The owner types their address. If it matches `MAGIC_LINK_EMAIL`, Tidings emails a single-use link from `signin@tidings.mcn.am` that expires after 15 minutes. The response never reveals whether the address matched. Opening the link shows a "Sign in" button. Tapping it (a POST, never the GET) creates a session with `auth_method = 'email'`. Email sessions can't add or remove passkeys or regenerate recovery codes (`reauth_required`). Without the configuration, the option is hidden and the routes return `404`.
 
 ### 3.2 Subscriptions (SU)
 
@@ -291,8 +292,9 @@ No other runtime libraries without PM approval (state management, UI kits, date 
   "triggers": { "crons": ["* * * * *", "17 * * * *"] },
   "ratelimits": [{ "name": "API_RL", "namespace_id": "1001", "simple": { "limit": 600, "period": 60 } }],
   "routes": [{ "pattern": "tidings.mcn.am", "custom_domain": true }],
-  "vars": { "APP_ORIGIN": "https://tidings.mcn.am", "RP_ID": "tidings.mcn.am", "RP_NAME": "Tidings" }
-  // secrets: SETUP_TOKEN (wrangler secret put)
+  "send_email": [{ "name": "SIGNIN_EMAIL" }], // TID-053; no address in the repo (ADR 0016)
+  "vars": { "APP_ORIGIN": "https://tidings.mcn.am", "RP_ID": "tidings.mcn.am", "RP_NAME": "Tidings", "MAGIC_LINK_FROM": "signin@tidings.mcn.am" }
+  // secrets: SETUP_TOKEN, MAGIC_LINK_EMAIL (owner's verified address; optional, deleting it disables email sign-in)
 }
 ```
 
@@ -363,9 +365,18 @@ CREATE TABLE sessions (
   expires_at       INTEGER NOT NULL,          -- sliding, see §10.2
   absolute_expires_at INTEGER NOT NULL,
   user_agent       TEXT,
-  auth_method      TEXT NOT NULL DEFAULT 'passkey' -- 'setup' | 'passkey' | 'recovery'; added by migration 0002 (shipped in TID-007; ADR 0010, ADR 0011)
+  auth_method      TEXT NOT NULL DEFAULT 'passkey' -- 'setup' | 'passkey' | 'recovery' | 'email'; added by migration 0002 (shipped in TID-007; ADR 0010, ADR 0011); 'email' added by 0004 (TID-053, ADR 0016)
 );
 CREATE INDEX sessions_user ON sessions(user_id);
+
+-- Migration 0004_email_sign_in.sql (TID-053, ADR 0016): rebuilds sessions for the 'email' CHECK value and adds:
+CREATE TABLE magic_links (
+  token_hash  TEXT PRIMARY KEY,               -- hex SHA-256 of the emailed token; raw token never stored
+  user_id     TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  created_at  INTEGER NOT NULL,
+  expires_at  INTEGER NOT NULL,               -- created_at + 15 min
+  used_at     INTEGER
+);
 
 CREATE TABLE rate_limits (                    -- fixed-window counters for auth endpoints
   key           TEXT PRIMARY KEY,             -- e.g. 'recover:ip:203.0.113.9'
@@ -646,12 +657,14 @@ type Passkey = { id: string; name: string; createdAt: string; lastUsedAt: string
 
 | Method & path | Auth | Request | Response |
 |---|---|---|---|
-| `GET /api/auth/session` | Public | – | `200 { user: User \| null, setupRequired: boolean, mustAddPasskey: boolean }`. `mustAddPasskey` is true only when this session signed in with a recovery code and the user has no passkey created since the session began (ADR 0010). |
+| `GET /api/auth/session` | Public | – | `200 { user: User \| null, setupRequired: boolean, mustAddPasskey: boolean, emailSignIn: boolean }`. `emailSignIn` is true only when FR-AU-9 is configured (TID-053). `mustAddPasskey` is true only when this session signed in with a recovery code and the user has no passkey created since the session began (ADR 0010). |
 | `POST /api/auth/setup/options` | Public, rate-limited | `{ setupToken: string, displayName: string (1–64) }` | `200 PublicKeyCredentialCreationOptionsJSON`; sets challenge cookie. `409 setup_unavailable` if a user exists; `403 invalid_setup_token`. |
 | `POST /api/auth/setup/verify` | Public, rate-limited | `{ setupToken, displayName, response: RegistrationResponseJSON, passkeyName?: string }` (`passkeyName` is a best-effort client label. The server trims it, caps it at 64 characters, defaults it to "Passkey", and never rejects setup over it.) | `201 { user: User, recoveryCodes: string[10] }`; sets session cookie. |
 | `POST /api/auth/login/options` | Public, rate-limited | `{}` | `200 PublicKeyCredentialRequestOptionsJSON` (empty `allowCredentials`, `userVerification: 'required'`); sets challenge cookie. |
 | `POST /api/auth/login/verify` | Public, rate-limited | `{ response: AuthenticationResponseJSON }` | `200 { user: User }`; sets session cookie; `401 webauthn_failed`. |
 | `POST /api/auth/recover` | Public, rate-limited | `{ code: string }` (as typed; the server normalises it, §10.1) | `200 { user: User, mustAddPasskey: true }`; sets session cookie; `401 invalid_recovery_code`. |
+| `POST /api/auth/email/request` | Public, rate-limited | `{ email: string (1–254) }` | `202 {}` whether or not the address matches; the email is sent after the response (`ctx.waitUntil`). `400 validation_failed`; `404 not_found` when FR-AU-9 isn't configured (TID-053, ADR 0016). |
+| `POST /api/auth/email/verify` | Public, rate-limited | `{ token: string }` (from the link's `#token=` fragment) | `200 { user: User }`; sets session cookie, `auth_method = 'email'`; `401 invalid_link` (unknown, used, superseded or expired); `404 not_found` when not configured. |
 | `POST /api/auth/logout` | Session | `{}` | `204`; clears cookie. |
 | `POST /api/auth/logout-all` | Session | `{}` | `204`; deletes all the user's sessions. |
 | `GET /api/auth/passkeys` | Session | – | `200 { items: Passkey[] }` |
@@ -659,11 +672,13 @@ type Passkey = { id: string; name: string; createdAt: string; lastUsedAt: string
 | `POST /api/auth/passkeys/verify` | Session | `{ response: RegistrationResponseJSON, name: string (1–64) }` | `201 Passkey` |
 | `PATCH /api/auth/passkeys/:id` | Session | `{ name }` | `200 Passkey` |
 | `DELETE /api/auth/passkeys/:id` | Session | – | `204`; `409 last_passkey` |
-| `POST /api/auth/recovery-codes` | Session + `authenticated_at` within 15 min | `{}` | `200 { recoveryCodes: string[10] }`; `403 reauth_required` |
+| `POST /api/auth/recovery-codes` | Session + `authenticated_at` within 15 min, not an `email` session | `{}` | `200 { recoveryCodes: string[10] }`; `403 reauth_required` |
 | `GET /api/me` | Session | – | `200 User` |
 | `PATCH /api/me` | Session | `{ displayName?: string, settings?: Partial<UserSettings> }` | `200 User` |
 
 Each `/api/auth/session` call counts as use and slides the session like any authenticated request (§10.2), re-issuing the cookie when it does. `POST /api/auth/logout` deletes only the calling session.
+
+Email sign-in (`email/request`, `email/verify`) has its own limits (§10.7). Sessions with `auth_method = 'email'` get `403 reauth_required` from `passkeys/options`, `passkeys/verify`, `DELETE passkeys/:id` and `recovery-codes` (ADR 0016).
 
 Rate limits for Public routes: 10 requests / 10 min per IP per route family (setup, login, recover), plus 30 / hour global for `recover` and `setup` (D1 `rate_limits`, §10.7). For `setup` (TID-007), a slot is taken when a request arrives and handed back when it succeeds, so the limits count failed attempts: a normal setup (options, then verify) uses none, and 10 failures from one IP in 10 minutes block the 11th with `429 rate_limited` and `Retry-After`. Setup also needs `SETUP_TOKEN` of at least 32 characters; a shorter or missing one returns `500 config_error` rather than accepting any token.
 
@@ -769,6 +784,7 @@ Sources: [Workers limits](https://developers.cloudflare.com/workers/platform/lim
 | Queues | 10,000 operations / day; ≈ 3 ops per message; 24 h retention | Verified (not used) |
 | Rate Limiting binding on Free | Available; `period` 10 or 60 s | **Verified 2026-11-16** (TID-003): deploys and enforces; approximate (can allow about one over within a burst; per location) |
 | `_headers` | 100 rules, 2,000 chars/line; not applied to Worker responses | Verified |
+| `send_email` binding (Email Routing) | Free; delivers only to destination addresses verified in the account's Email Routing; sender must be on a domain with Email Routing enabled (`tidings.mcn.am`) | **Unverified** (docs unreachable from the session 2026-11-17); checked in production by TID-053 AC15. Our own cap: 10 emails/day |
 | PBKDF2 iterations in Workers | 100,000 max (workerd issue #1346, 2023) | Unverified for 2026 production; relevant only to the rejected password option |
 
 ### 9.2 Assumed load
@@ -810,6 +826,7 @@ Ceiling: one dispatcher leasing a full batch every minute is 1,440 × (1 + 20) =
 | Bulk mark read | 3 | 3,000 | 9,000 |
 | Cleanup (user_entries delete ×5, entry purge ×1, tombstone delete ×3) | – | 3,600 | 15,200 |
 | Sessions, settings, auth | – | 50 | 150 |
+| Email sign-in (TID-053): ≈ 10 rows per sign-in, ≤ 10 emails/day cap; abuse bounded at 100 requests/hour ≈ 7,200 rows/day worst case (ADR 0016) | ≈ 10 | 10 to 100 | 10 to 100 |
 | **Total** | | **≈ 25,000 (25%)** | **≈ 67,000 (67%)** |
 
 **Why `feeds.next_fetch_at` has no index.** An index would add one write per lease (+12,000/day in A, +12% of the write quota). Without it the dispatcher scans the feeds table each minute: 250 rows × 1,440 = 360,000 reads/day (7% of the read quota). Writes are the scarcer resource, so we scan. Revisit above ~1,000 feeds.
@@ -869,13 +886,15 @@ Options evaluated (full record in ADR 0002):
 | **Passkeys (WebAuthn)** + recovery codes | Phishing-resistant; no shared secret stored; verification is native ECDSA (cheap CPU); synced passkeys work across iPhone/Android/desktop; no email dependency | Needs a recovery path; RP ID ties credentials to the hostname | **Chosen** |
 | Cloudflare Access (Zero Trust, free < 50 users) | Zero auth code; strong | SPA `fetch` calls get redirected to Access login on expiry (opaque CORS failures); installed-PWA flows are awkward; config lives outside the repo; harder to test locally and in E2E | Rejected (user may override: Q3) |
 | Email + password | Familiar | Workers caps PBKDF2 at 100,000 iterations (below OWASP's 600,000) and that cost alone likely exceeds the 10 ms CPU budget; Argon2/bcrypt in WASM are slower still; needs reset-by-email | Rejected |
-| Magic links | No password | Needs an email-sending service (another account/vendor or limited Cloudflare Email Routing); slow login on phone (switch apps) | Rejected |
+| Magic links | No password; works on a computer with no phone or password safe | Needs email sending; slow on a phone (switch apps); mailbox access = Tidings access | Rejected as the primary method; **added as a secondary method** for the owner's work computer via the free `send_email` binding (ADR 0016, 2026-11-17) |
 
 Parameters: `rpID = RP_ID` (the production hostname), expected origin `APP_ORIGIN`; `residentKey: 'required'`, `userVerification: 'required'`, `attestationType: 'none'`; algorithms ES256 (−7), EdDSA (−8), RS256 (−257). Challenges are single-use, stored in `webauthn_challenges`, bound to a `__Host-tid_chal` cookie (HttpOnly, Secure, SameSite=Strict, Max-Age 300) and deleted on verify. The signature counter is stored and checked when non-zero.
 
 **Bootstrap:** `SETUP_TOKEN` (≥ 32 random characters, set with `wrangler secret put`) is required for setup and compared in constant time. Setup endpoints return `setup_unavailable` once a user exists (checked first, so the secret can be removed after setup). Before then, a missing or shorter token returns `500 config_error` and is logged; it never accepts any token (ADR 0011). `setup/options` generates the new user's ID as the WebAuthn user handle and keeps it in the challenge row; it deletes expired setup challenges and refuses with `429 rate_limited` when 5 unexpired ones exist.
 
 **Recovery codes:** 10 codes, each 80 random bits rendered as `XXXX-XXXX-XXXX-XXXX` (Crockford base32). Stored as SHA-256 of the normalised code. Normalisation: trim, remove spaces and dashes, upper-case, then map the Crockford confusables `O→0`, `I→1`, `L→1` (ADR 0010). A fast hash is acceptable because the codes are high-entropy random values, not user-chosen passwords; this avoids needing a KDF in a 10 ms budget. Single use.
+
+**Email sign-in links (ADR 0016):** 32-byte random token (256 bits), base64url, stored only as SHA-256 in `magic_links`. Expires in 15 minutes, single use (atomic conditional `UPDATE`), and at most one live link per user. The link is `APP_ORIGIN/login/email#token=…`. The token sits in the fragment, so a GET (including corporate mail scanners) never sends it to the server or consumes it. The landing page strips the fragment and consumes the token only on a POST from the "Sign in" button. The request endpoint answers `202 {}` whatever the address, and it sends after the response so the timing doesn't reveal a match. Recipient: the `MAGIC_LINK_EMAIL` secret only. Email Routing is enabled on `tidings.mcn.am` only, never on the `mcn.am` apex (Google Workspace MX).
 
 **Break-glass:** if the owner loses every passkey and code, they run a documented `wrangler d1 execute` command (README) that deletes their passkeys; setup is then *not* re-opened (a user exists), so the runbook instead inserts a one-time recovery code hash generated locally. Documented in the README (TID-024 AC2). The sign-in screens don't link to it (ADR 0010).
 
@@ -885,6 +904,7 @@ Parameters: `rpID = RP_ID` (the production hostname), expected origin `APP_ORIGI
 - Sliding: `expires_at = now + 30 d`, refreshed only when fewer than 23 days remain (≈ 1 write per session per week). Absolute cap 180 days.
 - New session on every sign-in (no fixation). Logout deletes the row. Removing a passkey doesn't end sessions; "sign out everywhere" does.
 - Step-up: regenerating recovery codes requires `authenticated_at` within 15 minutes (FR-AU-7). Other actions don't in MVP.
+- Email sessions (`auth_method = 'email'`) can't add or remove passkeys or regenerate recovery codes (`403 reauth_required`; the UI offers a passkey sign-in). Otherwise they behave like passkey sessions (ADR 0016).
 
 ### 10.3 CSRF
 
@@ -933,6 +953,7 @@ For automated tests only, an `ALLOW_FETCH_HOSTS` var can allow the local fixture
 ### 10.7 Rate limiting
 
 - **Auth routes** (setup, login, recover): D1 fixed-window counter in `rate_limits` keyed by route family and `CF-Connecting-IP`, plus a global counter for setup and recover (§8.3). Authoritative. A slot is claimed on arrival and handed back on success, so the limits count failures. The exception is `login/options`, which is never refunded: each call uses a slot, and a successful `login/verify` refunds only its own slot. They are two counters (`login:options:ip:…` and `login:verify:ip:…`, 10 each per 10 minutes) so that ten full sign-ins fit in a window. This bounds the challenge rows one IP can create (ADR 0011). The global setup limit can be used to lock setup for up to an hour before the owner exists. That's accepted (risk R12), and the runbook covers clearing it.
+- **Email sign-in** (ADR 0016): `email/request` 5 / 10 min per IP and 100 / hour global, never refunded; emails sent 10 / UTC day global, claimed only when the address matches, and when it's full the endpoint still returns `202` without sending. `email/verify` 10 / 10 min per IP and 30 / hour global, refunded on success. Every slot is claimed before the address comparison or token lookup.
 - **Authenticated API:** 600 requests/minute per user via the Workers Rate Limiting binding `API_RL` (verified on Free 2026-11-16; approximate, so it is a backstop only), keyed by user ID, returning `429 rate_limited`. Built in TID-008.
 - **Manual feed refresh:** once per 5 minutes per feed per user (checked against `feeds.last_attempt_at`).
 
@@ -945,7 +966,7 @@ For automated tests only, an `ALLOW_FETCH_HOSTS` var can allow the local fixture
 ### 10.9 Other
 
 - Parameterised SQL only (lint rule bans template literals in `prepare()`).
-- Never log cookies, tokens, setup token, recovery codes or WebAuthn payloads.
+- Never log cookies, tokens, setup token, recovery codes, WebAuthn payloads, email sign-in tokens or links, or email addresses.
 - `npm audit --audit-level=high` runs in CI.
 
 ---
@@ -958,6 +979,7 @@ For automated tests only, an `ALLOW_FETCH_HOSTS` var can allow the local fixture
 |---|---|
 | `/setup` | First-run setup (only when `setupRequired`) |
 | `/login`, `/recover` | Sign in; recovery code |
+| `/login/email` | Email sign-in landing page: reads `#token=`, shows a "Sign in" button that POSTs (TID-053) |
 | `/` | Redirect to the last list route viewed on this device (`localStorage['tidings.lastList']`, one of the three list patterns below), falling back to `/all` if none is stored, it's malformed, or the folder/feed no longer exists |
 | `/all`, `/folders/:folderId`, `/feeds/:subscriptionId` | Article lists |
 | `/all/a/:entryId`, `/folders/:folderId/a/:entryId`, `/feeds/:subscriptionId/a/:entryId` | Article view, keeping list context for next/previous and back |
@@ -1065,6 +1087,7 @@ On push to `main` after CI passes: `wrangler d1 migrations apply tidings --remot
 | R10 | Malformed or hostile feeds (billion-laughs entity expansion, huge attributes) | Medium | Low | htmlparser2 doesn't expand custom DTD entities; body cap; item cap; fuzz fixtures. |
 | R11 | Oldest-first feeds with more than 50 items never show new items (we parse the first 50 in document order) | Low | Low | Accepted for MVP (ADR 0006). Possible later fix: detect ascending dates and parse the tail instead. |
 | R12 | Before the owner exists, 30 failed setup attempts an hour from any IPs lock setup for everyone (griefing) | Low | Low | Exposed only between deploy and setup; the lock lasts ≤ 1 h; the runbook clears `rate_limits` (TID-024 AC8). Accepted (ADR 0011). |
+| R13 | Someone who gets into the owner's mailbox can sign in by email link | Low | Medium | Accepted for a personal reader (ADR 0016). Email sessions can't change passkeys or recovery codes; every link is an email the owner sees; 15-min single-use links; kill switch: `wrangler secret delete MAGIC_LINK_EMAIL`. |
 
 ---
 
@@ -1086,6 +1109,7 @@ The user accepted every recommended default on 2026-11-16 and chose the hostname
 | Q10 | Inoreader lets a feed sit in several folders. OK to allow only one folder per feed in MVP? | **Yes, one folder**; on import the first folder wins. Multi-folder (tags) in M3. |
 | Q11 | First fetch of a new feed: OK to bring in the 10 newest items, with items older than 7 days pre-marked read? | **Yes.** |
 | Q12 | TID-039 deployed CPU gate before production? | **Deferred** (user, 2026-11-17). Production deploys without it; CPU and budgets are checked against real use in TID-047 (R2). TID-039 runs only if that check shows trouble (ADR 0014). |
+| Q15 | Email sign-in for the work computer (no phone or password safe there)? | **Yes, as an extra method** (owner's request, 2026-11-17). Passkeys stay primary; recovery codes stay. Sent with the free `send_email` binding from `signin@tidings.mcn.am`, with Email Routing on `tidings.mcn.am` only (owner's choice; the apex stays on Google Workspace). The recipient is the `MAGIC_LINK_EMAIL` secret, kept out of the repo. TID-053, ADR 0016. |
 
 ### 16.1 Open questions (pending the user)
 
