@@ -1,3 +1,4 @@
+import { env } from 'cloudflare:workers';
 import { describe, expect, it } from 'vitest';
 import { createApp } from './app';
 
@@ -12,11 +13,11 @@ describe('api app', () => {
     expect(typeof body.version).toBe('string');
   });
 
-  it('unknown /api route returns a JSON 404 error', async () => {
-    const res = await app.request('/api/nope');
-    expect(res.status).toBe(404);
+  it('an unknown /api route is 401 without a session (deny by default), as JSON', async () => {
+    const res = await app.request('/api/nope', {}, env);
+    expect(res.status).toBe(401);
     expect(res.headers.get('content-type')).toContain('application/json');
     const body = (await res.json()) as { error: { code: string } };
-    expect(body.error.code).toBe('not_found');
+    expect(body.error.code).toBe('unauthenticated');
   });
 });

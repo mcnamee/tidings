@@ -913,7 +913,7 @@ test.describe('step 1 states (setup.md section 2)', () => {
       route.fulfill({
         status: 500,
         contentType: 'application/json',
-        body: JSON.stringify({ error: { code: 'internal_error', message: 'x' } }),
+        body: JSON.stringify({ error: { code: 'internal', message: 'x' } }),
       }),
     );
     await createButton(page).click();

@@ -34,3 +34,25 @@ export const setupVerifyRequestSchema = z.object({
   response: registrationResponseSchema,
   passkeyName: z.unknown().optional(),
 });
+
+/** `login/options` takes `{}`. Extra keys are ignored. */
+export const loginOptionsRequestSchema = z.looseObject({});
+
+/** The API envelope of the browser's `AuthenticationResponseJSON`. The WebAuthn library does the rest. */
+export const authenticationResponseSchema = z.looseObject({
+  id: z.string().min(1).max(1024),
+  rawId: z.string().min(1).max(1024),
+  type: z.literal('public-key'),
+  response: z.looseObject({
+    clientDataJSON: z.string().min(1).max(8192),
+    authenticatorData: z.string().min(1).max(8192),
+    signature: z.string().min(1).max(8192),
+    userHandle: z.string().max(1024).optional(),
+  }),
+  clientExtensionResults: z.looseObject({}).default({}),
+  authenticatorAttachment: z.string().max(32).optional(),
+});
+
+export const loginVerifyRequestSchema = z.object({
+  response: authenticationResponseSchema,
+});

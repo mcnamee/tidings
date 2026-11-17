@@ -71,9 +71,10 @@ describe('races: parallel setups create exactly one owner', () => {
     expect(loser.verifyRes.headers.getSetCookie().join(';')).not.toContain('__Host-tid_session');
   });
 
-  it('six setups racing: still exactly one owner, and only the winner has working codes', async () => {
+  // Five, not six: setup/options refuses a sixth unexpired challenge (TID-008 AC15).
+  it('five setups racing: still exactly one owner, and only the winner has working codes', async () => {
     const results = await Promise.all(
-      ['A', 'B', 'C', 'D', 'E', 'F'].map((name) => runSetup(h, { displayName: name })),
+      ['A', 'B', 'C', 'D', 'E'].map((name) => runSetup(h, { displayName: name })),
     );
     const winners = results.filter((r) => r.verifyRes.status === 201);
     expect(winners).toHaveLength(1);
@@ -365,7 +366,9 @@ describe('config_error and headers', () => {
     expect(res.headers.get('Cache-Control')).toBe('no-store');
   });
 
-  it('unknown routes and wrong methods under /api/auth are 404 with no-store', async () => {
+  // TID-008: with no session, anything that is not exactly a public route is 401 (deny by default);
+  // the 404s for a signed-in caller are covered in api-guard.test.ts.
+  it('unknown routes and wrong methods under /api/auth are refused with no-store', async () => {
     for (const [method, path] of [
       ['GET', '/api/auth/setup/options'],
       ['GET', '/api/auth/setup/verify'],
@@ -373,7 +376,7 @@ describe('config_error and headers', () => {
       ['GET', '/api/auth/nope'],
     ] as const) {
       const res = await h.call(method as 'GET', path);
-      expect(res.status, `${method} ${path}`).toBe(404);
+      expect(res.status, `${method} ${path}`).toBe(401);
       expect(res.headers.get('Cache-Control')).toBe('no-store');
     }
   });

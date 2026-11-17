@@ -1,21 +1,24 @@
 import { Hono } from 'hono';
 import type { ApiError, HealthResponse } from '@tidings/shared';
-import type { Env } from '../../env';
 import { createAuthRoutes, type AuthDeps } from '../auth/routes';
+import { systemClock } from '../db';
 import { FetchConfigError, resolveFetchPolicy } from '../fetch';
+import { fail } from './respond';
+import { apiGuard, securityHeaders, type ApiRateLimiter, type AppEnv } from './security';
 
 export const APP_VERSION = '0.0.0';
 
-export function createApp(deps?: Partial<AuthDeps>): Hono<{ Bindings: Env }> {
-  const app = new Hono<{ Bindings: Env }>().basePath('/api');
+export interface AppDeps extends AuthDeps {
+  /** Stub for the `API_RL` binding in tests; production uses `env.API_RL`. */
+  apiRateLimit: ApiRateLimiter;
+}
 
-  // Spec 8.1. Recovery codes travel in these responses, so nothing may be cached. It is registered
-  // first so it also covers the config guard's short-circuit below (DEF-012). TID-008 adds
-  // the rest of the API security headers next to this.
-  app.use('*', async (c, next) => {
-    await next();
-    c.header('Cache-Control', 'no-store');
-  });
+export function createApp(deps?: Partial<AppDeps>): Hono<AppEnv> {
+  const app = new Hono<AppEnv>().basePath('/api');
+
+  // Spec 8.1 and 10.4: Cache-Control, nosniff and CORP on every response. Registered first so it
+  // also covers the short-circuits below (DEF-012). No CORS headers are ever added.
+  app.use('*', securityHeaders);
 
   // TID-010 AC6: a misconfigured ALLOW_FETCH_HOSTS makes every request fail loudly.
   app.use('*', async (c, next) => {
@@ -25,14 +28,14 @@ export function createApp(deps?: Partial<AuthDeps>): Hono<{ Bindings: Env }> {
       } catch (err) {
         if (!(err instanceof FetchConfigError)) throw err;
         console.error(`configuration error: ${err.message}`);
-        const body: ApiError = {
-          error: { code: 'config_error', message: 'Server configuration error' },
-        };
-        return c.json(body, 500);
+        return fail(c, 500, 'config_error', 'Server configuration error');
       }
     }
     await next();
   });
+
+  // Session, CSRF and the per-user rate limit (spec 8.1, 10.3, 10.7). Deny by default.
+  app.use('*', apiGuard({ clock: deps?.clock ?? systemClock, apiRateLimit: deps?.apiRateLimit }));
 
   app.route('/auth', createAuthRoutes(deps));
 
@@ -41,14 +44,12 @@ export function createApp(deps?: Partial<AuthDeps>): Hono<{ Bindings: Env }> {
     return c.json(body);
   });
 
-  app.notFound((c) => {
-    const body: ApiError = { error: { code: 'not_found', message: 'Not found' } };
-    return c.json(body, 404);
-  });
+  app.notFound((c) => fail(c, 404, 'not_found', 'Not found'));
 
   app.onError((err, c) => {
+    // The exception text stays in the log; the response carries a fixed message (spec 8.1).
     console.error('unhandled error', err);
-    const body: ApiError = { error: { code: 'internal_error', message: 'Internal error' } };
+    const body: ApiError = { error: { code: 'internal', message: 'Internal error' } };
     return c.json(body, 500);
   });
 
