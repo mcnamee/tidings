@@ -28,7 +28,9 @@ export default defineConfig({
     trace: 'retain-on-failure',
     screenshot: 'only-on-failure',
     // Cloud sessions can't download Playwright's Chromium, so use a preinstalled Chrome when set.
-    ...(process.env.CHROME_PATH ? { launchOptions: { executablePath: process.env.CHROME_PATH } } : {}),
+    ...(process.env.CHROME_PATH
+      ? { launchOptions: { executablePath: process.env.CHROME_PATH } }
+      : {}),
   },
   projects: [
     { name: 'mobile-light', use: { browserName: 'chromium', ...mobile, colorScheme: 'light' } },
