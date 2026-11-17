@@ -1,0 +1,1545 @@
+{
+  "A-m-light": {
+    "all-empty": {
+      "h1": [
+        "All articles"
+      ],
+      "overflowX": false,
+      "small": [],
+      "unnamed": [],
+      "docTitle": "All articles - Tidings"
+    },
+    "manage-empty": {
+      "h1": [
+        "Manage feeds"
+      ],
+      "overflowX": false,
+      "small": [],
+      "unnamed": [],
+      "docTitle": "Manage feeds - Tidings"
+    },
+    "add": {
+      "h1": [
+        "Add a feed"
+      ],
+      "overflowX": false,
+      "small": [],
+      "unnamed": [],
+      "docTitle": "Add a feed - Tidings"
+    },
+    "import-choose": {
+      "h1": [
+        "Import from OPML"
+      ],
+      "overflowX": false,
+      "small": [],
+      "unnamed": [],
+      "docTitle": "Import from OPML - Tidings"
+    },
+    "import-preview": {
+      "h1": [
+        "Import from OPML"
+      ],
+      "overflowX": false,
+      "small": [],
+      "unnamed": [],
+      "docTitle": "Import from OPML - Tidings"
+    },
+    "importPreviewFocus": [
+      "Choose another file",
+      "Import 249 feeds",
+      "Skip to contentImport from O",
+      "Skip to content",
+      "Back"
+    ],
+    "import-progress": {
+      "h1": [
+        "Import from OPML"
+      ],
+      "overflowX": false,
+      "small": [],
+      "unnamed": [],
+      "docTitle": "Import from OPML - Tidings"
+    },
+    "importProgressText": "Fetching your feeds\n\nFetched 0 of 248 feeds\n\n248 feeds added\n2 feeds could not be imported\n\nYou can leave this page. Fetching carries on in the background."
+  },
+  "A-m-dark": {
+    "all-empty": {
+      "h1": [
+        "All articles"
+      ],
+      "overflowX": false,
+      "small": [],
+      "unnamed": [],
+      "docTitle": "All articles - Tidings"
+    },
+    "manage-empty": {
+      "h1": [
+        "Manage feeds"
+      ],
+      "overflowX": false,
+      "small": [],
+      "unnamed": [],
+      "docTitle": "Manage feeds - Tidings"
+    },
+    "add": {
+      "h1": [
+        "Add a feed"
+      ],
+      "overflowX": false,
+      "small": [],
+      "unnamed": [],
+      "docTitle": "Add a feed - Tidings"
+    },
+    "import-choose": {
+      "h1": [
+        "Import from OPML"
+      ],
+      "overflowX": false,
+      "small": [],
+      "unnamed": [],
+      "docTitle": "Import from OPML - Tidings"
+    },
+    "import-preview": {
+      "h1": [
+        "Import from OPML"
+      ],
+      "overflowX": false,
+      "small": [],
+      "unnamed": [],
+      "docTitle": "Import from OPML - Tidings"
+    },
+    "importPreviewFocus": [
+      "Choose another file",
+      "Import 249 feeds",
+      "Skip to contentImport from O",
+      "Skip to content",
+      "Back"
+    ],
+    "import-progress": {
+      "h1": [
+        "Import from OPML"
+      ],
+      "overflowX": false,
+      "small": [],
+      "unnamed": [],
+      "docTitle": "Import from OPML - Tidings"
+    },
+    "importProgressText": "Fetching your feeds\n\nFetched 0 of 248 feeds\n\n248 feeds added\n2 feeds could not be imported\n\nYou can leave this page. Fetching carries on in the background."
+  },
+  "A-d-light": {
+    "all-empty": {
+      "h1": [
+        "All articles"
+      ],
+      "overflowX": false,
+      "small": [],
+      "unnamed": [],
+      "docTitle": "All articles - Tidings"
+    },
+    "manage-empty": {
+      "h1": [
+        "Manage feeds"
+      ],
+      "overflowX": false,
+      "small": [],
+      "unnamed": [],
+      "docTitle": "Manage feeds - Tidings"
+    },
+    "add": {
+      "h1": [
+        "Add a feed"
+      ],
+      "overflowX": false,
+      "small": [],
+      "unnamed": [],
+      "docTitle": "Add a feed - Tidings"
+    },
+    "import-choose": {
+      "h1": [
+        "Import from OPML"
+      ],
+      "overflowX": false,
+      "small": [],
+      "unnamed": [],
+      "docTitle": "Import from OPML - Tidings"
+    },
+    "import-preview": {
+      "h1": [
+        "Import from OPML"
+      ],
+      "overflowX": false,
+      "small": [],
+      "unnamed": [],
+      "docTitle": "Import from OPML - Tidings"
+    },
+    "importPreviewFocus": [
+      "Choose another file",
+      "Import 249 feeds",
+      "Skip to contentTidingsAll ar",
+      "Skip to content",
+      "All articles"
+    ],
+    "import-progress": {
+      "h1": [
+        "Import from OPML"
+      ],
+      "overflowX": false,
+      "small": [],
+      "unnamed": [],
+      "docTitle": "Import from OPML - Tidings"
+    },
+    "importProgressText": "Fetching your feeds\n\nFetched 0 of 248 feeds\n\n248 feeds added\n2 feeds could not be imported\n\nYou can leave this page. Fetching carries on in the background."
+  },
+  "A-d-dark": {
+    "all-empty": {
+      "h1": [
+        "All articles"
+      ],
+      "overflowX": false,
+      "small": [],
+      "unnamed": [],
+      "docTitle": "All articles - Tidings"
+    },
+    "manage-empty": {
+      "h1": [
+        "Manage feeds"
+      ],
+      "overflowX": false,
+      "small": [],
+      "unnamed": [],
+      "docTitle": "Manage feeds - Tidings"
+    },
+    "add": {
+      "h1": [
+        "Add a feed"
+      ],
+      "overflowX": false,
+      "small": [],
+      "unnamed": [],
+      "docTitle": "Add a feed - Tidings"
+    },
+    "import-choose": {
+      "h1": [
+        "Import from OPML"
+      ],
+      "overflowX": false,
+      "small": [],
+      "unnamed": [],
+      "docTitle": "Import from OPML - Tidings"
+    },
+    "import-preview": {
+      "h1": [
+        "Import from OPML"
+      ],
+      "overflowX": false,
+      "small": [],
+      "unnamed": [],
+      "docTitle": "Import from OPML - Tidings"
+    },
+    "importPreviewFocus": [
+      "Choose another file",
+      "Import 249 feeds",
+      "Skip to contentTidingsAll ar",
+      "Skip to content",
+      "All articles"
+    ],
+    "import-progress": {
+      "h1": [
+        "Import from OPML"
+      ],
+      "overflowX": false,
+      "small": [],
+      "unnamed": [],
+      "docTitle": "Import from OPML - Tidings"
+    },
+    "importProgressText": "Fetching your feeds\n\nFetched 0 of 248 feeds\n\n248 feeds added\n2 feeds could not be imported\n\nYou can leave this page. Fetching carries on in the background."
+  },
+  "importPaused": {
+    "h1": [
+      "Import from OPML"
+    ],
+    "overflowX": false,
+    "small": [],
+    "unnamed": [],
+    "docTitle": "Import from OPML - Tidings"
+  },
+  "B-m-light": {
+    "all": {
+      "h1": [
+        "All articles"
+      ],
+      "overflowX": false,
+      "small": [],
+      "unnamed": [],
+      "docTitle": "All articles - Tidings"
+    },
+    "all-readstate": {
+      "h1": [
+        "All articles"
+      ],
+      "overflowX": false,
+      "small": [],
+      "unnamed": [],
+      "docTitle": "All articles - Tidings"
+    },
+    "feed-long": {
+      "h1": [
+        "An Extremely Long Feed Title That Should Truncate Somewhere Around Here On A Phone Screen"
+      ],
+      "overflowX": false,
+      "small": [],
+      "unnamed": [],
+      "docTitle": "An Extremely Long Feed Title That Should Truncate Somewhere Around Here On A Phone Screen - Tidings"
+    },
+    "feed-failing": {
+      "h1": [
+        "Broken Blog"
+      ],
+      "overflowX": false,
+      "small": [],
+      "unnamed": [],
+      "docTitle": "Broken Blog - Tidings"
+    },
+    "feed-dead": {
+      "h1": [
+        "Dead Feed"
+      ],
+      "overflowX": false,
+      "small": [],
+      "unnamed": [],
+      "docTitle": "Dead Feed - Tidings"
+    },
+    "feed-pending": {
+      "h1": [
+        "Brand New Feed"
+      ],
+      "overflowX": false,
+      "small": [],
+      "unnamed": [],
+      "docTitle": "Brand New Feed - Tidings"
+    },
+    "feed-caught-up": {
+      "h1": [
+        "Daily Brief"
+      ],
+      "overflowX": false,
+      "small": [],
+      "unnamed": [],
+      "docTitle": "Daily Brief - Tidings"
+    },
+    "manage": {
+      "h1": [
+        "Manage feeds"
+      ],
+      "overflowX": false,
+      "small": [],
+      "unnamed": [],
+      "docTitle": "Manage feeds - Tidings"
+    },
+    "manageFocus": [
+      "Skip to content",
+      "Open navigation",
+      "New folder",
+      "Add feed",
+      "Import from OPML",
+      "Rename A very long folder na",
+      "Delete A very long folder na",
+      "Rename Empty folder",
+      "Delete Empty folder",
+      "Rename News",
+      "Delete News",
+      "Rename Tech",
+      "Delete Tech",
+      "An Extremely Long Feed Title"
+    ],
+    "drawer": [
+      "Close navigation 44x44",
+      "All articles 33 unread 319x44",
+      "Expand A very long folder name 44x44",
+      "A very long folder name that k 275x44",
+      "Expand Empty folder 44x44",
+      "Empty folder 275x44",
+      "Expand News 44x44",
+      "News 275x44",
+      "Expand Tech 44x44",
+      "Tech 30 unread 275x44",
+      "An Extremely Long Feed Title T 319x44",
+      "Brand New Feed 319x44",
+      "Dead Feed 319x44",
+      "Add feed 295x44",
+      "Manage 144x44",
+      "Settings 144x44"
+    ],
+    "article": {
+      "h1": [
+        "Ars Technica"
+      ],
+      "overflowX": false,
+      "small": [
+        "link in the text 104x20"
+      ],
+      "unnamed": [],
+      "docTitle": "Ars Technica - Tidings"
+    },
+    "articleImgs": [
+      {
+        "w": 343,
+        "vw": 375,
+        "filter": "none"
+      },
+      {
+        "w": 343,
+        "vw": 375,
+        "filter": "none"
+      }
+    ],
+    "articleScroll": {
+      "docOverflow": false,
+      "pre": "auto",
+      "table": {
+        "w": 343,
+        "vw": 375,
+        "parentOverflow": "visible"
+      }
+    },
+    "articleFocus": [
+      "Open original",
+      "link in the text",
+      "const veryLongLine = 'this l",
+      "Mark as unread",
+      "Next",
+      "Skip to contentArs TechnicaA",
+      "Skip to content",
+      "Back"
+    ],
+    "articleLong": {
+      "h1": [
+        "An Extremely Long Feed Title That Should Truncate Somewhere Around Here On A Phone Screen"
+      ],
+      "overflowX": false,
+      "small": [],
+      "unnamed": [],
+      "docTitle": "An Extremely Long Feed Title That Should Truncate Somewhere Around Here On A Phone Screen - Tidings"
+    },
+    "longLinks": 3
+  },
+  "B-m-dark": {
+    "all": {
+      "h1": [
+        "All articles"
+      ],
+      "overflowX": false,
+      "small": [],
+      "unnamed": [],
+      "docTitle": "All articles - Tidings"
+    },
+    "all-readstate": {
+      "h1": [
+        "All articles"
+      ],
+      "overflowX": false,
+      "small": [],
+      "unnamed": [],
+      "docTitle": "All articles - Tidings"
+    },
+    "feed-long": {
+      "h1": [
+        "An Extremely Long Feed Title That Should Truncate Somewhere Around Here On A Phone Screen"
+      ],
+      "overflowX": false,
+      "small": [],
+      "unnamed": [],
+      "docTitle": "An Extremely Long Feed Title That Should Truncate Somewhere Around Here On A Phone Screen - Tidings"
+    },
+    "feed-failing": {
+      "h1": [
+        "Broken Blog"
+      ],
+      "overflowX": false,
+      "small": [],
+      "unnamed": [],
+      "docTitle": "Broken Blog - Tidings"
+    },
+    "feed-dead": {
+      "h1": [
+        "Dead Feed"
+      ],
+      "overflowX": false,
+      "small": [],
+      "unnamed": [],
+      "docTitle": "Dead Feed - Tidings"
+    },
+    "feed-pending": {
+      "h1": [
+        "Brand New Feed"
+      ],
+      "overflowX": false,
+      "small": [],
+      "unnamed": [],
+      "docTitle": "Brand New Feed - Tidings"
+    },
+    "feed-caught-up": {
+      "h1": [
+        "Daily Brief"
+      ],
+      "overflowX": false,
+      "small": [],
+      "unnamed": [],
+      "docTitle": "Daily Brief - Tidings"
+    },
+    "manage": {
+      "h1": [
+        "Manage feeds"
+      ],
+      "overflowX": false,
+      "small": [],
+      "unnamed": [],
+      "docTitle": "Manage feeds - Tidings"
+    },
+    "manageFocus": [
+      "Skip to content",
+      "Open navigation",
+      "New folder",
+      "Add feed",
+      "Import from OPML",
+      "Rename A very long folder na",
+      "Delete A very long folder na",
+      "Rename Empty folder",
+      "Delete Empty folder",
+      "Rename News",
+      "Delete News",
+      "Rename Tech",
+      "Delete Tech",
+      "An Extremely Long Feed Title"
+    ],
+    "drawer": [
+      "Close navigation 44x44",
+      "All articles 30 unread 319x44",
+      "Expand A very long folder name 44x44",
+      "A very long folder name that k 275x44",
+      "Expand Empty folder 44x44",
+      "Empty folder 275x44",
+      "Expand News 44x44",
+      "News 275x44",
+      "Expand Tech 44x44",
+      "Tech 29 unread 275x44",
+      "An Extremely Long Feed Title T 319x44",
+      "Brand New Feed 319x44",
+      "Dead Feed 319x44",
+      "Add feed 295x44",
+      "Manage 144x44",
+      "Settings 144x44"
+    ],
+    "article": {
+      "h1": [
+        "Ars Technica"
+      ],
+      "overflowX": false,
+      "small": [
+        "link in the text 104x20"
+      ],
+      "unnamed": [],
+      "docTitle": "Ars Technica - Tidings"
+    },
+    "articleImgs": [
+      {
+        "w": 343,
+        "vw": 375,
+        "filter": "brightness(0.9)"
+      },
+      {
+        "w": 343,
+        "vw": 375,
+        "filter": "brightness(0.9)"
+      }
+    ],
+    "articleScroll": {
+      "docOverflow": false,
+      "pre": "auto",
+      "table": {
+        "w": 343,
+        "vw": 375,
+        "parentOverflow": "visible"
+      }
+    },
+    "articleFocus": [
+      "Open original",
+      "link in the text",
+      "const veryLongLine = 'this l",
+      "Mark as unread",
+      "Next",
+      "Skip to contentArs TechnicaA",
+      "Skip to content",
+      "Back"
+    ],
+    "articleLong": {
+      "h1": [
+        "An Extremely Long Feed Title That Should Truncate Somewhere Around Here On A Phone Screen"
+      ],
+      "overflowX": false,
+      "small": [],
+      "unnamed": [],
+      "docTitle": "An Extremely Long Feed Title That Should Truncate Somewhere Around Here On A Phone Screen - Tidings"
+    },
+    "longLinks": 3
+  },
+  "B-d-light": {
+    "all": {
+      "h1": [
+        "All articles"
+      ],
+      "overflowX": false,
+      "small": [],
+      "unnamed": [],
+      "docTitle": "All articles - Tidings"
+    },
+    "all-readstate": {
+      "h1": [
+        "All articles"
+      ],
+      "overflowX": false,
+      "small": [],
+      "unnamed": [],
+      "docTitle": "All articles - Tidings"
+    },
+    "feed-long": {
+      "h1": [
+        "An Extremely Long Feed Title That Should Truncate Somewhere Around Here On A Phone Screen"
+      ],
+      "overflowX": false,
+      "small": [],
+      "unnamed": [],
+      "docTitle": "An Extremely Long Feed Title That Should Truncate Somewhere Around Here On A Phone Screen - Tidings"
+    },
+    "feed-failing": {
+      "h1": [
+        "Broken Blog"
+      ],
+      "overflowX": false,
+      "small": [],
+      "unnamed": [],
+      "docTitle": "Broken Blog - Tidings"
+    },
+    "feed-dead": {
+      "h1": [
+        "Dead Feed"
+      ],
+      "overflowX": false,
+      "small": [],
+      "unnamed": [],
+      "docTitle": "Dead Feed - Tidings"
+    },
+    "feed-pending": {
+      "h1": [
+        "Brand New Feed"
+      ],
+      "overflowX": false,
+      "small": [],
+      "unnamed": [],
+      "docTitle": "Brand New Feed - Tidings"
+    },
+    "feed-caught-up": {
+      "h1": [
+        "Daily Brief"
+      ],
+      "overflowX": false,
+      "small": [],
+      "unnamed": [],
+      "docTitle": "Daily Brief - Tidings"
+    },
+    "manage": {
+      "h1": [
+        "Manage feeds"
+      ],
+      "overflowX": false,
+      "small": [],
+      "unnamed": [],
+      "docTitle": "Manage feeds - Tidings"
+    },
+    "manageFocus": [
+      "Skip to content",
+      "All articles 30 unread",
+      "Expand A very long folder na",
+      "A very long folder name that",
+      "Expand Empty folder",
+      "Empty folder",
+      "Expand News",
+      "News",
+      "Expand Tech",
+      "Tech 29 unread",
+      "An Extremely Long Feed Title",
+      "Brand New Feed",
+      "Dead Feed",
+      "Add feed"
+    ],
+    "article": {
+      "h1": [
+        "Ars Technica"
+      ],
+      "overflowX": false,
+      "small": [
+        "link in the text 104x20"
+      ],
+      "unnamed": [],
+      "docTitle": "Ars Technica - Tidings"
+    },
+    "articleImgs": [
+      {
+        "w": 585,
+        "vw": 1280,
+        "filter": "none"
+      },
+      {
+        "w": 585,
+        "vw": 1280,
+        "filter": "none"
+      }
+    ],
+    "articleScroll": {
+      "docOverflow": false,
+      "pre": "auto",
+      "table": {
+        "w": 585,
+        "vw": 1280,
+        "parentOverflow": "visible"
+      }
+    },
+    "articleFocus": [
+      "Open original",
+      "link in the text",
+      "const veryLongLine = 'this l",
+      "Mark as unread",
+      "Next",
+      "Skip to contentTidingsAll ar",
+      "Skip to content",
+      "All articles 30 unread"
+    ],
+    "articleLong": {
+      "h1": [
+        "An Extremely Long Feed Title That Should Truncate Somewhere Around Here On A Phone Screen"
+      ],
+      "overflowX": false,
+      "small": [],
+      "unnamed": [],
+      "docTitle": "An Extremely Long Feed Title That Should Truncate Somewhere Around Here On A Phone Screen - Tidings"
+    },
+    "longLinks": 3
+  },
+  "B-d-dark": {
+    "all": {
+      "h1": [
+        "All articles"
+      ],
+      "overflowX": false,
+      "small": [],
+      "unnamed": [],
+      "docTitle": "All articles - Tidings"
+    },
+    "all-readstate": {
+      "h1": [
+        "All articles"
+      ],
+      "overflowX": false,
+      "small": [],
+      "unnamed": [],
+      "docTitle": "All articles - Tidings"
+    },
+    "feed-long": {
+      "h1": [
+        "An Extremely Long Feed Title That Should Truncate Somewhere Around Here On A Phone Screen"
+      ],
+      "overflowX": false,
+      "small": [],
+      "unnamed": [],
+      "docTitle": "An Extremely Long Feed Title That Should Truncate Somewhere Around Here On A Phone Screen - Tidings"
+    },
+    "feed-failing": {
+      "h1": [
+        "Broken Blog"
+      ],
+      "overflowX": false,
+      "small": [],
+      "unnamed": [],
+      "docTitle": "Broken Blog - Tidings"
+    },
+    "feed-dead": {
+      "h1": [
+        "Dead Feed"
+      ],
+      "overflowX": false,
+      "small": [],
+      "unnamed": [],
+      "docTitle": "Dead Feed - Tidings"
+    },
+    "feed-pending": {
+      "h1": [
+        "Brand New Feed"
+      ],
+      "overflowX": false,
+      "small": [],
+      "unnamed": [],
+      "docTitle": "Brand New Feed - Tidings"
+    },
+    "feed-caught-up": {
+      "h1": [
+        "Daily Brief"
+      ],
+      "overflowX": false,
+      "small": [],
+      "unnamed": [],
+      "docTitle": "Daily Brief - Tidings"
+    },
+    "manage": {
+      "h1": [
+        "Manage feeds"
+      ],
+      "overflowX": false,
+      "small": [],
+      "unnamed": [],
+      "docTitle": "Manage feeds - Tidings"
+    },
+    "manageFocus": [
+      "Skip to content",
+      "All articles 30 unread",
+      "Expand A very long folder na",
+      "A very long folder name that",
+      "Expand Empty folder",
+      "Empty folder",
+      "Expand News",
+      "News",
+      "Expand Tech",
+      "Tech 29 unread",
+      "An Extremely Long Feed Title",
+      "Brand New Feed",
+      "Dead Feed",
+      "Add feed"
+    ],
+    "article": {
+      "h1": [
+        "Ars Technica"
+      ],
+      "overflowX": false,
+      "small": [
+        "link in the text 104x20"
+      ],
+      "unnamed": [],
+      "docTitle": "Ars Technica - Tidings"
+    },
+    "articleImgs": [
+      {
+        "w": 585,
+        "vw": 1280,
+        "filter": "brightness(0.9)"
+      },
+      {
+        "w": 585,
+        "vw": 1280,
+        "filter": "brightness(0.9)"
+      }
+    ],
+    "articleScroll": {
+      "docOverflow": false,
+      "pre": "auto",
+      "table": {
+        "w": 585,
+        "vw": 1280,
+        "parentOverflow": "visible"
+      }
+    },
+    "articleFocus": [
+      "Open original",
+      "link in the text",
+      "const veryLongLine = 'this l",
+      "Mark as unread",
+      "Next",
+      "Skip to contentTidingsAll ar",
+      "Skip to content",
+      "All articles 30 unread"
+    ],
+    "articleLong": {
+      "h1": [
+        "An Extremely Long Feed Title That Should Truncate Somewhere Around Here On A Phone Screen"
+      ],
+      "overflowX": false,
+      "small": [],
+      "unnamed": [],
+      "docTitle": "An Extremely Long Feed Title That Should Truncate Somewhere Around Here On A Phone Screen - Tidings"
+    },
+    "longLinks": 3
+  },
+  "C-m-light": {
+    "newFolder": {
+      "top": 508,
+      "h": 304,
+      "vh": 812,
+      "name": "New folder",
+      "items": [
+        "INPUT 343x48",
+        "Create folder 343x48",
+        "Cancel 343x48"
+      ],
+      "focus": "INPUT"
+    },
+    "deleteFolder": {
+      "top": 572,
+      "h": 240,
+      "vh": 812,
+      "name": "Delete Tech?",
+      "items": [
+        "Delete folder 343x48",
+        "Cancel 343x48"
+      ],
+      "focus": "Delete folder"
+    },
+    "focusReturn": "Delete Tech",
+    "feedOptions": {
+      "top": 508,
+      "h": 304,
+      "vh": 812,
+      "name": "Ars Technica",
+      "items": [
+        "Rename 343x48",
+        "Move to folder 343x48",
+        "Unsubscribe 343x48",
+        "Cancel 343x48"
+      ],
+      "focus": "Rename"
+    },
+    "move": {
+      "top": 404,
+      "h": 408,
+      "vh": 812,
+      "name": "Move to folder",
+      "items": [
+        "No folder 343x48",
+        "A very long folder name  343x48",
+        "Empty folder 343x48",
+        "News 343x48",
+        "TechCurrent 343x48",
+        "Cancel 343x48"
+      ],
+      "focus": "No folder"
+    },
+    "unsub": {
+      "top": 572,
+      "h": 240,
+      "vh": 812,
+      "name": "Unsubscribe from Ars Technica?",
+      "items": [
+        "Unsubscribe 343x48",
+        "Cancel 343x48"
+      ],
+      "focus": "Unsubscribe"
+    },
+    "addNoFeedInvalid": {
+      "invalid": "true",
+      "described": "_r_2_-helper _r_2_-error"
+    },
+    "add": {
+      "h1": [
+        "Add a feed"
+      ],
+      "overflowX": false,
+      "small": [],
+      "unnamed": [],
+      "docTitle": "Add a feed - Tidings"
+    },
+    "addFocus": [
+      "Skip to content",
+      "Back",
+      "INPUT",
+      "No folderA very long folder ",
+      "INPUT",
+      "Add feed",
+      "Skip to contentAdd a feedFee",
+      "Skip to content"
+    ],
+    "addPartial": {
+      "h1": [
+        "Add a feed"
+      ],
+      "overflowX": false,
+      "small": [],
+      "unnamed": [],
+      "docTitle": "Add a feed - Tidings"
+    },
+    "addChoice": {
+      "h1": [
+        "Add a feed"
+      ],
+      "overflowX": false,
+      "small": [],
+      "unnamed": [],
+      "docTitle": "Add a feed - Tidings"
+    },
+    "markConfirm": {
+      "top": 632,
+      "h": 180,
+      "vh": 812,
+      "name": "Mark 24 articles as read?",
+      "items": [
+        "Mark 24 as read 343x48",
+        "Cancel 343x48"
+      ],
+      "focus": "Mark 24 as read"
+    },
+    "toast": {
+      "text": "Marked 5 as readUndo",
+      "gapAboveBar": 12,
+      "actionSize": "65x44"
+    },
+    "afterUndo": []
+  },
+  "C-m-dark": {
+    "newFolder": {
+      "top": 508,
+      "h": 304,
+      "vh": 812,
+      "name": "New folder",
+      "items": [
+        "INPUT 343x48",
+        "Create folder 343x48",
+        "Cancel 343x48"
+      ],
+      "focus": "INPUT"
+    },
+    "deleteFolder": {
+      "top": 572,
+      "h": 240,
+      "vh": 812,
+      "name": "Delete Tech?",
+      "items": [
+        "Delete folder 343x48",
+        "Cancel 343x48"
+      ],
+      "focus": "Delete folder"
+    },
+    "focusReturn": "Delete Tech",
+    "feedOptions": {
+      "top": 508,
+      "h": 304,
+      "vh": 812,
+      "name": "Ars Technica",
+      "items": [
+        "Rename 343x48",
+        "Move to folder 343x48",
+        "Unsubscribe 343x48",
+        "Cancel 343x48"
+      ],
+      "focus": "Rename"
+    },
+    "move": {
+      "top": 404,
+      "h": 408,
+      "vh": 812,
+      "name": "Move to folder",
+      "items": [
+        "No folder 343x48",
+        "A very long folder name  343x48",
+        "Empty folder 343x48",
+        "News 343x48",
+        "TechCurrent 343x48",
+        "Cancel 343x48"
+      ],
+      "focus": "No folder"
+    },
+    "unsub": {
+      "top": 572,
+      "h": 240,
+      "vh": 812,
+      "name": "Unsubscribe from Ars Technica?",
+      "items": [
+        "Unsubscribe 343x48",
+        "Cancel 343x48"
+      ],
+      "focus": "Unsubscribe"
+    },
+    "addNoFeedInvalid": {
+      "invalid": "true",
+      "described": "_r_2_-helper _r_2_-error"
+    },
+    "add": {
+      "h1": [
+        "Add a feed"
+      ],
+      "overflowX": false,
+      "small": [],
+      "unnamed": [],
+      "docTitle": "Add a feed - Tidings"
+    },
+    "addFocus": [
+      "Skip to content",
+      "Back",
+      "INPUT",
+      "No folderA very long folder ",
+      "INPUT",
+      "Add feed",
+      "Skip to contentAdd a feedFee",
+      "Skip to content"
+    ],
+    "addPartial": {
+      "h1": [
+        "Add a feed"
+      ],
+      "overflowX": false,
+      "small": [],
+      "unnamed": [],
+      "docTitle": "Add a feed - Tidings"
+    },
+    "addChoice": {
+      "h1": [
+        "Add a feed"
+      ],
+      "overflowX": false,
+      "small": [],
+      "unnamed": [],
+      "docTitle": "Add a feed - Tidings"
+    },
+    "markConfirm": {
+      "top": 632,
+      "h": 180,
+      "vh": 812,
+      "name": "Mark 25 articles as read?",
+      "items": [
+        "Mark 25 as read 343x48",
+        "Cancel 343x48"
+      ],
+      "focus": "Mark 25 as read"
+    },
+    "toast": {
+      "text": "Marked 6 as readUndo",
+      "gapAboveBar": 12,
+      "actionSize": "65x44"
+    },
+    "afterUndo": []
+  },
+  "C-d-light": {
+    "newFolder": {
+      "top": 248,
+      "h": 304,
+      "vh": 800,
+      "name": "New folder",
+      "items": [
+        "INPUT 416x48",
+        "Create folder 416x48",
+        "Cancel 416x48"
+      ],
+      "focus": "INPUT"
+    },
+    "deleteFolder": {
+      "top": 280,
+      "h": 240,
+      "vh": 800,
+      "name": "Delete Tech?",
+      "items": [
+        "Delete folder 416x48",
+        "Cancel 416x48"
+      ],
+      "focus": "Delete folder"
+    },
+    "focusReturn": "Delete Tech",
+    "feedOptions": {
+      "top": 248,
+      "h": 304,
+      "vh": 800,
+      "name": "Ars Technica",
+      "items": [
+        "Rename 416x48",
+        "Move to folder 416x48",
+        "Unsubscribe 416x48",
+        "Cancel 416x48"
+      ],
+      "focus": "Rename"
+    },
+    "move": {
+      "top": 196,
+      "h": 408,
+      "vh": 800,
+      "name": "Move to folder",
+      "items": [
+        "No folder 416x48",
+        "A very long folder name  416x48",
+        "Empty folder 416x48",
+        "News 416x48",
+        "TechCurrent 416x48",
+        "Cancel 416x48"
+      ],
+      "focus": "No folder"
+    },
+    "unsub": {
+      "top": 292,
+      "h": 216,
+      "vh": 800,
+      "name": "Unsubscribe from Ars Technica?",
+      "items": [
+        "Unsubscribe 416x48",
+        "Cancel 416x48"
+      ],
+      "focus": "Unsubscribe"
+    },
+    "addNoFeedInvalid": {
+      "invalid": "true",
+      "described": "_r_2_-helper _r_2_-error"
+    },
+    "add": {
+      "h1": [
+        "Add a feed"
+      ],
+      "overflowX": false,
+      "small": [],
+      "unnamed": [],
+      "docTitle": "Add a feed - Tidings"
+    },
+    "addFocus": [
+      "Skip to content",
+      "All articles 32 unread",
+      "Expand A very long folder na",
+      "A very long folder name that",
+      "Expand Empty folder",
+      "Empty folder",
+      "Expand News",
+      "News"
+    ],
+    "addPartial": {
+      "h1": [
+        "Add a feed"
+      ],
+      "overflowX": false,
+      "small": [],
+      "unnamed": [],
+      "docTitle": "Add a feed - Tidings"
+    },
+    "addChoice": {
+      "h1": [
+        "Add a feed"
+      ],
+      "overflowX": false,
+      "small": [],
+      "unnamed": [],
+      "docTitle": "Add a feed - Tidings"
+    },
+    "markConfirm": {
+      "top": 310,
+      "h": 180,
+      "vh": 800,
+      "name": "Mark 25 articles as read?",
+      "items": [
+        "Mark 25 as read 416x48",
+        "Cancel 416x48"
+      ],
+      "focus": "Mark 25 as read"
+    },
+    "toast": {
+      "text": "Marked 6 as readUndo",
+      "gapAboveBar": 12,
+      "actionSize": "65x44"
+    },
+    "afterUndo": []
+  },
+  "C-d-dark": {
+    "newFolder": {
+      "top": 248,
+      "h": 304,
+      "vh": 800,
+      "name": "New folder",
+      "items": [
+        "INPUT 416x48",
+        "Create folder 416x48",
+        "Cancel 416x48"
+      ],
+      "focus": "INPUT"
+    },
+    "deleteFolder": {
+      "top": 280,
+      "h": 240,
+      "vh": 800,
+      "name": "Delete Tech?",
+      "items": [
+        "Delete folder 416x48",
+        "Cancel 416x48"
+      ],
+      "focus": "Delete folder"
+    },
+    "focusReturn": "Delete Tech",
+    "feedOptions": {
+      "top": 248,
+      "h": 304,
+      "vh": 800,
+      "name": "Ars Technica",
+      "items": [
+        "Rename 416x48",
+        "Move to folder 416x48",
+        "Unsubscribe 416x48",
+        "Cancel 416x48"
+      ],
+      "focus": "Rename"
+    },
+    "move": {
+      "top": 196,
+      "h": 408,
+      "vh": 800,
+      "name": "Move to folder",
+      "items": [
+        "No folder 416x48",
+        "A very long folder name  416x48",
+        "Empty folder 416x48",
+        "News 416x48",
+        "TechCurrent 416x48",
+        "Cancel 416x48"
+      ],
+      "focus": "No folder"
+    },
+    "unsub": {
+      "top": 292,
+      "h": 216,
+      "vh": 800,
+      "name": "Unsubscribe from Ars Technica?",
+      "items": [
+        "Unsubscribe 416x48",
+        "Cancel 416x48"
+      ],
+      "focus": "Unsubscribe"
+    },
+    "addNoFeedInvalid": {
+      "invalid": "true",
+      "described": "_r_2_-helper _r_2_-error"
+    },
+    "add": {
+      "h1": [
+        "Add a feed"
+      ],
+      "overflowX": false,
+      "small": [],
+      "unnamed": [],
+      "docTitle": "Add a feed - Tidings"
+    },
+    "addFocus": [
+      "Skip to content",
+      "All articles 32 unread",
+      "Expand A very long folder na",
+      "A very long folder name that",
+      "Expand Empty folder",
+      "Empty folder",
+      "Expand News",
+      "News"
+    ],
+    "addPartial": {
+      "h1": [
+        "Add a feed"
+      ],
+      "overflowX": false,
+      "small": [],
+      "unnamed": [],
+      "docTitle": "Add a feed - Tidings"
+    },
+    "addChoice": {
+      "h1": [
+        "Add a feed"
+      ],
+      "overflowX": false,
+      "small": [],
+      "unnamed": [],
+      "docTitle": "Add a feed - Tidings"
+    },
+    "markConfirm": {
+      "top": 310,
+      "h": 180,
+      "vh": 800,
+      "name": "Mark 25 articles as read?",
+      "items": [
+        "Mark 25 as read 416x48",
+        "Cancel 416x48"
+      ],
+      "focus": "Mark 25 as read"
+    },
+    "toast": {
+      "text": "Marked 6 as readUndo",
+      "gapAboveBar": 12,
+      "actionSize": "65x44"
+    },
+    "afterUndo": []
+  },
+  "D-light": {
+    "manage": {
+      "h1": [
+        "Manage feeds"
+      ],
+      "overflowX": false,
+      "small": [],
+      "unnamed": [],
+      "docTitle": "Manage feeds - Tidings",
+      "bottomBar": {
+        "h": 0,
+        "vh": 812
+      }
+    },
+    "add": {
+      "h1": [
+        "Add a feed"
+      ],
+      "overflowX": false,
+      "small": [],
+      "unnamed": [],
+      "docTitle": "Add a feed - Tidings",
+      "bottomBar": {
+        "h": 129,
+        "vh": 812
+      }
+    },
+    "import": {
+      "h1": [
+        "Import from OPML"
+      ],
+      "overflowX": false,
+      "small": [],
+      "unnamed": [],
+      "docTitle": "Import from OPML - Tidings",
+      "bottomBar": {
+        "h": 0,
+        "vh": 812
+      }
+    },
+    "list": {
+      "h1": [
+        "Ars Technica"
+      ],
+      "overflowX": true,
+      "small": [],
+      "unnamed": [],
+      "docTitle": "Ars Technica - Tidings",
+      "bottomBar": {
+        "h": 145,
+        "vh": 979
+      }
+    },
+    "all": {
+      "h1": [
+        "All articles"
+      ],
+      "overflowX": true,
+      "small": [],
+      "unnamed": [],
+      "docTitle": "All articles - Tidings",
+      "bottomBar": {
+        "h": 145,
+        "vh": 979
+      }
+    },
+    "sheet": {
+      "scroll": false,
+      "h": 608,
+      "vh": 812
+    },
+    "article": {
+      "h1": [
+        "Ars Technica"
+      ],
+      "overflowX": false,
+      "small": [
+        "link in the text 209x40"
+      ],
+      "unnamed": [],
+      "docTitle": "Ars Technica - Tidings"
+    },
+    "articleBar": {
+      "h": 145,
+      "btn": [
+        "Previous 93x88",
+        "Mark as unread 93x144",
+        "Next 93x88"
+      ]
+    }
+  },
+  "D-dark": {
+    "manage": {
+      "h1": [
+        "Manage feeds"
+      ],
+      "overflowX": false,
+      "small": [],
+      "unnamed": [],
+      "docTitle": "Manage feeds - Tidings",
+      "bottomBar": {
+        "h": 0,
+        "vh": 812
+      }
+    },
+    "add": {
+      "h1": [
+        "Add a feed"
+      ],
+      "overflowX": false,
+      "small": [],
+      "unnamed": [],
+      "docTitle": "Add a feed - Tidings",
+      "bottomBar": {
+        "h": 129,
+        "vh": 812
+      }
+    },
+    "import": {
+      "h1": [
+        "Import from OPML"
+      ],
+      "overflowX": false,
+      "small": [],
+      "unnamed": [],
+      "docTitle": "Import from OPML - Tidings",
+      "bottomBar": {
+        "h": 0,
+        "vh": 812
+      }
+    },
+    "list": {
+      "h1": [
+        "Ars Technica"
+      ],
+      "overflowX": true,
+      "small": [],
+      "unnamed": [],
+      "docTitle": "Ars Technica - Tidings",
+      "bottomBar": {
+        "h": 145,
+        "vh": 979
+      }
+    },
+    "all": {
+      "h1": [
+        "All articles"
+      ],
+      "overflowX": true,
+      "small": [],
+      "unnamed": [],
+      "docTitle": "All articles - Tidings",
+      "bottomBar": {
+        "h": 145,
+        "vh": 979
+      }
+    },
+    "sheet": {
+      "scroll": false,
+      "h": 608,
+      "vh": 812
+    },
+    "article": {
+      "h1": [
+        "Ars Technica"
+      ],
+      "overflowX": false,
+      "small": [
+        "link in the text 209x40"
+      ],
+      "unnamed": [],
+      "docTitle": "Ars Technica - Tidings"
+    },
+    "articleBar": {
+      "h": 145,
+      "btn": [
+        "Previous 93x88",
+        "Mark as unread 93x144",
+        "Next 93x88"
+      ]
+    }
+  }
+}
