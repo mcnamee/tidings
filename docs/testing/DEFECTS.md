@@ -21,6 +21,14 @@ Entry template:
 
 ## Open
 
+### DEF-090: Intermittent E2E failures under load (toast offset at 200% text, offline banner in the shell console test)
+
+- Story: TID-038 (E2E harness stability). Severity: S4 (test flakiness, not a product defect). Owner: QA.
+- Status: Open
+- Found by: orchestrator full E2E runs on 2026-11-17 in the cloud container.
+- Symptoms: `tid-006-large-text.spec.ts` "m2: toast sits exactly 12px above a bottom bar..." sometimes reads `--bottom-offset` as `57px` instead of empty; `tid-006-app-shell-qa.spec.ts` "AC6: no CSP violations..." sometimes doesn't see "You're offline. Showing saved articles." after `setOffline(true)`. Each failed once per full run on a different project (mobile-light, mobile-dark, desktop-dark) and passed on the other three and on rerun. Runs where agents were running unit tests at the same time failed more often.
+- Next step: investigate under TID-038 (likely a missing wait for the bottom-bar observer to settle and for the offline event to reach the app).
+
 ### DEF-070: Next, Previous and leaving an article crash the screen in current Chromium (blank page)
 
 - Story: TID-019 (AC7), `apps/web/src/reader/ArticleView.tsx` (`useEffect(() => window.scrollTo(0, 0), [])`)
