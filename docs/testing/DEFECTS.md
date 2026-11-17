@@ -34,13 +34,15 @@ Entry template:
 ### DEF-014: A 304 on a never-fetched feed marks it ok and sets last_success_at
 - Story: TID-012 (AC2, spec 7.3 step 2)
 - Severity: S3. Owner: SE.
-- Status: Fixed (commit a1f854c), awaiting tester closure
+- Status: Closed (tester, tip 522b2bb)
 - Found by: `apps/worker/test/refresh-adversarial.test.ts` > "a 304 for a feed that has never been fetched does not claim success (DEF-014)" (marker removed)
 - Steps to reproduce: a `pending` feed with `last_success_at NULL` and no etag; origin answers 304 (a buggy origin or proxy; no validators were sent).
 - Expected: not a success: the feed stays `pending` (or fails) with no `last_success_at`.
 - Actual: `unchanged()` sets `state='ok'`, `last_success_at=now`. The feed has no content, and its first real 200 then links every item (the FR-SU-3 10-item limit is lost because that rule keys on `last_success_at IS NULL`).
 - Suggested fix: in `unchanged`, treat a 304 as success only when the job sent a validator (`etag` or `lastModified` not null) or `bodyHash` is not null; otherwise record a failure.
 - Fix: a 304 when the job sent no `etag` and no `lastModified` is a failure `http_304` (existing `http_<status>` family; added the reason phrase 'Not Modified' so the fixed message reads "The server returned 304 Not Modified"), with normal backoff and no `last_success_at`. PM note: no new code type was added; confirm that message wording is acceptable.
+- Closure (tester, 522b2bb): the two DEF-014 tests differ from the earlier `it.fails` only by `it.fails` to `it` (assertions unchanged); the new http_304 and 'after we sent an ETag is still success' tests are additions. The guard is `job.etag === null && job.lastModified === null` on the `not_modified` branch, which is correct: a 304 is only meaningful for a conditional request. A feed with a body hash but no validators (origin that sends neither ETag nor Last-Modified) also gets a 304 only if it is broken, so failing it is right. `npm test -w @tidings/worker`: 562 passed, 1 todo, 25 files, 5 consecutive solo runs.
+
 
 ### DEF-015: Spec 9.8 understates the cost of a first fetch and of an OPML import
 - Story: TID-012 (FR-SU-3, spec 9.8 item 2)
@@ -54,23 +56,25 @@ Entry template:
 ### DEF-016: AC13 gate ignores invocations that died for any reason other than exceededCpu
 - Story: TID-012 (AC13), `apps/worker/bench/analysis.ts`
 - Severity: S2 for the gate's validity (it could pass vacuously). Owner: SE.
-- Status: Fixed (commit 8a3c1dc), awaiting tester closure
+- Status: Closed (tester, tip 522b2bb)
 - Found by: `apps/worker/test/bench-gate.test.ts` > "a window with killed or crashed invocations is not a PASS" and "analytics seeing far fewer invocations..." (markers removed)
 - Expected: any non-`success` status in a measured window (`exceededResources`, `exceededMemory`, `scriptThrewException`, `internalError`) fails the gate, and a window where Analytics saw less than 98% of the calls is not a PASS.
 - Actual: only the literal status `exceededCpu` fails. Quantiles come from the `success` group only, so killed invocations drop out of the p95 (survivorship), and the 98% coverage check only adds a note. I could not check offline which status Cloudflare reports for a CPU kill, so the literal may never match.
 - Suggested fix: FAIL on any non-success request count; NEEDS PM when coverage is under 98%. The runner's warnings (including `rejected` calls) are also not saved in the run file, so `analyze.ts` cannot enforce them; save them and fail the analysis when present.
 - Fix: any non-`success` status in a gated window fails (per-status counts are in the table); coverage under 98% gives NEEDS PM; the runner saves its warnings in the run file and `analyze.ts` refuses to PASS with any (NEEDS PM). The tester's CPU-kill status question is moot: no status other than `success` can pass.
+- Closure (tester, 522b2bb): the two DEF-016 tests differ only by marker removal. Any non-`success` count in a gated window now FAILs (including a missing status dimension, counted as `unknown`); coverage under 98% gives NEEDS PM and never hides a FAIL; the runner saves `runs` and `warnings` and `analyze.ts` passes them to `overall`. Residual S4 notes, not blocking: (1) ceilings are read from `run.scenarios` in the run file, not from the current plan, so a hand-edited or stale run file can carry a looser ceiling (a removed ceiling is caught as INCOMPLETE; a raised one is not); (2) run files written before this fix have no `warnings` or `runs` and are treated as none/200; (3) a window with more requests seen than calls made (overlapping windows or other traffic on the script) is not flagged and can contaminate the quantiles. Suggest the PM folds (1) into the first real AC13 run: have `analyze.ts` look ceilings up by id in the current plan.
+
 
 ### DEF-017: AC13 gate can PASS on too few calls or on a subset of the scenarios
 - Story: TID-012 (AC13), `apps/worker/bench/analysis.ts`
 - Severity: S3. Owner: SE.
-- Status: Fixed (commit 8a3c1dc), awaiting tester closure
+- Status: Closed (tester, tip 522b2bb)
 - Found by: `apps/worker/test/bench-gate.test.ts` > "fewer than 200 measured calls cannot PASS..." and "overall is not PASS with no gated rows..." (markers removed)
 - Expected: AC13 requires at least 200 calls per fixture and all 8 gated scenarios.
 - Actual: `evaluate` ignores `window.calls` (5 calls can PASS, for example `--runs 5`), and `overall` returns PASS for an empty list or for one row (`[].every(...)` is true; the existing test even asserts `overall([rowPass]) === 'PASS'`). The engineer's suggested `--only changed:rss-typical` run would print "Overall: PASS".
 - Suggested fix: require `calls >= 200` in measure windows, and have `overall` check that all 8 gated scenario ids are present.
 - Fix: each gated window needs at least max(`--runs`, 200) measured calls (else INCOMPLETE); `overall` requires every gated scenario of the full plan (10, not 8: 4 changed, 4 unchanged, 2 too_large). Empty, partial or `--only` runs print "PARTIAL: not a gate result". The old engineer assertion `overall([rowPass]) === 'PASS'` in `bench.test.ts` was wrong and now expects INCOMPLETE.
-
+- Closure (tester, 522b2bb): the two DEF-017 tests differ only by marker removal. The engineer also changed `bench.test.ts` `overall([rowPass])` from PASS to INCOMPLETE; that is right: the old assertion encoded the vacuous-truth bug (one row of ten gated scenarios is not a gate result), and the test keeps its intent via `overall([rowPass], { expectedIds: ['changed:rss-typical'] })` returning PASS. Gate review: PASS needs every gated id in the plan present (10), every row PASS (so NO DATA, PROVISIONAL, INFO-for-gated and NEEDS PM rows cannot pass), at least max(runs, 200) calls, no runner warnings, and an empty list is INCOMPLETE. I found no remaining vacuous path other than the S4 notes under DEF-016. Note the first worker run after `npm install` once showed 4 failures in setup.test.ts and setup-attack.test.ts (409 instead of 201); it did not recur in 6 solo runs, and 3 runs in parallel reproduce it, so it is shared local storage between concurrent vitest processes, not a product defect. Recorded for TID-038.
 
 
 ## Closed
