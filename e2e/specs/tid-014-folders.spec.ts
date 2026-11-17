@@ -86,7 +86,10 @@ test.describe('TID-014 folders and subscription management', () => {
 
     // The drawer lists the folder, with the feed beneath it.
     const nav = await drawer(page, mobile);
-    const folderLink = nav.getByRole('link', { name: 'Tech', exact: true });
+    // Folders start collapsed in the drawer (TID-018 AC6); names may carry an unread count.
+    const expand = nav.getByRole('button', { name: 'Expand Tech' });
+    if (await expand.isVisible()) await expand.click();
+    const folderLink = nav.getByRole('link', { name: /^Tech( \d+ unread)?$/ });
     const feedLink = nav.getByRole('link', { name: FEED_TITLE });
     await expect(folderLink).toBeVisible();
     await expect(feedLink).toBeVisible();
@@ -122,7 +125,7 @@ test.describe('TID-014 folders and subscription management', () => {
 
     // The folder stays, empty, and the drawer no longer lists the feed.
     const nav2 = await drawer(page, mobile);
-    await expect(nav2.getByRole('link', { name: 'Tech', exact: true })).toBeVisible();
+    await expect(nav2.getByRole('link', { name: /^Tech( \d+ unread)?$/ })).toBeVisible();
     await expect(nav2.getByRole('link', { name: FEED_TITLE })).toHaveCount(0);
   });
 });
