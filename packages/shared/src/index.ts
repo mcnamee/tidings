@@ -216,6 +216,42 @@ export interface SubscriptionsResponse {
   items: Subscription[];
 }
 
+// ── Entries and counts (spec 8.2, 8.5) ─────────────────────────
+
+export type EntryListView = 'all' | 'folder' | 'feed';
+export type EntryListState = 'unread' | 'all';
+
+/** Spec 8.1: `limit` is 1 to 100, default 50. */
+export const ENTRIES_PAGE_SIZE = 50;
+
+export interface EntrySummary {
+  id: string;
+  subscriptionId: string;
+  feedTitle: string;
+  title: string | null;
+  author: string | null;
+  url: string | null;
+  summary: string | null;
+  imageUrl: string | null;
+  publishedAt: string;
+  isRead: boolean;
+  isStarred: boolean;
+}
+
+export interface EntriesResponse {
+  items: EntrySummary[];
+  nextCursor: string | null;
+  /** Server time of this response; the SPA keeps the first page's value as the mark-all-read watermark. */
+  asOf: string;
+}
+
+/** Unread only. A subscription or folder with nothing unread is 0 or absent. */
+export interface Counts {
+  total: number;
+  folders: Record<string, number>;
+  subscriptions: Record<string, number>;
+}
+
 export {
   feedErrorMessage,
   feedWarningMessage,

@@ -12,6 +12,13 @@ export {
   type ListEntriesParams,
 } from './entries';
 export {
+  feedIdForSubscription,
+  labelsForFeeds,
+  unreadCounts,
+  type CountsResult,
+  type FeedLabel,
+} from './lists';
+export {
   countSubscriptions,
   countUserEntriesForFeed,
   createSubscription,

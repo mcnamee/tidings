@@ -1,13 +1,16 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Outlet, useLocation, useNavigate, useNavigationType } from 'react-router';
 import { ArrowLeft, Menu, WifiOff } from 'lucide-react';
-import { DESKTOP_QUERY, useMediaQuery, useOnline } from '../lib/hooks';
+import { useOffline } from '../lib/connectivity';
+import { DESKTOP_QUERY, useMediaQuery } from '../lib/hooks';
 import { saveLastList } from '../lib/lastList';
+import { useCounts } from '../lib/queries';
 import { findRoute } from '../routes/table';
 import { Drawer } from './Drawer';
 import { FeedNav } from './FeedNav';
 import { ShellSlotsContext } from './slots';
 import { useDocumentTitle } from './useDocumentTitle';
+import { useRouteTitle } from './useRouteTitle';
 
 const ICON_BUTTON =
   'inline-flex size-11 shrink-0 items-center justify-center rounded-md text-fg active:bg-sunken';
@@ -28,9 +31,12 @@ export function AppShell() {
   const navigate = useNavigate();
   const navType = useNavigationType();
   const isDesktop = useMediaQuery(DESKTOP_QUERY);
-  const online = useOnline();
+  const offline = useOffline();
+  // Keeps the unread counts warm (focus and 5-minute refetch, FR-RD-10) whether or not the tree shows.
+  useCounts();
   const route = findRoute(location.pathname);
-  useDocumentTitle(route.title);
+  const title = useRouteTitle(route, location.pathname);
+  useDocumentTitle(title.documentTitle);
 
   const initialKey = useRef(location.key);
   // A drawer entry that survived a reload is stale: only entries pushed in this session count.
@@ -161,14 +167,22 @@ export function AppShell() {
                   <h1
                     ref={heading}
                     tabIndex={-1}
+                    {...(title.heading === null
+                      ? { 'aria-busy': true, 'aria-label': 'Loading' }
+                      : {})}
                     className="min-w-0 flex-1 line-clamp-2 break-words text-lg font-semibold text-fg"
                   >
-                    {route.title}
+                    {title.heading ?? (
+                      <span
+                        aria-hidden="true"
+                        className="block h-6 w-32 animate-skeleton rounded-md bg-sunken"
+                      />
+                    )}
                   </h1>
                   <div ref={setHeaderActionsEl} className="flex items-center gap-2" />
                 </div>
               </header>
-              {!online && (
+              {offline && (
                 <div
                   role="status"
                   className="flex min-h-10 items-center gap-2 bg-warning-subtle py-2 pl-[max(1rem,env(safe-area-inset-left))] pr-[max(1rem,env(safe-area-inset-right))] text-sm text-warning-subtle-fg"

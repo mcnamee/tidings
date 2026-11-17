@@ -1,5 +1,6 @@
 import type { Page } from '@playwright/test';
 import { expectNoSeriousA11yViolations } from '../support/axe.ts';
+import { clearListData, seedListData } from '../support/list-data.ts';
 import { expect, signedInTest as test } from '../support/test.ts';
 
 // TID-006 app shell and theming. Projects: mobile-light, mobile-dark, desktop-light, desktop-dark.
@@ -198,11 +199,17 @@ test.describe('TID-006 routes, accessibility and headers', () => {
   });
 
   test('"/" redirects to the last viewed list, falling back to /all', async ({ page }) => {
-    await page.goto('/');
-    await expect(page).toHaveURL(/\/all$/);
-    await page.goto('/folders/f9');
-    await page.goto('/');
-    await expect(page).toHaveURL(/\/folders\/f9$/);
+    // TID-018 AC11: the folder has to exist, or "/" falls back to /all.
+    seedListData({ folders: [{ id: 'f9', name: 'Nine' }] });
+    try {
+      await page.goto('/');
+      await expect(page).toHaveURL(/\/all$/);
+      await page.goto('/folders/f9');
+      await page.goto('/');
+      await expect(page).toHaveURL(/\/folders\/f9$/);
+    } finally {
+      clearListData();
+    }
   });
 
   test('offline shows the banner and online hides it', async ({ page, context }) => {

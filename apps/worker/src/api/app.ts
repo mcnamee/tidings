@@ -2,6 +2,7 @@ import { Hono } from 'hono';
 import type { ApiError, HealthResponse } from '@tidings/shared';
 import { createAuthRoutes, type AuthDeps } from '../auth/routes';
 import { systemClock } from '../db';
+import { createCountsRoutes, createEntryRoutes } from '../entries/routes';
 import { FetchConfigError, resolveFetchPolicy } from '../fetch';
 import {
   createFolderRoutes,
@@ -50,6 +51,9 @@ export function createApp(deps?: Partial<AppDeps>): Hono<AppEnv> {
     '/subscriptions',
     createSubscriptionRoutes({ clock: deps?.clock, ...deps?.subscriptions }),
   );
+
+  app.route('/entries', createEntryRoutes({ clock: deps?.clock }));
+  app.route('/counts', createCountsRoutes());
 
   app.get('/health', (c) => {
     const body: HealthResponse = { ok: true, version: APP_VERSION };

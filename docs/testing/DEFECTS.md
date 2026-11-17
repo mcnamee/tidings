@@ -285,3 +285,16 @@ Entry template:
 - Suggested fix: ignore close while a close is pending (a ref cleared when `open` flips), and make `openDrawer` a no-op when `location.state.drawer` is already set.
 - Related observation (test-only, not a defect): right after Menu is clicked the dialog can take more than 100 ms to appear on a loaded machine; a tap on the scrim position in that window is a tap on the page behind. The drawer-stress tests wait for the dialog before interacting.
 - Verification: three `test.fail` markers removed, assertions unchanged; pass in all projects, twice. Root cause fixed with ref guards (`openPending`, `closePending`) cleared on `[location.key, open]`. New edge cases probed and added as QA tests (3 of 3 runs pass on both mobile projects): browser Back closes the drawer, then Menu reopens and one Escape closes it, and a further Escape with nothing open does not navigate; after a reload onto a stale drawer entry, double-click Menu then one Escape stays on the screen. Residual, not fixable in the page: Escape and browser Back in the same task pop two entries.
+
+### DEF-050: Folder view reads far more than the NFR-7b / TID-018 AC5 bound
+
+- Story: TID-018 (AC5), `apps/worker/src/db/entries.ts` (TID-004)
+- Severity: S3. Owner: SE (needs a PM decision first: see below).
+- Status: Open
+- Found by: `apps/worker/test/entries-api.test.ts` > "folder view: rows_read <= M + 51 + S + 10 ... (DEF-050)" (`it.fails`, flips red when fixed; remove the marker then).
+- Steps to reproduce: seeded data (`scripts/seed.mjs`), `listEntries` with `view: 'folder'`, `limit: 50`, page 1.
+- Expected (ADR 0008, AC5): `rows_read <= M + 51 + S + 10`, M = the user's matching rows in the folder.
+- Actual (measured, D1 local): seed-folder-1 unread M=125 reads 211 (bound 189); all-articles M=150 reads 225 (bound 214); seed-folder-2 unread M=100 reads 246 (bound 161); seed-folder-3 unread M=75 reads 303 (bound 138). ADR 0008's "observed 211 for M = 150" was the unread query, whose M is 125.
+- Cause: the plan is `SEARCH ue USING INDEX ue_unread_all (user_id=?)` with the folder test as a filter. It walks the user's unread rows newest first, with a primary-key lookup per row to read `feed_id`, until it has 51 matches. Cost follows the whole view and the folder's density (a sparse folder in a large view reads about 2x the whole view), not M.
+- Tried: a keys-only subquery over `ue_unread_feed` / `ue_feed` reads about M + 63 (188 for M=125), but joining back for `is_read`, `is_starred` and the `entries` columns adds about 102, so M + 165. That is cheaper than today for sparse folders and dearer for dense ones, and still over the bound. Meeting the bound as written needs `is_starred` (and `is_read` in all-mode) in a covering index, i.e. a migration and extra writes (ADR 0008 option 1 territory).
+- Suggested: PM to choose between (a) restating NFR-7b as `M + 2 x (limit + 1) + S + 10 + 51` and switching to the keys-then-join query, (b) the denormalised folder index of ADR 0008 option 1, or (c) accepting today's cost with a revised ceiling. At the spec's scale (up to 1,000 unread, 50 pages/day) all three are inside the daily read quota; this is a bound-versus-implementation mismatch, not a quota risk.
