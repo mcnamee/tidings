@@ -11,6 +11,10 @@ permissions:
 jobs:
   ci:
     runs-on: ubuntu-latest
+    # A newer push to the same branch cancels this test run (the deploy job is left alone).
+    concurrency:
+      group: ci-${{ github.ref }}
+      cancel-in-progress: true
     timeout-minutes: 45
     steps:
       - uses: actions/checkout@v4
