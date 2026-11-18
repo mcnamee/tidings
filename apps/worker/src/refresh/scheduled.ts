@@ -5,6 +5,7 @@
 import type { Env } from '../../env';
 import { Db } from '../db';
 import { FetchConfigError, resolveFetchPolicy } from '../fetch';
+import { runMaintenance } from '../maintenance';
 import { runDispatcher, type DispatcherDeps } from './dispatcher';
 import type { FeedRefresher } from './entrypoint';
 
@@ -25,7 +26,10 @@ export async function handleScheduled(
     console.error(`configuration error: ${err.message}`);
     return;
   }
-  if (controller.cron === MAINTENANCE_CRON) return; // TID-021
+  if (controller.cron === MAINTENANCE_CRON) {
+    await runMaintenance({ db: new Db(env.DB), clock: () => Date.now() });
+    return;
+  }
 
   const exportsWithRefresher = ctx.exports as unknown as { FeedRefresher: FeedRefresher };
   const summary = await runDispatcher({
