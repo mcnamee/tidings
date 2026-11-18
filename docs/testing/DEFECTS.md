@@ -25,7 +25,7 @@ Entry template:
 
 - Story: TID-021 (step 6, rate-limit housekeeping), with TID-053 / ADR 0016
 - Severity: S2. Owner: SE.
-- Status: Fixed by the tester (one constant, TID-021 branch), awaiting SE/PM sign-off.
+- Status: Fixed by the tester (one constant, TID-021 branch), signed off by the orchestrator 2026-11-18.
 - Found by: `maintenance-adversarial.test.ts` > "DEF-110: ... the daily email-send cap (86,400 s window) is not reset by an hourly run".
 - Steps to reproduce: take 10 slots of `email:send:<day>` (window 86,400 s), run maintenance five hours later, take another slot.
 - Expected: still refused; the window is 5 hours old.
