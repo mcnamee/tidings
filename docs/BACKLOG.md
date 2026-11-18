@@ -32,8 +32,8 @@ Owner: product-manager. Last updated 2026-11-17 (TID-053 email sign-in added, AD
 | TID-016 | Import subscriptions from OPML | MVP | Done (ADR 0015) | TID-014, 046 |
 | TID-019 | Article view and read state | MVP | Done (ADR 0015) | TID-018 |
 | TID-020 | Mark all as read | MVP | Done (ADR 0015) | TID-018 |
-| TID-024 | Production deployment and runbook (MVP scope, ADR 0014) | MVP | Ready (**next**; needs the owner's approval and setup) | all MVP stories |
-| TID-053 | Sign in with an emailed link (ADR 0016) | R2 | Ready (**next to build**, before the rest of R2; AC15 after TID-024 and the owner's setup) | TID-008 |
+| TID-024 | Production deployment and runbook (MVP scope, ADR 0014) | MVP | Done (live at tidings.mcn.am 2026-11-17; manual "Deploy now" workflow; CI on main only) | all MVP stories |
+| TID-053 | Sign in with an emailed link (ADR 0016; Resend amendment) | R2 | Built and deployed; AC15 (real email) pending the owner's first sign-in | TID-008 |
 | TID-009 | Sign in with a recovery code | R2 | Ready | TID-008 |
 | TID-017 | Export subscriptions as OPML | R2 | Ready | TID-014 |
 | TID-015 | Feed health and "Refresh now" (now includes problem feeds first in Manage) | R2 | Ready | TID-014 |
@@ -42,7 +42,12 @@ Owner: product-manager. Last updated 2026-11-17 (TID-053 email sign-in added, AD
 | TID-049 | Folder view read cost (DEF-050) | R2 | Built, awaiting QA (owner approved option a) | TID-018 |
 | TID-050 | Tell me which OPML folders weren't created | R2 | Ready | TID-016 |
 | TID-021 | Retention and maintenance job | R2 | Ready | TID-012 |
-| TID-047 | Post-launch budget and CPU check (TID-024 AC3, AC4, AC6, AC7; replaces TID-039 as a gate) | R2 | Blocked | TID-024 |
+| TID-047 | Post-launch budget and CPU check (TID-024 AC3, AC4, AC6, AC7; replaces TID-039 as a gate) | R2 | Ready (48 h after launch, from 2026-11-19) | TID-024 |
+| TID-054 | Article title opens the original | R2 | In progress (owner request 2026-11-18) | TID-019 |
+| TID-026 | Mark as read on scroll (owner ruling: on by default) | R2 | In progress (owner request 2026-11-18) | TID-019 |
+| TID-035 | Swipe the drawer closed; edge-swipe to open in the installed app | R2 | In progress (owner request 2026-11-18) | TID-006 |
+| TID-055 | Edge-swipe back on the article view in the installed app | R2 | In progress (owner request 2026-11-18) | TID-019 |
+| TID-057 | Logo, app icons, and installable full-screen app (TID-023 AC4 and AC6) | R2 | In progress (owner request 2026-11-18) | TID-006 |
 | TID-023 | Persisted client cache and installable PWA shell | R3 | Ready | TID-018, 019 |
 | TID-036 | SSRF guard hardening (TID-010 follow-up) | R3 | Ready | TID-010 |
 | TID-037 | Design-token drift and contrast check in CI (TID-006 follow-up) | R3 | Ready | TID-006 |
@@ -1077,3 +1082,12 @@ Known risks: (a) a Worker fetching another workers.dev Worker on the same accoun
 ## Won't do
 
 Native apps; Inoreader API sync or starred-item migration (Q7); social features; readability/full-article extraction; AI features; image proxying (Q9).
+
+
+### Owner requests, 2026-11-18 (R2, built under the lighter workflow)
+
+- **TID-054: Article title opens the original.** Given an article with a URL, when I tap its title in the article view, then the original opens in a new tab (`rel="noopener noreferrer"`); with no URL the title is plain text.
+- **TID-026 (amended): Mark as read on scroll.** Owner ruling: the setting `markReadOnScroll` defaults to **on** (Settings UI comes with TID-022). Batched `read-state` calls at most every 2 s, flushed on page hide; rows marked this way stay until the list is left.
+- **TID-035 (amended): Drawer swipes.** Swipe the open drawer left to close (all modes). In the installed (standalone) app only, a swipe from the left screen edge on a list opens the drawer; in Safari the edge belongs to the browser's back gesture, so it is not used there.
+- **TID-055: Edge-swipe back on the article (installed app only).** A swipe from the left edge drags the article and, past 35% or on a flick, goes back one history step. Vertical scrolling is never hijacked; `prefers-reduced-motion` removes the follow-the-finger animation.
+- **TID-057: Logo, icons and full-screen app.** An original slanted, rounded "T" mark (construction in `docs/ux/brand.md`), favicon, 192/512/maskable/180 icons, web manifest with `display: standalone`, Apple web-app meta tags, safe-area insets. Covers TID-023 AC4 and AC6; the IndexedDB cache (AC1-AC3) stays in TID-023.
