@@ -212,3 +212,7 @@ Decision recorded here for the list spec: in Unread-only mode a row that has jus
 - **Pull to refresh:** the document never bounces (`overscroll-behavior-y: none`); the header and status-bar area stay pinned while only the list content stretches down with resistance, revealing "Pull to refresh" / "Release to refresh" under the header.
 - **Opening an article:** the article slides in from the right (300 ms, iOS ease) while the list shifts left by 30% and dims; the Back button plays the reverse; the edge swipe-back finishes the same slide. Next/Previous slide the body 32 px with a fade (180 ms). No animation on a direct link, a reload, reduced motion, or at desktop width.
 
+
+## Launch screen (TID-059, owner request 2026-11-18)
+
+- On a full load (browser open, reload, Home Screen launch) a full-screen splash shows the mark (accent, 72 px, gentle fade/scale in) with "Tidings" below on the surface colour, in the resolved theme and inside the safe areas. Minimum 2 s from navigation start and until the first screen is ready, then a 250 ms fade out. Reduced motion: no animation, it is simply removed. Not shown on in-app navigation. Hidden from assistive technology.

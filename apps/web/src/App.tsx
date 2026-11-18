@@ -30,6 +30,7 @@ import { AppShell } from './shell/AppShell';
 import { AuthLayout } from './shell/AuthLayout';
 import { useDocumentTitle } from './shell/useDocumentTitle';
 import { Toasts } from './shell/Toasts';
+import { splashAppReady } from './splash';
 import { ROUTES } from './routes/table';
 
 // Not release copy: removed as each screen story lands.
@@ -256,6 +257,14 @@ export function App() {
     setUnauthenticatedHandler(() => queryClient.setQueryData(SESSION_KEY, SIGNED_OUT));
     return () => setUnauthenticatedHandler(null);
   }, [queryClient]);
+  // The first real screen is up once the session has resolved and its route has committed (its
+  // content or skeleton); two frames later it has painted. Then the launch screen may go.
+  const sessionPending = useSession().isPending;
+  useEffect(() => {
+    if (sessionPending) return;
+    const id = requestAnimationFrame(() => requestAnimationFrame(splashAppReady));
+    return () => cancelAnimationFrame(id);
+  }, [sessionPending]);
   return (
     <>
       <SetupRedirect />

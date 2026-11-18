@@ -324,6 +324,53 @@ body {
     scroll-padding-bottom: 12rem;
   }
 }
+/* Launch screen (TID-059): markup in index.html, timing in splash.ts. */
+.splash {
+  position: fixed;
+  inset: 0;
+  z-index: 1000;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 1rem;
+  padding: env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom)
+    env(safe-area-inset-left);
+  background: var(--c-surface);
+  color: var(--c-text);
+  opacity: 1;
+  transition: opacity 250ms var(--ease-exit);
+}
+.splash.splash-out {
+  opacity: 0;
+  pointer-events: none;
+}
+.splash-mark {
+  width: 72px;
+  height: 72px;
+  color: var(--c-accent);
+  animation: splash-in 600ms var(--ease-standard) both;
+}
+.splash-word {
+  font-family: var(--font-sans);
+  font-size: 1.5rem;
+  font-weight: 600;
+  letter-spacing: -0.025em;
+}
+@keyframes splash-in {
+  from {
+    opacity: 0;
+    transform: scale(0.92);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .splash {
+    transition: none;
+  }
+  .splash-mark {
+    animation: none;
+  }
+}
 html.scroll-locked {
   overflow: hidden;
 }

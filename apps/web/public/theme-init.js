@@ -29,6 +29,12 @@
   }
 
   apply();
+  // Launch screen failsafe (TID-059): if the app never starts (bundle blocked or crashed), do not
+  // leave the splash covering the error forever. The app normally removes it much sooner.
+  setTimeout(function () {
+    var splash = document.getElementById('splash');
+    if (splash) splash.remove();
+  }, 10000);
   if (mq.addEventListener) mq.addEventListener('change', apply);
   else mq.addListener(apply); // old Safari
   window.addEventListener('storage', function (e) {
