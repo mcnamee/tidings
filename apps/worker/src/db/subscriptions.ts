@@ -14,6 +14,7 @@ import {
 } from '@tidings/shared';
 import { PARKED_AT } from '../refresh/backoff';
 import { Db, sql, type SqlValue, type Statement } from './client';
+import { notDuplicateOf } from './dedup';
 import { toIso } from './ids';
 
 /** FR-SU-3. */
@@ -118,6 +119,8 @@ export interface CreateSubscription {
 export async function createSubscription(db: Db, p: CreateSubscription): Promise<boolean> {
   const mine = 'id = ? AND user_id = ?';
   const readCutoff = p.now - READ_AFTER_SECONDS;
+  // Stories this user already has from another feed are not linked again (ADR 0017).
+  const notDup = notDuplicateOf('e', { param: p.userId }, p.now);
   const statements: Statement[] = [
     sql(
       `INSERT INTO feeds (url, next_fetch_at, state, created_at) VALUES (?, ?, 'pending', ?)
@@ -160,6 +163,7 @@ export async function createSubscription(db: Db, p: CreateSubscription): Promise
          FROM entries e
         WHERE e.feed_id = (SELECT feed_id FROM subscriptions WHERE ${mine})
           AND e.purged_at IS NULL
+          AND ${notDup.sql}
         ORDER BY e.published_at DESC, e.id DESC
         LIMIT ?
        ON CONFLICT DO NOTHING`,
@@ -169,6 +173,7 @@ export async function createSubscription(db: Db, p: CreateSubscription): Promise
       p.now,
       p.subscriptionId,
       p.userId,
+      ...notDup.params,
       NEW_SUBSCRIBER_LINK_LIMIT,
     ),
   ];

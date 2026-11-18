@@ -69,14 +69,17 @@ describe('success path (AC4) and write budget (spec 9.4, 9.5)', () => {
 
     // AC4: rows_written <= 3 x 3 + 3 x 6 x subscribers + 1.
     const subscribers = 2;
-    expect(second.usage.rowsWritten).toBe(3 * 3 + 3 * 6 * subscribers + 1); // 46: 6 per user_entries since TID-021 (ue_entry)
+    // 49: 6 per user_entries since TID-021 (ue_entry); 4 per entry since TID-061 (entries_url_key; these
+    // titles have under 4 words, so no entries_headline_key row).
+    expect(second.usage.rowsWritten).toBe(3 * 4 + 3 * 6 * subscribers + 1);
     // Reads, measured (spec 9.5 budgets "<= 50 per changed fetch" for dedup): D1 counts every key
     // of an IN list (50) plus every hit (47), so dedup costs 97, not 47. Whole refresh: 121
     // (1 probe + 97 dedup + 3 insert checks + 18 link + 2 feed update). The bound is the worst case
     // of 50 keys all known: 1 + 100 + 9 + 18 + 2, with headroom for the link join.
-    expect(second.usage.rowsRead).toBe(121);
+    // TID-061 adds the duplicate probe: 3 reads per new entry and subscriber (index row, 3 x 2 = 18).
+    expect(second.usage.rowsRead).toBe(121 + 18);
     expect(second.usage.rowsRead).toBeLessThanOrEqual(
-      1 + 2 * 50 + 9 + 3 * 3 * subscribers + 2 + 10,
+      1 + 2 * 50 + 9 + 3 * 3 * subscribers + 2 + 10 + 3 * subscribers * 6,
     );
     // Well inside the D1 limit of 50 queries per invocation (spec 7.3).
     expect(second.usage.statements).toBeLessThanOrEqual(15);
@@ -86,8 +89,8 @@ describe('success path (AC4) and write budget (spec 9.4, 9.5)', () => {
     const id = await seedFeed({ url: FEED_URL, subscribers: ['u1', 'u2', 'u3'] });
     fx.fake.serveFeed(FEED_URL, rss(items(1, 4)));
     const out = await refresh(id);
-    // 4 new entries x 3 rows, 4 x 3 subscribers x 6 rows, 1 feeds update.
-    expect(out.usage.rowsWritten).toBe(4 * 3 + 4 * 3 * 6 + 1);
+    // 4 new entries x 4 rows (3 + entries_url_key, ADR 0017), 4 x 3 subscribers x 6 rows, 1 feeds update.
+    expect(out.usage.rowsWritten).toBe(4 * 4 + 4 * 3 * 6 + 1);
   });
 
   it('a feed with 50 items stays at or under 15 statements', async () => {

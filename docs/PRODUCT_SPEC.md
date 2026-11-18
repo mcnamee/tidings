@@ -443,10 +443,14 @@ CREATE TABLE entries (
   published_at  INTEGER NOT NULL,             -- clamped to ≤ fetched_at
   fetched_at    INTEGER NOT NULL,
   purged_at     INTEGER,                      -- content removed; row kept as dedup tombstone
+  url_key       TEXT,                         -- cross-feed duplicate keys, §6.3 (0006); NULL = none
+  headline_key  TEXT,
   UNIQUE (feed_id, guid_hash)
 );
 CREATE INDEX entries_published ON entries(published_at) WHERE purged_at IS NULL;  -- purge scans (0005)
 CREATE INDEX entries_tombstones ON entries(purged_at) WHERE purged_at IS NOT NULL; -- tombstone expiry (0005)
+CREATE INDEX entries_url_key      ON entries(url_key, published_at, feed_id)      WHERE url_key IS NOT NULL;      -- 0006
+CREATE INDEX entries_headline_key ON entries(headline_key, published_at, feed_id) WHERE headline_key IS NOT NULL; -- 0006
 
 -- ── Per-user article state ───────────────────────────────────
 CREATE TABLE user_entries (
@@ -494,7 +498,15 @@ For each parsed item the dedup key is `guid_hash = base64url(SHA-256(feedId + "\
 
 **Tombstones prevent resurrection.** When cleanup removes content, it sets `content_html = NULL, summary = NULL, purged_at = now` and keeps the row (≈ 100 bytes) for 180 days, so an old item still present in the feed XML is recognised and not re-added as unread. Tombstones older than 180 days are deleted.
 
-Edited articles (same key, changed content) are **not** updated in MVP. Cross-feed duplicates (the same story in two feeds) are not merged.
+Edited articles (same key, changed content) are **not** updated in MVP.
+
+**Cross-feed duplicates (ADR 0017, TID-061).** The same story in two feeds is shown once per user. Each new entry that is going to be linked gets two keys, stored on `entries` (16 hex characters of SHA-256, `packages/shared/src/dedup-keys.ts`):
+
+- `url_key`: the link without scheme, `www.`, fragment, trailing slash and tracking parameters (`utm_*`, `at_medium`, `at_campaign`, `ocid`, `cmpid`, and a few more), remaining query sorted. A home-page link (empty path, no query) has no key.
+- `headline_key`: the title lower-cased, with apostrophes of every style removed and other punctuation, symbols and whitespace folded. Under 4 words has no key.
+- A key shared by two items in one fetch is dropped. Entries that are not linked (the first fetch stores up to 50 and links 10) get no keys.
+
+At fan-out (and when a new subscription links existing entries), an entry is **not linked** to a subscriber who already has a `user_entries` row for an entry of **another feed** with the same `url_key` published in the last 7 days, or the same `headline_key` published within 48 hours of it (and within the last 7 days). The skipped entry stays in `entries`, so nothing is lost and it is not re-added later. This is per user: someone who follows only the second feed still gets that copy. The read state is the visible copy's; counts count the story once. The test is two `NOT EXISTS` subqueries in the link statement, each answered by a covering key index and one `ue_entry` probe: no extra statements, about 4 rows read per candidate and subscriber. Entries stored before migration 0006 have no keys and never match (no backfill; the effect fades in 7 days). Within one feed, only the GUID and TID-046 rules apply. Fuzzy matching is out of scope.
 
 **GUID churn guard (ADR 0013, TID-046).** Some feeds change every item's GUID on each fetch (timestamped or random GUIDs), which would make all 50 items look new every 30 minutes. Two guards apply, neither adding D1 reads or rows written:
 
@@ -517,6 +529,7 @@ Lower-case scheme and host; drop default ports (`:80` for http, `:443` for https
 - Hostile-input bounds: at most 64 nested XML elements (`MAX_DEPTH`). Past that the parser stops and returns the items closed so far, or `parse_error` if there are none. U+0000 is removed and lone surrogates are replaced with U+FFFD in every stored string (ADR 0009).
 - Atom is recognised only with the unprefixed namespace (`<feed xmlns="http://www.w3.org/2005/Atom">`). A prefixed root is `parse_error` (accepted for MVP).
 - Per-user limits: 1,000 subscriptions, 200 folders.
+- **Migration `0006_cross_feed_dedup.sql` (TID-061):** `entries` gains nullable `url_key` and `headline_key` and the partial indexes `entries_url_key` and `entries_headline_key` (§6.3). Costs are in §9.4 and §9.5.
 - **Migration `0003_feed_churn_guard.sql` (TID-046):** `feeds` gains `recent_keys TEXT` (JSON array of short hashes), `new_entries_day INTEGER` (UTC day number), `new_entries_count INTEGER NOT NULL DEFAULT 0` and `warning_code TEXT` (null or `new_item_cap`). None is indexed, so they add no rows written.
 
 ---
@@ -559,8 +572,8 @@ When an RPC rejects (exception, CPU limit, timeout), the dispatcher records the 
 3. **Non-2xx** → handle per §7.4. Done.
 4. **200** → stream the body through `crypto.DigestStream` and into a buffer, aborting at **1 MiB** of **decoded** bytes (after the runtime's transparent `Content-Encoding` decompression; `MAX_BODY_BYTES` = 1,048,576; `too_large`). The cap bounds what we hash and parse, so it is measured after decoding. TID-024 verifies that deployed workerd decompresses before the cap applies. If `SHA-256(body) == body_hash` → same as 304. Done.
 5. **Parse** with `packages/feed-parser` (htmlparser2, ADR 0006), stopping the tokenizer after the first **50 items** in document order (`MAX_ITEMS_PER_FETCH`; first fetch for a new subscription: 10 items are linked to the user, FR-SU-3). Parse errors → `parse_error`.
-6. **Dedup** (§6.3): compute keys, query existing, keep new items only.
-7. **Write** in one `DB.batch()`: multi-row `INSERT … ON CONFLICT DO NOTHING RETURNING id` into `entries` (chunked to stay within 100 bound parameters per statement), then `INSERT INTO user_entries … SELECT` for every subscriber (`subscriptions_feed` index), then `UPDATE feeds SET etag, last_modified, body_hash, title (if changed), site_url, last_success_at, last_new_entry_at, state='ok', error_count=0`. Total statements per refresh ≤ 15 (D1 free limit is 50 queries per invocation).
+6. **Dedup** (§6.3): compute keys, query existing, keep new items only. For the items that will be linked, also compute the cross-feed `url_key` and `headline_key` (ADR 0017).
+7. **Write** in one `DB.batch()`: multi-row `INSERT … ON CONFLICT DO NOTHING RETURNING id` into `entries` (chunked to stay within 100 bound parameters per statement: 8 rows, 12 columns), then `INSERT INTO user_entries … SELECT` for every subscriber (`subscriptions_feed` index) that does not already have the story from another feed (two `NOT EXISTS` probes, §6.3), then `UPDATE feeds SET etag, last_modified, body_hash, title (if changed), site_url, last_success_at, last_new_entry_at, state='ok', error_count=0`. Total statements per refresh ≤ 15 (D1 free limit is 50 queries per invocation).
 
 **CPU budget for one refresh invocation (ADR 0006, restated 2026-11-16):** for a changed feed ≤ 1 MiB, **zero `exceededCpu`** over ≥ 200 deployed invocations per fixture and **p95 ≤ 8 ms** for the whole invocation; parse alone p95 ≤ 6 ms. p99 (≈ 10-13 ms, GC/JIT tail) and cold first refresh (≈ 13-23 ms) are recorded, not gated; they rely on the isolate flexibility Cloudflare documents for infrequent overruns. We still design to the 10 ms limit. TID-012 proves this on the deployed Free plan; if it fails, ADR 0006's ladder applies (25 items, then a 50 KB content cap, then the Q6 rule). Caps: `MAX_BODY_BYTES` 1 MiB, `MAX_ITEMS_PER_FETCH` 50, content 100 KB per item. Heavy work we deliberately keep out of the Worker: HTML sanitisation (client), OPML parsing (client), thumbnails (none generated).
 
@@ -826,14 +839,16 @@ Ceiling: one dispatcher leasing a full batch every minute is 1,440 × (1 + 20) =
 |---|---|---|---|
 | Dispatcher lease (1 per fetch; `next_fetch_at` not indexed, so no index write) | 1 | 12,000 | 21,600 |
 | Refresh state write (changed content or error; none on unchanged 304) | 1 | 2,400 | 4,320 |
-| New `entries` (row + unique + `entries_published`) | 3 | 1,200 | 2,400 |
-| New `user_entries` per subscriber (row + 4 indexes + `ue_entry`; `ue_read_old` only when it starts read, TID-021) | 6 | 2,400 | 14,400 |
+| New `entries` (row + unique + `entries_published` + `entries_url_key` + `entries_headline_key`; the key rows only for linked entries, TID-061) | 5 | 2,000 | 4,000 |
+| New `user_entries` per subscriber (row + 4 indexes + `ue_entry`; `ue_read_old` only when it starts read, TID-021). A story the user already has from another feed is not linked (TID-061): 0 rows, no saving counted below | 6 | 2,400 | 14,400 |
 | Individual mark read (row + 2 partial-index removals + `ue_read_old` insert) | 4 | 1,200 | 3,600 |
 | Bulk mark read (same, 4) | 4 | 4,000 | 12,000 |
-| Cleanup (user_entries delete ×6 incl. `ue_entry` and `ue_read_old`, entry purge ×3 incl. index move, tombstone delete ×3) | – | 5,000 | 18,000 |
+| Cleanup (user_entries delete ×6 incl. `ue_entry` and `ue_read_old`, entry purge ×3 incl. index move, tombstone delete ×5 incl. the two key indexes since TID-061) | – | 5,800 | 19,600 |
 | Sessions, settings, auth | – | 50 | 150 |
 | Email sign-in (TID-053): ≈ 10 rows per sign-in, ≤ 10 emails/day cap; abuse bounded at 100 requests/hour ≈ 7,200 rows/day worst case (ADR 0016) | ≈ 10 | 10 to 100 | 10 to 100 |
-| **Total** | | **≈ 28,000 (28%)** | **≈ 75,000 (75%)** |
+| **Total** | | **≈ 29,600 (30%)** | **≈ 78,200 (78%)** |
+
+**TID-061 (ADR 0017) adds +1,600 rows a day in A (5.7%) and +3,200 in B (4.3%)**: two key-index rows when an entry is inserted and two when it is deleted, at 400 and 800 new entries a day. That is under the 10% target. The rows a hidden duplicate does not write (6 per subscriber) are not subtracted. An OPML import adds 20 rows per feed (10 linked entries × 2), 5,000 for 250 feeds, one time.
 
 **Why `feeds.next_fetch_at` has no index.** An index would add one write per lease (+12,000/day in A, +12% of the write quota). Without it the dispatcher scans the feeds table each minute: 250 rows × 1,440 = 360,000 reads/day (7% of the read quota). Writes are the scarcer resource, so we scan. Revisit above ~1,000 feeds.
 
@@ -844,11 +859,12 @@ Ceiling: one dispatcher leasing a full batch every minute is 1,440 × (1 + 20) =
 | Dispatcher scan (feeds × 1,440) | 360,000 | 432,000 |
 | Refresh feed-row check (1 per fetch: parked or not) | 12,000 | 21,600 |
 | Refresh dedup and subscriber lookups (**≈ 121 per changed fetch, measured in TID-012**: D1 counts every key in the `IN` list plus every hit; 1,800 / 3,240 changed fetches) | 218,000 | 392,000 |
+| Cross-feed duplicate probes (TID-061: ≈ 4 per new entry and subscriber, measured; 400 × 1 and 800 × 3) | 1,600 | 9,600 |
 | Unread counts (200 calls × 1,000 unread rows per user) | 200,000 | 600,000 |
 | List pages (150 × ~150 rows) + folder pages (50 × ~3,000 rows) per user (folder ceiling and worst case 12,100 rows/page: ADR 0008) | 172,500 | 517,500 |
 | Session lookups, misc | 5,000 | 15,000 |
 | Cleanup (TID-021: hourly window scan ≈ 1,000 × 24, dead-feed probe ≈ 250 × 24, ≈ 11 per released row) | 35,000 | 60,000 |
-| **Total** | **≈ 1,005,000 (20%)** | **≈ 2,040,000 (41%)** |
+| **Total** | **≈ 1,007,000 (20%)** | **≈ 2,050,000 (41%)** |
 
 Updated 2026-11-17 from TID-012's measurements (ADR 0013). A 304 or an identical body reads 1 row and writes none.
 
@@ -873,7 +889,7 @@ All rows: the gate is **zero `exceededCpu`** plus the p95 shown; p99 is recorded
 ### 9.8 Headline: first limit we'll hit
 
 1. **First limit overall: 10 ms CPU per invocation, on large or verbose feeds.** It's per invocation, not daily, so a few big feeds will fail individually long before any daily quota is stressed. Mitigations, in order: per-feed fan-out (one feed per invocation); conditional GET and body-hash skip (most fetches never parse); streaming parse that stops after 50 items and ignores unused elements; 1 MiB body cap; recording `cpu_limit` and backing off so a pathological feed costs one failed invocation per backoff period; showing the error in Manage. TID-002 measured it (2026-11-16): typical feeds parse at p95 4.4–6.9 ms with a GC/JIT tail at p99 of 10–13 ms and cold first parses of 13–23 ms. These finished `ok` because enforcement tolerates infrequent overruns. If Cloudflare enforced 10 ms strictly, roughly 1–2% of changed-feed refreshes would fail and retry after backoff. TID-012 re-measures the full refresh.
-2. **First daily quota: D1 rows written.** 25% at baseline (4× headroom), 67% in the heavy multi-user case (1.5×). Mitigations: no index on `next_fetch_at`; no write on unchanged fetches; first-fetch cap of 10 items per new subscription; adaptive refresh intervals for quiet feeds (M2; halves lease writes for typical feed mixes); denormalisation only where it saves reads without adding writes. **An OPML import of 250 feeds costs about 52,250 extra writes** (corrected 2026-11-17, DEF-015): a first fetch stores up to 50 entries so that items 11-50 don't arrive as unread later, and links 10 (50 × 3 + 10 × 5 + 1 = 201 rows), plus about 8 rows for the feed, subscription and lease: about 209 per feed. Import day in scenario A peaks near **77%**. To keep larger files from exhausting the quota, imports schedule at most **250 first fetches per UTC day** and defer the rest to the next day (TID-016, ADR 0013). A feed with churning GUIDs is bounded at 200 new entries a day (≈ 1,600 rows, §6.3).
+2. **First daily quota: D1 rows written.** 30% at baseline (3× headroom), 78% in the heavy multi-user case (1.3×; TID-061 added 4 to 6 points). Mitigations: no index on `next_fetch_at`; no write on unchanged fetches; first-fetch cap of 10 items per new subscription; adaptive refresh intervals for quiet feeds (M2; halves lease writes for typical feed mixes); denormalisation only where it saves reads without adding writes. **An OPML import of 250 feeds costs about 57,250 extra writes** (52,250 plus 5,000 for TID-061's key-index rows on the 10 linked entries per feed) (corrected 2026-11-17, DEF-015): a first fetch stores up to 50 entries so that items 11-50 don't arrive as unread later, and links 10 (50 × 3 + 10 × 5 + 1 = 201 rows), plus about 8 rows for the feed, subscription and lease: about 209 per feed. Import day in scenario A peaks near **82%**. To keep larger files from exhausting the quota, imports schedule at most **250 first fetches per UTC day** and defer the rest to the next day (TID-016, ADR 0013). A feed with churning GUIDs is bounded at 200 new entries a day (≈ 1,600 rows, §6.3).
 3. **Requests/day** (callee invocations count, verified 2026-11-16): 16% at baseline, 31% heavy; capped at ≈ 38% per dispatcher cron. Only adding dispatcher crons could exhaust it (§9.3).
 4. Everything else is at or under 40% in both scenarios (D1 reads are 20% / 40% after TID-012's measurements). KV and Queues are unused.
 

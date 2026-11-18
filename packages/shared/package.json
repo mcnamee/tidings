@@ -9,7 +9,8 @@
     "./url": "./src/url.ts",
     "./address": "./src/address.ts",
     "./text": "./src/text.ts",
-    "./dedup": "./src/dedup.ts"
+    "./dedup": "./src/dedup.ts",
+    "./dedup-keys": "./src/dedup-keys.ts"
   },
   "scripts": {
     "typecheck": "tsc --noEmit",

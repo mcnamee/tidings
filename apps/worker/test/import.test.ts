@@ -303,14 +303,21 @@ describe('AC8: write cost of 250 imported feeds with 50 items each, then their f
     expect(rows).toHaveLength(250);
     for (const { id } of rows) {
       const f = await feedRow(id);
-      const items = Array.from({ length: 50 }, (_, k) => ({ guid: `${id}-${k}`, ageH: k + 1 }));
+      // Real headlines (4+ words) so both TID-061 keys are written for the 10 linked entries.
+      const items = Array.from({ length: 50 }, (_, k) => ({
+        guid: `${id}-${k}`,
+        title: `Feed ${id} story number ${k} today`,
+        ageH: k + 1,
+      }));
       fx.fake.serveFeed(f.url, rss(items), { etag: `"e${id}"` });
       fetchRows += (await refreshFeed(await jobFor(id), fx.deps)).usage.rowsWritten;
     }
     const total = importRows + fetchRows;
     console.log(`TID-016 AC8: import ${importRows} + first fetches ${fetchRows} = ${total} rows`);
     expect(await count('entries')).toBe(250 * 50);
-    expect(total).toBeLessThanOrEqual(55_000); // 53,000 before TID-021's ue_entry index (+1 per linked row);
+    // 53,000 before TID-021's ue_entry index (+1 per linked row); TID-061 adds 2 key-index rows per
+    // linked entry (10 per feed, 5,000 in all; ADR 0017), keys are not written for the 40 unlinked.
+    expect(total).toBeLessThanOrEqual(60_000);
   }, 180_000);
 });
 

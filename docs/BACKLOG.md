@@ -50,7 +50,7 @@ Owner: product-manager. Last updated 2026-11-17 (TID-053 email sign-in added, AD
 | TID-058 | Pinned header on pull, app-style article slide-in | R2 | Done (deployed 2026-11-18) | TID-055 |
 | TID-059 | Launch splash screen (min 2 s) | R2 | Done (deployed 2026-11-18) | TID-057 |
 | TID-060 | News-style list rows and sans-serif article text | R2 | Done (deployed 2026-11-18) | TID-018 |
-| TID-061 | Hide duplicate articles across feeds (same URL or headline) | R2 | Ready (owner request 2026-11-18) | TID-012, TID-021 |
+| TID-061 | Hide duplicate articles across feeds (same URL or headline) | R2 | Built (ADR 0017, awaiting verification) | TID-012, TID-021 |
 | TID-057 | Logo, app icons, and installable full-screen app (TID-023 AC4 and AC6) | R2 | Done (deployed 2026-11-18) | TID-006 |
 | TID-023 | Persisted client cache and installable PWA shell | R3 | Ready | TID-018, 019 |
 | TID-036 | SSRF guard hardening (TID-010 follow-up) | R3 | Ready | TID-010 |
@@ -1116,7 +1116,7 @@ Native apps; Inoreader API sync or starred-item migration (Q7); social features;
 - **Agents:** PM (refine), SE, QA
 - **Depends on:** TID-012 (refresh pipeline), TID-021 (retention, so the lookup window stays small)
 - **Release:** R2
-- **Status:** Ready
+- **Status:** Built (branch `tid-061-dedup`, ADR 0017; awaiting tester verification and PM acceptance)
 
 **User story:** As a reader who subscribes to overlapping feeds (for example BBC Top Stories and BBC Business), I want each story to appear only once in my lists, so that I don't read the same article twice.
 
