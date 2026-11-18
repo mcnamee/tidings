@@ -4,24 +4,11 @@ Story: TID-057 (owner request 2026-11-18), with TID-023 AC4 and AC6. Preview: `d
 
 ## 1. The mark
 
-A bold, lowercase-feeling "T" built from two thick pill strokes that lean in opposite directions, so the crossbar rises to the right like a flag on a pole while the stem leans forward like a person walking into the news. Original construction, on a 64-unit grid (the file's `viewBox` is cropped to `4 4 56 56` so the mark fills it).
+**Owner's design (2026-11-18).** The mark reproduces the owner's own "T" design (a slanted crossbar in two offset arms with a notch where they meet, a forward-leaning stem with a 45° chamfer at its foot, and generously rounded outer corners). It replaces the first draft, which the owner preferred less.
 
-| Part | Construction |
-|---|---|
-| Unit | `r = 8` grid units. Stroke width `2r = 16`. Every end is a full semicircle of radius `r` (rx = r on a 2r-thick bar), so there are no sharp corners at any size. |
-| Crossbar | Rounded rectangle 48 x 16 (6r x 2r), centred on (32, 20), rotated **-12 degrees** (rises to the right). |
-| Stem | Rounded rectangle 16 x 43 (2r x about 5.4r), top-centre on (32, 20), rotated **+14 degrees** about the crossbar centre (leans right at the top). |
-| Joint | The two shapes overlap into one solid fill. The notch where the stem meets the bar is left to the overlap, not drawn. |
-| Fill | One shape, `currentColor`. No outline, no gradient, no second colour. |
-
-Why two angles: -12 and +14 are close enough to read as one gesture, and far enough apart that the glyph is unmistakably a T and not a rotated one. Optical balance, not arithmetic, set the 2-degree difference.
-
-Clear space: at least `r` (one eighth of the mark's width) on every side. Smallest size: 16 px (favicon). Below 16 px use the favicon, never the bare mark.
-
-Files:
-
-- `apps/web/public/logo.svg`: mark only, `fill="currentColor"`, so it takes the surrounding text colour.
-- `apps/web/src/shell/Logo.tsx`: `LogoMark` (inline SVG, decorative) and `Lockup`. A unit test keeps the shapes equal to `logo.svg`.
+- Drawn as one polygon on the 56-unit viewBox `4 4 56 56` (centre 32, 32), filled and stroked in `currentColor` with `stroke-width` 7 and `stroke-linejoin: round`: the round stroke gives every outer corner the same radius (3.5 units) while inner corners stay crisp.
+- The points live in `apps/web/public/logo.svg`; `apps/web/src/shell/Logo.tsx` must use the same points (`icons.test.ts` checks).
+- The favicon and the PNG icons are generated from `logo.svg` (`scripts/render-icons.mjs`), so changing the points there and re-running the script updates everything.
 
 ## 2. Wordmark lockup
 

@@ -21,7 +21,7 @@ function iconSvg(size, { scale, radius }) {
   const s = size / 2;
   return `<svg xmlns="http://www.w3.org/2000/svg" width="${size}" height="${size}" viewBox="0 0 ${size} ${size}">
 <rect width="${size}" height="${size}" rx="${size * radius}" fill="${BG}"/>
-<g fill="${FG}" transform="translate(${s} ${s}) scale(${k}) translate(-32 -32)">${markInner}</g></svg>`;
+<g fill="${FG}" stroke="${FG}" transform="translate(${s} ${s}) scale(${k}) translate(-32 -32)">${markInner}</g></svg>`;
 }
 
 export const ICONS = [

@@ -35,13 +35,10 @@ describe('app icons', () => {
   });
 
   it('Logo.tsx draws the same shapes as logo.svg', () => {
-    const rects = (s: string) =>
-      [...s.matchAll(/<rect [^>]*>/g)].map((m) => m[0].replace(/\s+/g, ' '));
-    const svg = rects(readFileSync(resolve(pub, 'logo.svg'), 'utf8'));
-    const tsx = rects(readFileSync(resolve(__dirname, 'shell/Logo.tsx'), 'utf8')).map((r) =>
-      r.replace(/ \/>$/, '/>').replace(/"\/>$/, '"/>'),
-    );
-    const norm = (r: string) => r.replace(/\s*\/?>$/, '');
-    expect(tsx.map(norm)).toEqual(svg.map(norm));
+    const points = (s: string) => /points="([^"]+)"/.exec(s)?.[1];
+    const svg = points(readFileSync(resolve(pub, 'logo.svg'), 'utf8'));
+    const tsx = points(readFileSync(resolve(__dirname, 'shell/Logo.tsx'), 'utf8'));
+    expect(svg).toBeTruthy();
+    expect(tsx).toEqual(svg);
   });
 });

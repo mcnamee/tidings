@@ -7,12 +7,16 @@ export function LogoMark({ className = 'size-7' }: { className?: string }) {
     <svg
       viewBox="4 4 56 56"
       fill="currentColor"
+      stroke="currentColor"
       aria-hidden="true"
       focusable="false"
       className={className}
     >
-      <rect x="8" y="12" width="48" height="16" rx="8" transform="rotate(-12 32 20)" />
-      <rect x="24" y="12" width="16" height="43" rx="8" transform="rotate(14 32 20)" />
+      <polygon
+        points="10.37,16.18 27.31,11.84 30.53,18.14 55.31,11.14 54.89,18.7 34.45,25.14 26.19,52.3 24.65,52.86 17.79,46.98 24.51,23.6 8.69,23.04"
+        strokeWidth="7.0"
+        strokeLinejoin="round"
+      />
     </svg>
   );
 }
