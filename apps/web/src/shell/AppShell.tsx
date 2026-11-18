@@ -1,17 +1,17 @@
-import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { flushSync } from 'react-dom';
 import { Outlet, useLocation, useNavigate, useNavigationType } from 'react-router';
-import { ArrowLeft, Menu, WifiOff } from 'lucide-react';
-import { useOffline } from '../lib/connectivity';
+import { ArrowLeft, Menu } from 'lucide-react';
 import { DESKTOP_QUERY, useMediaQuery } from '../lib/hooks';
 import { saveLastList } from '../lib/lastList';
 import { useCounts } from '../lib/queries';
 import { findRoute } from '../routes/table';
-import { SWIPE_EDGE_PX, isStandalone, settleTo, useSwipe } from '../lib/useSwipe';
+import { SWIPE_EDGE_PX, isStandalone, useSwipe } from '../lib/useSwipe';
 import { Drawer, drawerWidth, type DrawerControl } from './Drawer';
 import { Lockup } from './Logo';
 import { FeedNav } from './FeedNav';
-import { ShellSlotsContext } from './slots';
+import { LayerContext, ShellSlotsContext } from './slots';
+import { OfflineBanner } from './OfflineBanner';
 import { useDocumentTitle } from './useDocumentTitle';
 import { useRouteTitle } from './useRouteTitle';
 
@@ -24,9 +24,6 @@ function drawerFlag(state: unknown): boolean {
   );
 }
 
-/** Routes with nothing saved to show, only changes to make (Manage, Add feed, Import, Settings). */
-const OFFLINE_NO_SAVE = /^\/(manage|settings)(\/|$)/;
-
 /**
  * The authenticated app shell (docs/ux/screens/app-shell.md). Below 1024px the feed tree is a modal
  * drawer that pushes one history entry (state.drawer) so system Back closes it; from 1024px it is a
@@ -37,7 +34,6 @@ export function AppShell() {
   const navigate = useNavigate();
   const navType = useNavigationType();
   const isDesktop = useMediaQuery(DESKTOP_QUERY);
-  const offline = useOffline();
   // Keeps the unread counts warm (focus and 5-minute refetch, FR-RD-10) whether or not the tree shows.
   useCounts();
   const route = findRoute(location.pathname);
@@ -50,10 +46,16 @@ export function AppShell() {
 
   const [headerActionsEl, setHeaderActionsEl] = useState<HTMLElement | null>(null);
   const [bottomBarEl, setBottomBarEl] = useState<HTMLElement | null>(null);
+  // An article is a full-screen layer above the list it was opened from (reader/ArticleLayer). The
+  // list stays mounted underneath, inert and hidden from assistive tech, so Back finds it as it was.
+  const covered = route.kind === 'article';
   const slots = useMemo(
-    () => ({ headerActions: headerActionsEl, bottomBar: bottomBarEl }),
-    [headerActionsEl, bottomBarEl],
+    () => ({ headerActions: headerActionsEl, bottomBar: bottomBarEl, inactive: covered }),
+    [headerActionsEl, bottomBarEl, covered],
   );
+  const [layerEl, setLayerEl] = useState<HTMLElement | null>(null);
+  const pageRef = useRef<HTMLDivElement>(null);
+  const layer = useMemo(() => ({ root: layerEl, underlay: pageRef }), [layerEl]);
 
   const menuButton = useRef<HTMLButtonElement>(null);
   const heading = useRef<HTMLHeadingElement>(null);
@@ -108,19 +110,20 @@ export function AppShell() {
     prev.current = { open, pathname: location.pathname };
     if (!before) return;
     if (before.pathname !== location.pathname) {
-      if (navType !== 'POP') heading.current?.focus();
+      // An article's layer moves focus to its own heading.
+      if (navType !== 'POP' && !covered) heading.current?.focus();
     } else if (before.open && !open) {
       menuButton.current?.focus();
     }
-  }, [open, location.pathname, navType]);
+  }, [open, location.pathname, navType, covered]);
 
-  const showBack = route.kind === 'article' || route.kind === 'sub';
+  const showBack = route.kind === 'sub';
   // 'default' is the key of the first entry in a tab: nothing of the app's own to go back to.
   const hasAppHistory = location.key !== 'default';
   function goBack() {
-    // Articles and the Add/Import sub-pages go one entry back when the app has history (spec 11.2).
+    // The Add/Import sub-pages go one entry back when the app has history (spec 11.2).
     if (hasAppHistory) navigate(-1);
-    else navigate(route.parent ?? '/all', { replace: route.kind === 'sub' });
+    else navigate(route.parent ?? '/all', { replace: true });
   }
 
   // TID-055: edge swipes, only in the installed app (in a browser tab the edges belong to the
@@ -129,8 +132,11 @@ export function AppShell() {
   const standalone = useMemo(isStandalone, []);
   const drawerControl = useRef<DrawerControl>(null);
   const [peeking, setPeeking] = useState(false);
+  useEffect(() => {
+    if (open) setPeeking(false);
+  }, [open]);
   useSwipe({
-    enabled: standalone && !isDesktop && !open && !showBack && route.kind !== 'auth',
+    enabled: standalone && !isDesktop && !open && !showBack && !covered && route.kind !== 'auth',
     direction: 'right',
     edgePx: SWIPE_EDGE_PX,
     extent: drawerWidth,
@@ -139,155 +145,112 @@ export function AppShell() {
     onDrag: (p) => drawerControl.current?.setOpenness(p),
     onCommit: () => {
       if (!drawerControl.current) return openDrawer(); // reduced motion: no drag, just open
+      // The same Drawer keeps going from where the finger left it. It stays mounted as a peek
+      // until the history entry lands (`open`), then switches to open in place (no remount, no
+      // entrance animation). The timer only covers an open that never lands.
       drawerControl.current.settle(true);
       openDrawer();
-      setPeeking(false);
+      window.setTimeout(() => setPeeking(false), 1000);
     },
     onCancel: () => drawerControl.current?.settle(false, () => setPeeking(false)),
   });
 
-  const pageRef = useRef<HTMLDivElement>(null);
-  const backdropRef = useRef<HTMLDivElement>(null);
-  const canSwipeBack = standalone && !isDesktop && !open && route.kind === 'article';
-  const pageWidth = () => window.innerWidth;
-  useSwipe({
-    enabled: canSwipeBack,
-    direction: 'right',
-    edgePx: SWIPE_EDGE_PX,
-    extent: pageWidth,
-    commitAt: 0.35,
-    onDrag: (p) => {
-      if (pageRef.current) {
-        pageRef.current.style.transition = '';
-        pageRef.current.style.transform = `translateX(${p * pageWidth()}px)`;
-      }
-      if (backdropRef.current) backdropRef.current.style.opacity = String(1 - p);
-    },
-    onCommit: () => {
-      if (!pageRef.current?.style.transform) return goBack(); // reduced motion
-      settleTo(backdropRef.current, { transform: '', opacity: '0' });
-      settleTo(pageRef.current, { transform: `translateX(${pageWidth()}px)` }, goBack);
-    },
-    onCancel: () => {
-      settleTo(backdropRef.current, { transform: '', opacity: '0' });
-      settleTo(pageRef.current, { transform: 'translateX(0)' }, () => {
-        if (pageRef.current) pageRef.current.style.transform = '';
-      });
-    },
-  });
-  // The page the swipe moved is the same element on the next screen: put it back.
-  useLayoutEffect(() => {
-    if (pageRef.current) {
-      pageRef.current.style.transform = '';
-      pageRef.current.style.transition = '';
-    }
-    if (backdropRef.current) backdropRef.current.style.opacity = '';
-  }, [location.key]);
-
   return (
     <ShellSlotsContext.Provider value={slots}>
-      <div inert={open}>
-        <a
-          href="#main"
-          className="absolute left-4 top-2 z-50 -translate-y-24 rounded-md bg-accent px-4 py-3 font-medium text-accent-fg focus:translate-y-0"
-        >
-          Skip to content
-        </a>
-        <div className="lg:flex">
-          {isDesktop && (
-            <aside className="sticky top-0 flex h-dvh w-72 shrink-0 flex-col border-r border-line bg-surface">
-              <div className="flex min-h-14 items-center px-4">
-                <Lockup />
-              </div>
-              <FeedNav />
-            </aside>
-          )}
-          <div ref={pageRef} className="flex min-h-dvh min-w-0 flex-1 flex-col">
-            <div className="sticky top-0 z-20">
-              <header className="border-b border-line bg-surface pl-[max(1rem,env(safe-area-inset-left))] pr-[max(1rem,env(safe-area-inset-right))] pt-[env(safe-area-inset-top)]">
-                <div className="flex min-h-14 items-center gap-2 py-2 lg:mx-auto lg:max-w-2xl">
-                  {showBack ? (
-                    <button
-                      type="button"
-                      aria-label="Back"
-                      onClick={goBack}
-                      className={`${ICON_BUTTON} -ml-2`}
-                    >
-                      <ArrowLeft aria-hidden="true" className="size-6" />
-                    </button>
-                  ) : (
-                    !isDesktop && (
+      <LayerContext.Provider value={layer}>
+        <div inert={open}>
+          <a
+            href="#main"
+            className="absolute left-4 top-2 z-50 -translate-y-24 rounded-md bg-accent px-4 py-3 font-medium text-accent-fg focus:translate-y-0"
+          >
+            Skip to content
+          </a>
+          <div className="lg:flex">
+            {isDesktop && (
+              <aside className="sticky top-0 flex h-dvh w-72 shrink-0 flex-col border-r border-line bg-surface">
+                <div className="flex min-h-14 items-center px-4">
+                  <Lockup />
+                </div>
+                <FeedNav />
+              </aside>
+            )}
+            <div
+              ref={pageRef}
+              inert={covered}
+              aria-hidden={covered || undefined}
+              data-testid="list-underlay"
+              className="flex min-h-dvh min-w-0 flex-1 flex-col"
+            >
+              <div className="sticky top-0 z-20">
+                <header className="border-b border-line bg-surface pl-[max(1rem,env(safe-area-inset-left))] pr-[max(1rem,env(safe-area-inset-right))] pt-[env(safe-area-inset-top)]">
+                  <div className="flex min-h-14 items-center gap-2 py-2 lg:mx-auto lg:max-w-2xl">
+                    {showBack ? (
                       <button
-                        ref={menuButton}
                         type="button"
-                        aria-label="Open navigation"
-                        aria-haspopup="dialog"
-                        aria-expanded={open}
-                        aria-controls="nav-drawer"
-                        onClick={openDrawer}
+                        aria-label="Back"
+                        onClick={goBack}
                         className={`${ICON_BUTTON} -ml-2`}
                       >
-                        <Menu aria-hidden="true" className="size-6" />
+                        <ArrowLeft aria-hidden="true" className="size-6" />
                       </button>
-                    )
-                  )}
-                  <h1
-                    ref={heading}
-                    tabIndex={-1}
-                    {...(title.heading === null
-                      ? { 'aria-busy': true, 'aria-label': 'Loading' }
-                      : {})}
-                    className="min-w-0 flex-1 line-clamp-2 break-words text-lg font-semibold text-fg"
-                  >
-                    {title.heading ?? (
-                      <span
-                        aria-hidden="true"
-                        className="block h-6 w-32 animate-skeleton rounded-md bg-sunken"
-                      />
+                    ) : (
+                      !isDesktop && (
+                        <button
+                          ref={menuButton}
+                          type="button"
+                          aria-label="Open navigation"
+                          aria-haspopup="dialog"
+                          aria-expanded={open}
+                          aria-controls="nav-drawer"
+                          onClick={openDrawer}
+                          className={`${ICON_BUTTON} -ml-2`}
+                        >
+                          <Menu aria-hidden="true" className="size-6" />
+                        </button>
+                      )
                     )}
-                  </h1>
-                  <div ref={setHeaderActionsEl} className="flex items-center gap-2" />
-                </div>
-              </header>
-              {offline && (
-                <div
-                  role="status"
-                  className="flex min-h-10 items-center gap-2 bg-warning-subtle py-2 pl-[max(1rem,env(safe-area-inset-left))] pr-[max(1rem,env(safe-area-inset-right))] text-sm text-warning-subtle-fg"
-                >
-                  <WifiOff aria-hidden="true" className="size-4 shrink-0" />
-                  {OFFLINE_NO_SAVE.test(location.pathname)
-                    ? "You're offline. Changes can't be saved."
-                    : "You're offline. Showing saved articles."}
-                </div>
-              )}
-            </div>
-            <main
-              id="main"
-              tabIndex={-1}
-              className="flex-1 py-4 pb-[max(1rem,env(safe-area-inset-bottom))] pl-[max(1rem,env(safe-area-inset-left))] pr-[max(1rem,env(safe-area-inset-right))]"
-            >
-              <div className="mx-auto max-w-2xl">
-                <Outlet />
+                    <h1
+                      ref={heading}
+                      tabIndex={-1}
+                      {...(title.heading === null
+                        ? { 'aria-busy': true, 'aria-label': 'Loading' }
+                        : {})}
+                      className="min-w-0 flex-1 line-clamp-2 break-words text-lg font-semibold text-fg"
+                    >
+                      {title.heading ?? (
+                        <span
+                          aria-hidden="true"
+                          className="block h-6 w-32 animate-skeleton rounded-md bg-sunken"
+                        />
+                      )}
+                    </h1>
+                    <div ref={setHeaderActionsEl} className="flex items-center gap-2" />
+                  </div>
+                </header>
+                <OfflineBanner />
               </div>
-            </main>
-            <div
-              id="bottom-bar"
-              ref={setBottomBarEl}
-              className="sticky bottom-0 z-20 border-t border-line bg-surface pb-[env(safe-area-inset-bottom)] pl-[max(1rem,env(safe-area-inset-left))] pr-[max(1rem,env(safe-area-inset-right))] empty:hidden"
-            />
+              <main
+                id={covered ? undefined : 'main'}
+                tabIndex={-1}
+                className="flex-1 py-4 pb-[max(1rem,env(safe-area-inset-bottom))] pl-[max(1rem,env(safe-area-inset-left))] pr-[max(1rem,env(safe-area-inset-right))]"
+              >
+                <div className="mx-auto max-w-2xl">
+                  <Outlet />
+                </div>
+              </main>
+              <div
+                id={covered ? undefined : 'bottom-bar'}
+                ref={setBottomBarEl}
+                className="sticky bottom-0 z-20 border-t border-line bg-surface pb-[env(safe-area-inset-bottom)] pl-[max(1rem,env(safe-area-inset-left))] pr-[max(1rem,env(safe-area-inset-right))] empty:hidden"
+              />
+            </div>
           </div>
         </div>
-      </div>
-      {canSwipeBack && (
-        <div
-          ref={backdropRef}
-          aria-hidden="true"
-          className="pointer-events-none fixed inset-0 -z-10 bg-scrim opacity-0"
-        />
-      )}
-      {(open || peeking) && (
-        <Drawer onClose={closeDrawer} peeking={peeking && !open} control={drawerControl} />
-      )}
+        <div ref={setLayerEl} />
+        {(open || peeking) && (
+          <Drawer onClose={closeDrawer} peeking={peeking && !open} control={drawerControl} />
+        )}
+      </LayerContext.Provider>
     </ShellSlotsContext.Provider>
   );
 }

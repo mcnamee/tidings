@@ -11,6 +11,7 @@ import { markReadOnOpen, unreadOnlyDefault } from '../lib/settings';
 import { toast } from '../lib/toast';
 import { BottomBar, HeaderActions } from '../shell/slots';
 import { ArticleContent } from './ArticleContent';
+import { ArticleLayer } from './ArticleLayer';
 
 const BAR_BUTTON =
   'inline-flex min-h-11 items-center justify-center gap-1 rounded-md px-2 text-base font-medium text-fg active:bg-sunken disabled:text-fg-muted';
@@ -55,7 +56,7 @@ function Skeleton() {
 
 /**
  * The article screens (`/all/a/:id`, `/folders/:id/a/:id`, `/feeds/:id/a/:id`), FR-RD-7 and
- * FR-RD-8. Previous and Next walk the list the article was opened from, in its order, using
+ * FR-RD-8, shown as a layer above the list (ArticleLayer). Previous and Next walk the list the article was opened from, in its order, using
  * history `replace` so Back is always one step to the list (spec 11.1).
  */
 export function ArticleRoute() {
@@ -104,15 +105,17 @@ export function ArticleRoute() {
   const hasNext = index >= 0 && (index < items.length - 1 || list.hasNextPage);
 
   return (
-    <ArticleScreen
-      key={entryId}
-      entryId={entryId}
-      items={items}
-      hasPrev={hasPrev}
-      hasNext={hasNext}
-      busy={loadingMore}
-      onStep={(dir) => void step(dir)}
-    />
+    <ArticleLayer contentKey={entryId}>
+      <ArticleScreen
+        key={entryId}
+        entryId={entryId}
+        items={items}
+        hasPrev={hasPrev}
+        hasNext={hasNext}
+        busy={loadingMore}
+        onStep={(dir) => void step(dir)}
+      />
+    </ArticleLayer>
   );
 }
 
@@ -137,12 +140,7 @@ function ArticleScreen({
   const entry = detail.data;
   const loaded = !!entry && !detail.isPlaceholderData;
 
-  // A new article starts at the top (FLOWS 2.6 step 3).
-  // A block body: in current Chromium scrollTo returns a Promise, which React would call as a
-  // cleanup function on unmount (DEF-070).
-  useEffect(() => {
-    window.scrollTo(0, 0);
-  }, []);
+  // A new article starts at the top: the layer gives each one a fresh scroll container.
 
   // FR-RD-8: opening an unread article marks it read, once. "Mark as unread" then sticks.
   const attempted = useRef(false);
