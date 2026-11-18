@@ -11,7 +11,7 @@ import { markReadOnOpen, unreadOnlyDefault } from '../lib/settings';
 import { toast } from '../lib/toast';
 import { BottomBar, HeaderActions } from '../shell/slots';
 import { ArticleContent } from './ArticleContent';
-import { ArticleLayer } from './ArticleLayer';
+import { ArticleLayer, type StepState } from './ArticleLayer';
 
 const BAR_BUTTON =
   'inline-flex min-h-11 items-center justify-center gap-1 rounded-md px-2 text-base font-medium text-fg active:bg-sunken disabled:text-fg-muted';
@@ -80,7 +80,11 @@ export function ArticleRoute() {
   const index = items.findIndex((i) => i.id === entryId);
   const [loadingMore, setLoadingMore] = useState(false);
 
-  const go = (to: EntrySummary) => navigate(`${base}/a/${to.id}?state=${state}`, { replace: true });
+  const go = (to: EntrySummary, step: -1 | 1) =>
+    navigate(`${base}/a/${to.id}?state=${state}`, {
+      replace: true,
+      state: { step } satisfies StepState,
+    });
 
   async function step(dir: -1 | 1) {
     if (index < 0 || loadingMore) return;
@@ -98,7 +102,7 @@ export function ArticleRoute() {
       }
     }
     const target = all[index + dir];
-    if (target) go(target);
+    if (target) go(target, dir);
   }
 
   const hasPrev = index > 0;

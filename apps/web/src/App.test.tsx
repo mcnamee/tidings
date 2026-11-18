@@ -153,7 +153,8 @@ describe('routing placeholders (spec 11.1)', () => {
   it('Back on an article opened directly goes to its list', async () => {
     renderApp(['/feeds/s1/a/e1']);
     await userEvent.click(screen.getByRole('button', { name: 'Back' }));
-    expect(path()).toBe('/feeds/s1');
+    // The layer slides out first (TID-058).
+    await vi.waitFor(() => expect(path()).toBe('/feeds/s1'), { timeout: 1500 });
   });
 
   it('Back on Add a feed and Import goes one entry back when the app has history', async () => {
