@@ -264,7 +264,7 @@ describe('AC6: invalid and private addresses are reported, the rest imports', ()
 });
 
 describe('AC8: write cost of 250 imported feeds with 50 items each, then their first fetches', () => {
-  it('writes no more than 53,000 rows in total', async () => {
+  it('writes no more than 55,000 rows in total', async () => {
     // Count the import's own writes through D1's per-batch meta.
     let importRows = 0;
     const real = env.DB;
@@ -310,7 +310,7 @@ describe('AC8: write cost of 250 imported feeds with 50 items each, then their f
     const total = importRows + fetchRows;
     console.log(`TID-016 AC8: import ${importRows} + first fetches ${fetchRows} = ${total} rows`);
     expect(await count('entries')).toBe(250 * 50);
-    expect(total).toBeLessThanOrEqual(53_000);
+    expect(total).toBeLessThanOrEqual(55_000); // 53,000 before TID-021's ue_entry index (+1 per linked row);
   }, 180_000);
 });
 

@@ -317,11 +317,11 @@ describe('clock edges', () => {
 });
 
 describe('write budget (spec 9.4)', () => {
-  it('first fetch of a 50-item feed stores 50 entries but links 10: 201 rows, not the 81 in spec 9.8 (DEF-015)', async () => {
+  it('first fetch of a 50-item feed stores 50 entries but links 10: 211 rows, not the 81 in spec 9.8 (DEF-015)', async () => {
     const id = await seedFeed({ url: FEED_URL, lastSuccessAt: null, state: 'pending' });
     fx.fake.route(FEED_URL, { status: 200, body: rss(items(1, 50)) });
     const out = await refresh(id);
-    expect(out.usage.rowsWritten).toBe(50 * 3 + 10 * 5 + 1);
+    expect(out.usage.rowsWritten).toBe(50 * 3 + 10 * 6 + 1);
   });
 
   it('a realistic mix writes only what spec 9.4 predicts', async () => {
@@ -340,8 +340,8 @@ describe('write budget (spec 9.4)', () => {
     }
     let written = 0;
     for (const id of ids) written += (await refresh(id)).usage.rowsWritten;
-    // 20 unchanged (0), 5 failing (1 each), 5 changed with 2 new items (2x3 + 2x5 + 1 = 17).
-    expect(written).toBe(5 + 5 * 17);
+    // 20 unchanged (0), 5 failing (1 each), 5 changed with 2 new items (2x3 + 2x6 + 1 = 19).
+    expect(written).toBe(5 + 5 * 19);
   });
 
   it('a near-1 MiB feed with 50 large items still writes in one batch under 15 statements', async () => {

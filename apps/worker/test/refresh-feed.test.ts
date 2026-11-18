@@ -67,9 +67,9 @@ describe('success path (AC4) and write budget (spec 9.4, 9.5)', () => {
     });
     expect(row.body_hash).toMatch(/^[0-9a-f]{64}$/);
 
-    // AC4: rows_written <= 3 x 3 + 3 x 5 x subscribers + 1.
+    // AC4: rows_written <= 3 x 3 + 3 x 6 x subscribers + 1.
     const subscribers = 2;
-    expect(second.usage.rowsWritten).toBe(3 * 3 + 3 * 5 * subscribers + 1); // 40, unchanged by TID-046
+    expect(second.usage.rowsWritten).toBe(3 * 3 + 3 * 6 * subscribers + 1); // 46: 6 per user_entries since TID-021 (ue_entry)
     // Reads, measured (spec 9.5 budgets "<= 50 per changed fetch" for dedup): D1 counts every key
     // of an IN list (50) plus every hit (47), so dedup costs 97, not 47. Whole refresh: 121
     // (1 probe + 97 dedup + 3 insert checks + 18 link + 2 feed update). The bound is the worst case
@@ -82,12 +82,12 @@ describe('success path (AC4) and write budget (spec 9.4, 9.5)', () => {
     expect(second.usage.statements).toBeLessThanOrEqual(15);
   });
 
-  it('matches the per-event write numbers in spec 9.4 (entries 3, user_entries 5, state 1)', async () => {
+  it('matches the per-event write numbers in spec 9.4 (entries 3, user_entries 6, state 1)', async () => {
     const id = await seedFeed({ url: FEED_URL, subscribers: ['u1', 'u2', 'u3'] });
     fx.fake.serveFeed(FEED_URL, rss(items(1, 4)));
     const out = await refresh(id);
-    // 4 new entries x 3 rows, 4 x 3 subscribers x 5 rows, 1 feeds update.
-    expect(out.usage.rowsWritten).toBe(4 * 3 + 4 * 3 * 5 + 1);
+    // 4 new entries x 3 rows, 4 x 3 subscribers x 6 rows, 1 feeds update.
+    expect(out.usage.rowsWritten).toBe(4 * 3 + 4 * 3 * 6 + 1);
   });
 
   it('a feed with 50 items stays at or under 15 statements', async () => {

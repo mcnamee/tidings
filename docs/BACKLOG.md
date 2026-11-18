@@ -626,7 +626,7 @@ Known risks: (a) a Worker fetching another workers.dev Worker on the same accoun
 5. Given I import the same file again, then `created = 0`, no folders are duplicated, and `existing` equals the number of feeds.
 6. Given an OPML file with an invalid URL and a private-address URL, then they're reported as `invalid_url` and `blocked_address` and the rest import.
 7. Given a malformed (non-XML) file, then the UI shows an error and sends nothing.
-8. *(Corrected 2026-11-17, DEF-015, ADR 0013.)* Given the import's write cost, then a 250-feed import (every fixture feed serving 50 items) followed by first fetches writes ≤ 53,000 rows in total, about 209 per feed (integration test with fixtures summing `rows_written`; the test prints the actual total).
+8. *(Corrected 2026-11-17, DEF-015, ADR 0013.)* Given the import's write cost, then a 250-feed import (every fixture feed serving 50 items) followed by first fetches writes ≤ 55,000 rows in total (53,000 before the TID-021 `ue_entry` index), about 220 per feed (integration test with fixtures summing `rows_written`; the test prints the actual total).
 9. *(Added 2026-11-17, ADR 0013 decision 5.)* Given 250 new feeds already have a first fetch scheduled from imports in the current UTC day, when another import creates more new feeds, then those are scheduled from 00:05 UTC the next day (staggered at 20 a minute), the response's `deferred` counts them (spec §8.7), and the import screen says how many feeds will start fetching tomorrow (UX copy). Given a 300-feed import, then 250 are scheduled today and `deferred = 50`.
 
 ---

@@ -21,6 +21,18 @@ Entry template:
 
 ## Open
 
+### DEF-110: Maintenance deleted the daily email-send counter after an hour, so the "10 emails a day" cap became 10 an hour
+
+- Story: TID-021 (step 6, rate-limit housekeeping), with TID-053 / ADR 0016
+- Severity: S2. Owner: SE.
+- Status: Fixed by the tester (one constant, TID-021 branch), awaiting SE/PM sign-off.
+- Found by: `maintenance-adversarial.test.ts` > "DEF-110: ... the daily email-send cap (86,400 s window) is not reset by an hourly run".
+- Steps to reproduce: take 10 slots of `email:send:<day>` (window 86,400 s), run maintenance five hours later, take another slot.
+- Expected: still refused; the window is 5 hours old.
+- Actual: `RATE_LIMIT_MAX_WINDOW_S` was 3,600 on the assumption that auth windows are at most an hour. `email-signin.ts` uses 86,400, so the row was deleted and the counter restarted: up to 240 emails a day (and Resend quota use) instead of 10.
+- Fix: `RATE_LIMIT_MAX_WINDOW_S = 86_400` (spec 7.6 text and the AC6 boundary test updated). Cost: other rate-limit rows live 24 hours instead of 1, a few hundred tiny rows at most.
+- Note: the constant must be raised again if a longer window is ever added.
+
 ### DEF-090: Intermittent E2E failures under load (toast offset at 200% text, offline banner in the shell console test)
 
 - Story: TID-038 (E2E harness stability). Severity: S4 (test flakiness, not a product defect). Owner: QA.

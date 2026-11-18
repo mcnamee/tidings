@@ -26,8 +26,11 @@ const SPEC_INDEXES = [
   'subscriptions_feed',
   'subscriptions_user_folder',
   'entries_published',
+  'entries_tombstones',
   'ue_all',
+  'ue_entry',
   'ue_feed',
+  'ue_read_old',
   'ue_unread_all',
   'ue_unread_feed',
 ];

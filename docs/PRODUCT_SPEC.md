@@ -445,7 +445,8 @@ CREATE TABLE entries (
   purged_at     INTEGER,                      -- content removed; row kept as dedup tombstone
   UNIQUE (feed_id, guid_hash)
 );
-CREATE INDEX entries_published ON entries(published_at);           -- cleanup scans
+CREATE INDEX entries_published ON entries(published_at) WHERE purged_at IS NULL;  -- purge scans (0005)
+CREATE INDEX entries_tombstones ON entries(purged_at) WHERE purged_at IS NOT NULL; -- tombstone expiry (0005)
 
 -- ── Per-user article state ───────────────────────────────────
 CREATE TABLE user_entries (
@@ -462,6 +463,8 @@ CREATE INDEX ue_all        ON user_entries(user_id, published_at DESC, entry_id 
 CREATE INDEX ue_feed       ON user_entries(user_id, feed_id, published_at DESC, entry_id DESC);
 CREATE INDEX ue_unread_all ON user_entries(user_id, published_at DESC, entry_id DESC) WHERE is_read = 0;
 CREATE INDEX ue_unread_feed ON user_entries(user_id, feed_id, published_at DESC, entry_id DESC) WHERE is_read = 0;
+CREATE INDEX ue_entry      ON user_entries(entry_id);                                  -- FK cascade, "unreferenced" check (0005)
+CREATE INDEX ue_read_old   ON user_entries(published_at) WHERE is_read = 1 AND is_starred = 0; -- 30-day retention (0005)
 ```
 
 Every index costs one extra row written per insert (and per update that touches its columns). The four `user_entries` indexes are the minimum for the four list queries (All/Feed × all/unread); partial indexes mean marking read *removes* rows from the unread indexes rather than rewriting them. Starred indexes are added in M2.
@@ -581,15 +584,17 @@ If the feed row already exists and `last_success_at` is within 30 minutes, no fe
 
 ### 7.6 Maintenance (cron `17 * * * *`, hourly)
 
-Each run does bounded chunks (≤ 500 rows per statement, ≤ 10 statements per run) so a single invocation stays within CPU and query limits; leftovers are handled next hour.
+Every step is one self-contained, atomic statement of at most 500 rows (`CHUNK`), so a run is idempotent, safe next to refresh, and catches up over later runs. The retention steps (1 to 5) share a budget of **10 statements per run**, spent in order (an empty probe also costs one, so a deep backlog in step 1 delays step 3 to the next run). The four housekeeping deletes in step 6 are one statement each and sit outside that budget. A failed step is counted and does not stop the others. Each run logs one counts-only JSON line (`event: "maintenance"`, per-step counts, statements, `rowsRead`, `rowsWritten`, `errors`).
 
-1. Delete `user_entries` where `is_read = 1 AND is_starred = 0 AND published_at < now − 30 d`.
-2. Delete `user_entries` where `is_read = 0 AND is_starred = 0 AND published_at < now − 90 d`.
-3. Purge content (`content_html = NULL, summary = NULL, purged_at = now`) of entries older than 30 days that no `user_entries` row references.
-4. Delete tombstones (`purged_at IS NOT NULL AND published_at < now − 180 d`).
-5. Delete feeds with no subscriptions for 7 days (and their entries via cascade, in chunks).
-6. Delete expired `sessions`, `webauthn_challenges`, stale `rate_limits` windows.
-7. Once a day (the 03:17 UTC run): record DB size (`PRAGMA page_count × page_size`) and yesterday's counts to the log so the owner can watch the budget.
+1. Delete `user_entries` where `is_read = 1 AND is_starred = 0 AND published_at < now − 30 d` (index `ue_read_old`), `RETURNING entry_id`.
+2. Delete `user_entries` where `is_read = 0 AND is_starred = 0 AND published_at < now − 90 d` (index `ue_unread_all`, probed per user), `RETURNING entry_id`.
+3. Purge content (`content_html = NULL, summary = NULL, purged_at = now`) of entries older than 30 days that no `user_entries` row references. Each statement re-checks "unreferenced", so a row a refresh links meanwhile is safe. Three triggers: (a) the entries that steps 1 and 2 just released (reads proportional to deletions); (b) the oldest 500 purge candidates every run, so an orphan is found at once in a small database; (c) on the 03:17 UTC run, every candidate, for orphans behind the window (unsubscribed feeds, items beyond the first-fetch link limit). Scanning all candidates hourly would cost 2 rows read per old-but-still-referenced entry per hour.
+4. Delete tombstones where `purged_at < now − 180 d`. **Measured from the purge, not from `published_at`** (§6.3 says "kept for 180 days"): with `published_at` an item purged at 31 days and still in the feed would lose its tombstone within a day of a 211-day-old post and come back unread.
+5. Delete feeds with no subscriptions whose `COALESCE(last_attempt_at, created_at)` is over 7 days old: pick up to 20 per run, delete their entries in chunks (cascades to `user_entries` through `ue_entry`), then the empty feed rows. Both statements re-check "no subscriptions".
+6. Housekeeping, one statement each: expired `sessions` (`expires_at` or `absolute_expires_at` passed), `webauthn_challenges` of every purpose past `expires_at`, `rate_limits` windows older than 86,400 s (the longest window in use, the daily email-send cap; DEF-110), `magic_links` that are expired or used (ADR 0016).
+7. The 03:17 UTC run also logs `daily: { dbSizeBytes, entriesPublishedYesterday }`. D1 reports its size on every result (`meta.size_after`), so no `PRAGMA` is needed. Per-step deletion counts are in each hourly line; no counts are stored in D1 (that would cost rows written).
+
+Migration `0005_maintenance_indexes.sql` (TID-021): `ue_read_old`, `ue_entry`, `entries_tombstones`, and `entries_published` made partial (`WHERE purged_at IS NULL`). Costs are in §9.4 and §9.5.
 
 SQLite `DELETE … LIMIT` isn't available by default, so chunked deletes use `WHERE rowid IN (SELECT rowid … LIMIT 500)` (or the primary key for `WITHOUT ROWID` tables).
 
@@ -821,13 +826,13 @@ Ceiling: one dispatcher leasing a full batch every minute is 1,440 × (1 + 20) =
 | Dispatcher lease (1 per fetch; `next_fetch_at` not indexed, so no index write) | 1 | 12,000 | 21,600 |
 | Refresh state write (changed content or error; none on unchanged 304) | 1 | 2,400 | 4,320 |
 | New `entries` (row + unique + `entries_published`) | 3 | 1,200 | 2,400 |
-| New `user_entries` per subscriber (row + 4 indexes) | 5 | 2,000 | 12,000 |
-| Individual mark read (row + 2 partial-index removals) | 3 | 900 | 2,700 |
-| Bulk mark read | 3 | 3,000 | 9,000 |
-| Cleanup (user_entries delete ×5, entry purge ×1, tombstone delete ×3) | – | 3,600 | 15,200 |
+| New `user_entries` per subscriber (row + 4 indexes + `ue_entry`; `ue_read_old` only when it starts read, TID-021) | 6 | 2,400 | 14,400 |
+| Individual mark read (row + 2 partial-index removals + `ue_read_old` insert) | 4 | 1,200 | 3,600 |
+| Bulk mark read (same, 4) | 4 | 4,000 | 12,000 |
+| Cleanup (user_entries delete ×6 incl. `ue_entry` and `ue_read_old`, entry purge ×3 incl. index move, tombstone delete ×3) | – | 5,000 | 18,000 |
 | Sessions, settings, auth | – | 50 | 150 |
 | Email sign-in (TID-053): ≈ 10 rows per sign-in, ≤ 10 emails/day cap; abuse bounded at 100 requests/hour ≈ 7,200 rows/day worst case (ADR 0016) | ≈ 10 | 10 to 100 | 10 to 100 |
-| **Total** | | **≈ 25,000 (25%)** | **≈ 67,000 (67%)** |
+| **Total** | | **≈ 28,000 (28%)** | **≈ 75,000 (75%)** |
 
 **Why `feeds.next_fetch_at` has no index.** An index would add one write per lease (+12,000/day in A, +12% of the write quota). Without it the dispatcher scans the feeds table each minute: 250 rows × 1,440 = 360,000 reads/day (7% of the read quota). Writes are the scarcer resource, so we scan. Revisit above ~1,000 feeds.
 
@@ -841,8 +846,8 @@ Ceiling: one dispatcher leasing a full batch every minute is 1,440 × (1 + 20) =
 | Unread counts (200 calls × 1,000 unread rows per user) | 200,000 | 600,000 |
 | List pages (150 × ~150 rows) + folder pages (50 × ~3,000 rows) per user (folder ceiling and worst case 12,100 rows/page: ADR 0008) | 172,500 | 517,500 |
 | Session lookups, misc | 5,000 | 15,000 |
-| Cleanup (indexed) | 10,000 | 30,000 |
-| **Total** | **≈ 980,000 (20%)** | **≈ 2,010,000 (40%)** |
+| Cleanup (TID-021: hourly window scan ≈ 1,000 × 24, dead-feed probe ≈ 250 × 24, ≈ 11 per released row) | 35,000 | 60,000 |
+| **Total** | **≈ 1,005,000 (20%)** | **≈ 2,040,000 (41%)** |
 
 Updated 2026-11-17 from TID-012's measurements (ADR 0013). A 304 or an identical body reads 1 row and writes none.
 
