@@ -51,7 +51,8 @@ test.beforeEach(() => {
 });
 test.afterAll(() => clearListData());
 
-test.beforeEach((_fixtures, testInfo) => {
+// eslint-disable-next-line no-empty-pattern
+test.beforeEach(({}, testInfo) => {
   test.skip(!testInfo.project.name.startsWith('desktop'), 'desktop layout only');
 });
 
