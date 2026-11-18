@@ -14,6 +14,7 @@ import { useQueryClient } from '@tanstack/react-query';
 import { setUnauthenticatedHandler } from './api';
 import { EmailSignIn } from './auth/EmailLink';
 import { Login } from './auth/Login';
+import { Recover } from './auth/Recover';
 import { ArticleList } from './lists/ArticleList';
 import { ArticleRoute } from './reader/ArticleView';
 import { AddFeed } from './manage/AddFeed';
@@ -21,14 +22,12 @@ import { ImportOpml } from './manage/ImportOpml';
 import { Manage } from './manage/Manage';
 import { useFolders, useSubscriptions } from './lib/queries';
 import { Setup } from './auth/Setup';
-import { BannerSlot } from './auth/ui';
 import { readLastList } from './lib/lastList';
 import { SESSION_KEY, SIGNED_OUT, useSession } from './lib/session';
 import { hasSignedInHint } from './lib/signedInHint';
 import { isExplicitSignOut, signOut } from './lib/signOut';
 import { AppShell } from './shell/AppShell';
 import { AuthLayout } from './shell/AuthLayout';
-import { useDocumentTitle } from './shell/useDocumentTitle';
 import { Toasts } from './shell/Toasts';
 import { splashAppReady } from './splash';
 import { ROUTES } from './routes/table';
@@ -45,31 +44,6 @@ function NotFound() {
       <Link to="/all" className="mt-2 inline-flex min-h-11 items-center text-accent underline">
         Go to All articles
       </Link>
-    </div>
-  );
-}
-
-/** /recover arrives with TID-009. Until then it shows its title only. */
-function AuthPlaceholder({ title }: { title: string }) {
-  useDocumentTitle(title);
-  const session = useSession();
-  const location = useLocation();
-  if (session.data?.user) return <Navigate to={readLastList()} replace />;
-  const notice =
-    (location.state as { notice?: string } | null)?.notice === 'already-set-up'
-      ? {
-          tone: 'info' as const,
-          live: 'status' as const,
-          text: 'This Tidings is already set up. Sign in instead.',
-        }
-      : null;
-  return (
-    <div>
-      <h1 className="text-xl font-semibold text-fg">{title}</h1>
-      <div className="mt-3">
-        <BannerSlot banner={notice} />
-        <Placeholder />
-      </div>
     </div>
   );
 }
@@ -243,10 +217,6 @@ function screenFor(path: string) {
   return <Placeholder />;
 }
 
-const authRoutes = ROUTES.filter(
-  (r) =>
-    r.kind === 'auth' && r.path !== '/setup' && r.path !== '/login' && r.path !== '/login/email',
-);
 const shellRoutes = ROUTES.filter((r) => r.kind !== 'auth' && r.kind !== 'article');
 
 export function App() {
@@ -274,9 +244,7 @@ export function App() {
           <Route path="/setup" element={<Setup />} />
           <Route path="/login" element={<Login />} />
           <Route path="/login/email" element={<EmailSignIn />} />
-          {authRoutes.map((r) => (
-            <Route key={r.path} path={r.path} element={<AuthPlaceholder title={r.title} />} />
-          ))}
+          <Route path="/recover" element={<Recover />} />
         </Route>
         <Route element={<RequireAuth />}>
           <Route element={<AppShell />}>

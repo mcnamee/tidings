@@ -1,10 +1,18 @@
 import { Hono, type Context } from 'hono';
 import { deleteCookie, getCookie } from 'hono/cookie';
 import type { ZodType } from 'zod';
-import type { ApiError, LoginVerifyResponse, SetupVerifyResponse } from '@tidings/shared';
+import type {
+  ApiError,
+  LoginVerifyResponse,
+  RecoverResponse,
+  SetupVerifyResponse,
+} from '@tidings/shared';
 import {
   loginOptionsRequestSchema,
   loginVerifyRequestSchema,
+  passkeyOptionsRequestSchema,
+  passkeyVerifyRequestSchema,
+  recoverRequestSchema,
   setupOptionsRequestSchema,
   setupVerifyRequestSchema,
 } from '@tidings/shared/schemas';
@@ -21,6 +29,8 @@ import { clearSessionCookie, setSecureCookie, setSessionCookie } from './cookies
 import { randomToken } from './crypto';
 import { emailSignInEnabled } from './email-signin';
 import { completeLogin, findLoginCandidate } from './login';
+import { insertPasskey, passkeyIdsFor, storeAddPasskeyChallenge } from './passkeys';
+import { recoverWithCode } from './recover';
 import { consumeRateLimits, refundRateLimits, type RateRule, type RateTicket } from './rate-limit';
 import {
   anyUserExists,
@@ -62,6 +72,14 @@ function setupRules(c: Ctx): RateRule[] {
  */
 function loginRules(c: Ctx, step: 'options' | 'verify'): RateRule[] {
   return [{ key: `login:${step}:ip:${clientIp(c)}`, limit: 10, windowSeconds: 600 }];
+}
+
+/** Spec 8.3 / 10.7: 10 per IP per 10 minutes and 30 per hour overall for `recover`; failures only. */
+function recoverRules(c: Ctx): RateRule[] {
+  return [
+    { key: `recover:ip:${clientIp(c)}`, limit: 10, windowSeconds: 600 },
+    { key: 'recover:global', limit: 30, windowSeconds: 3600 },
+  ];
 }
 
 function rateLimited(c: Ctx, retryAfterSeconds: number): Response {
@@ -273,6 +291,88 @@ export function createAuthRoutes(deps?: Partial<AuthDeps>): Hono<AppEnv> {
     await refundRateLimits(db, limit.tickets);
     const response: LoginVerifyResponse = { user: candidate.user };
     return c.json(response);
+  });
+
+  /**
+   * Sign in with a recovery code (TID-009). A slot is claimed on arrival and handed back only
+   * when a code is accepted, so the limits count failed attempts (spec 10.7). The code is never
+   * logged.
+   */
+  auth.post('/recover', async (c) => {
+    const db = new Db(c.env.DB);
+    const limit = await consumeRateLimits(db, recoverRules(c), clock);
+    if (!limit.allowed) return rateLimited(c, limit.retryAfterSeconds);
+    const body = await parseBody(c, recoverRequestSchema);
+    if (body instanceof Response) return body;
+
+    const done = await recoverWithCode(
+      db,
+      { code: body.code, userAgent: c.req.header('User-Agent') ?? null },
+      clock,
+    );
+    if (!done) return fail(c, 401, 'invalid_recovery_code', 'That code did not work');
+
+    setSessionCookie(c, done.sessionToken, SESSION_TTL_SECONDS);
+    await refundRateLimits(db, limit.tickets);
+    const response: RecoverResponse = {
+      user: done.user,
+      mustAddPasskey: true,
+      recoveryCodesRemaining: done.remaining,
+    };
+    return c.json(response);
+  });
+
+  /**
+   * Add a passkey to the signed-in account (spec 8.3). Needed right after a recovery sign-in
+   * (ADR 0010), and reused by the Settings screen. The guard has already refused `email` sessions.
+   */
+  auth.post('/passkeys/options', async (c) => {
+    const db = new Db(c.env.DB);
+    const { user } = c.get('session');
+    const body = await parseBody(c, passkeyOptionsRequestSchema);
+    if (body instanceof Response) return body;
+
+    const options = await webauthn.registrationOptions({
+      ...relyingParty(c),
+      userId: user.id,
+      userName: user.displayName,
+      displayName: user.displayName,
+      excludeCredentialIds: await passkeyIdsFor(db, user.id),
+    });
+    const challengeId = randomToken(32);
+    await storeAddPasskeyChallenge(
+      db,
+      { id: challengeId, userId: user.id, challenge: options.challenge },
+      clock,
+    );
+    setSecureCookie(c, CHALLENGE_COOKIE, challengeId, 'Strict', CHALLENGE_TTL_SECONDS);
+    return c.json(options);
+  });
+
+  auth.post('/passkeys/verify', async (c) => {
+    const db = new Db(c.env.DB);
+    const { user } = c.get('session');
+    const body = await parseBody(c, passkeyVerifyRequestSchema);
+    if (body instanceof Response) return body;
+
+    const refuse = () => fail(c, 401, 'webauthn_failed', 'Passkey could not be verified');
+    const challengeId = getCookie(c, CHALLENGE_COOKIE);
+    deleteCookie(c, CHALLENGE_COOKIE, { path: '/', secure: true });
+    const challenge = challengeId
+      ? await consumeChallenge(db, challengeId, 'add_passkey', clock)
+      : null;
+    // A challenge issued to another user can never complete this one's registration.
+    if (!challenge || challenge.pendingUserId !== user.id) return refuse();
+
+    const passkey = await webauthn.verifyRegistration(
+      relyingParty(c),
+      body.response,
+      challenge.challenge,
+    );
+    if (!passkey) return refuse();
+    const created = await insertPasskey(db, { userId: user.id, passkey, name: body.name }, clock);
+    if (!created) return fail(c, 409, 'conflict', 'That passkey is already registered');
+    return c.json(created, 201);
   });
 
   /** Ends this session only. The guard has already proved the session is the caller's own. */

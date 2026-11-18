@@ -56,6 +56,8 @@ export interface SessionResponse {
   user: User | null;
   setupRequired: boolean;
   mustAddPasskey: boolean;
+  /** TID-009: unused recovery codes left. Present only on a recovery-code session (it feeds the banner). */
+  recoveryCodesRemaining?: number;
   /** TID-053: true when emailed sign-in links are configured and usable (ADR 0016). */
   emailSignIn: boolean;
 }
@@ -149,6 +151,34 @@ export interface LoginVerifyRequest {
 
 export interface LoginVerifyResponse {
   user: User;
+}
+
+// ── Recover (spec 8.3, TID-009) ────────────────────────────────
+
+/** The code as typed; the server normalises it (spec 10.1). */
+export interface RecoverRequest {
+  code: string;
+}
+
+export interface RecoverResponse {
+  user: User;
+  mustAddPasskey: true;
+  /** Unused codes left after this one was burned. */
+  recoveryCodesRemaining: number;
+}
+
+// ── Add a passkey to a signed-in account (spec 8.3, TID-009) ───
+
+export interface PasskeyVerifyRequest {
+  response: RegistrationResponse;
+  name: string;
+}
+
+export interface Passkey {
+  id: string;
+  name: string;
+  createdAt: number;
+  lastUsedAt: number | null;
 }
 
 // ── Folders and subscriptions (spec 8.2, 8.4) ──────────────────

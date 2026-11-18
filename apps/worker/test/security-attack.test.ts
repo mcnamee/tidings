@@ -497,8 +497,8 @@ describe('unauthenticated requests create nothing', () => {
 });
 
 describe('public GET routes answer HEAD', () => {
-  // DEF-018 is open: it.fails passes while HEAD is 401 and errors once it is fixed.
-  it.fails('HEAD /api/health is answered like GET (uptime monitors use HEAD)', async () => {
+  // DEF-018, fixed in TID-009 AC6.
+  it('HEAD /api/health is answered like GET (uptime monitors use HEAD)', async () => {
     const res = await raw('/api/health', { method: 'HEAD' });
     expect(res.status).toBe(200);
   });

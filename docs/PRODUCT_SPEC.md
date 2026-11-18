@@ -657,19 +657,19 @@ type Passkey = { id: string; name: string; createdAt: string; lastUsedAt: string
 
 | Method & path | Auth | Request | Response |
 |---|---|---|---|
-| `GET /api/auth/session` | Public | – | `200 { user: User \| null, setupRequired: boolean, mustAddPasskey: boolean, emailSignIn: boolean }`. `emailSignIn` is true only when FR-AU-9 is configured (TID-053). `mustAddPasskey` is true only when this session signed in with a recovery code and the user has no passkey created since the session began (ADR 0010). |
+| `GET /api/auth/session` | Public | – | `200 { user: User \| null, setupRequired: boolean, mustAddPasskey: boolean, emailSignIn: boolean }`. `emailSignIn` is true only when FR-AU-9 is configured (TID-053). `mustAddPasskey` is true only when this session signed in with a recovery code and the user has no passkey created since the session began (ADR 0010). `recoveryCodesRemaining` (unused codes) is present only on a recovery-code session, for the "Add a new passkey" banner (TID-009). |
 | `POST /api/auth/setup/options` | Public, rate-limited | `{ setupToken: string, displayName: string (1–64) }` | `200 PublicKeyCredentialCreationOptionsJSON`; sets challenge cookie. `409 setup_unavailable` if a user exists; `403 invalid_setup_token`. |
 | `POST /api/auth/setup/verify` | Public, rate-limited | `{ setupToken, displayName, response: RegistrationResponseJSON, passkeyName?: string }` (`passkeyName` is a best-effort client label. The server trims it, caps it at 64 characters, defaults it to "Passkey", and never rejects setup over it.) | `201 { user: User, recoveryCodes: string[10] }`; sets session cookie. |
 | `POST /api/auth/login/options` | Public, rate-limited | `{}` | `200 PublicKeyCredentialRequestOptionsJSON` (empty `allowCredentials`, `userVerification: 'required'`); sets challenge cookie. |
 | `POST /api/auth/login/verify` | Public, rate-limited | `{ response: AuthenticationResponseJSON }` | `200 { user: User }`; sets session cookie; `401 webauthn_failed`. |
-| `POST /api/auth/recover` | Public, rate-limited | `{ code: string }` (as typed; the server normalises it, §10.1) | `200 { user: User, mustAddPasskey: true }`; sets session cookie; `401 invalid_recovery_code`. |
+| `POST /api/auth/recover` | Public, rate-limited | `{ code: string }` (as typed; the server normalises it, §10.1) | `200 { user: User, mustAddPasskey: true, recoveryCodesRemaining: number }`; sets session cookie, `auth_method = 'recovery'`; `401 invalid_recovery_code` (the same for wrong, used and malformed codes); `429 rate_limited` (failures only: a successful sign-in is refunded). Built in TID-009. |
 | `POST /api/auth/email/request` | Public, rate-limited | `{ email: string (1–254) }` | `202 {}` whether or not the address matches; the email is sent after the response (`ctx.waitUntil`). `400 validation_failed`; `404 not_found` when FR-AU-9 isn't configured (TID-053, ADR 0016). |
 | `POST /api/auth/email/verify` | Public, rate-limited | `{ token: string }` (from the link's `#token=` fragment) | `200 { user: User }`; sets session cookie, `auth_method = 'email'`; `401 invalid_link` (unknown, used, superseded or expired); `404 not_found` when not configured. |
 | `POST /api/auth/logout` | Session | `{}` | `204`; clears cookie. |
 | `POST /api/auth/logout-all` | Session | `{}` | `204`; deletes all the user's sessions. |
 | `GET /api/auth/passkeys` | Session | – | `200 { items: Passkey[] }` |
 | `POST /api/auth/passkeys/options` | Session | `{}` | `200 PublicKeyCredentialCreationOptionsJSON` (`excludeCredentials` = existing) |
-| `POST /api/auth/passkeys/verify` | Session | `{ response: RegistrationResponseJSON, name: string (1–64) }` | `201 Passkey` |
+| `POST /api/auth/passkeys/verify` | Session | `{ response: RegistrationResponseJSON, name: string (1–64) }` | `201 Passkey`; `401 webauthn_failed`; `409 conflict` if that credential is already registered. Built in TID-009 (the recovery banner uses it; TID-022 adds the Settings list). |
 | `PATCH /api/auth/passkeys/:id` | Session | `{ name }` | `200 Passkey` |
 | `DELETE /api/auth/passkeys/:id` | Session | – | `204`; `409 last_passkey` |
 | `POST /api/auth/recovery-codes` | Session + `authenticated_at` within 15 min, not an `email` session | `{}` | `200 { recoveryCodes: string[10] }`; `403 reauth_required` |
