@@ -1,3 +1,4 @@
+import { Lockup } from './Logo';
 import { useState } from 'react';
 import { Outlet, useOutletContext } from 'react-router';
 
@@ -27,7 +28,7 @@ export function AuthLayout() {
         className={`flex w-full flex-col items-center ${wide ? '' : 'md:my-auto'}`}
         data-testid="auth-main"
       >
-        <span className="text-xl font-semibold text-fg">Tidings</span>
+        <Lockup size="lg" />
         <div
           className={`mt-6 w-full max-w-sm rounded-md border border-line bg-surface p-6 ${
             wide ? 'md:max-w-md' : ''

@@ -1,3 +1,4 @@
+import { Lockup } from './Logo';
 import { useEffect, useRef } from 'react';
 import { X } from 'lucide-react';
 import { FeedNav } from './FeedNav';
@@ -62,7 +63,7 @@ export function Drawer({ onClose }: { onClose: () => void }) {
         className="drawer-panel absolute inset-y-0 left-0 flex w-[min(86vw,20rem)] flex-col border-r border-line bg-raised pb-0 pl-[env(safe-area-inset-left)] pt-[env(safe-area-inset-top)] shadow-raised"
       >
         <div className="flex min-h-14 items-center justify-between pl-4 pr-1">
-          <span className="text-lg font-semibold text-fg">Tidings</span>
+          <Lockup />
           <button
             ref={closeButton}
             type="button"

@@ -79,7 +79,7 @@ export function Toasts({ store = toastStore }: { store?: ToastStore }) {
     <section
       id="toasts"
       aria-label="Notifications"
-      className="pointer-events-none fixed inset-x-0 bottom-[calc(var(--bottom-offset,0px)+env(safe-area-inset-bottom)+0.75rem)] z-40 px-4 lg:left-72"
+      className="pointer-events-none fixed inset-x-0 bottom-[calc(var(--bottom-offset,0px)+env(safe-area-inset-bottom)+0.75rem)] z-40 pl-[max(1rem,env(safe-area-inset-left))] pr-[max(1rem,env(safe-area-inset-right))] lg:left-72"
     >
       <div role="status" aria-live="polite">
         {current && !isError && <ToastCard key={current.id} item={current} store={store} />}
