@@ -6,6 +6,7 @@ import { DESKTOP_QUERY, useMediaQuery } from '../lib/hooks';
 import { saveLastList } from '../lib/lastList';
 import { useCounts } from '../lib/queries';
 import { findRoute } from '../routes/table';
+import { Lockup } from './Logo';
 import { Drawer } from './Drawer';
 import { FeedNav } from './FeedNav';
 import { ShellSlotsContext } from './slots';
@@ -133,7 +134,7 @@ export function AppShell() {
           {isDesktop && (
             <aside className="sticky top-0 flex h-dvh w-72 shrink-0 flex-col border-r border-line bg-surface">
               <div className="flex min-h-14 items-center px-4">
-                <span className="text-lg font-semibold text-fg">Tidings</span>
+                <Lockup />
               </div>
               <FeedNav />
             </aside>
