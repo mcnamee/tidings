@@ -138,6 +138,14 @@ export async function deleteSession(db: Db, userId: string, idHash: string): Pro
   await db.run(sql('DELETE FROM sessions WHERE id_hash = ? AND user_id = ?', idHash, userId));
 }
 
+/** Unused recovery codes (indexed by `recovery_codes_user`). */
+export async function countUnusedRecoveryCodes(db: Db, userId: string): Promise<number> {
+  const row = await db.first<{ n: number }>(
+    sql('SELECT COUNT(*) AS n FROM recovery_codes WHERE user_id = ? AND used_at IS NULL', userId),
+  );
+  return row?.n ?? 0;
+}
+
 /** `GET /api/auth/session` for an already resolved (or absent) session. */
 export async function describeSession(
   db: Db,
@@ -145,9 +153,8 @@ export async function describeSession(
   emailSignIn = false,
 ): Promise<SessionResponse> {
   if (session) {
-    let mustAddPasskey = false;
     if (session.authMethod === 'recovery') {
-      // ADR 0010: one indexed read, only for recovery sessions.
+      // ADR 0010: two indexed reads (no writes), only for recovery sessions.
       const added = await db.first<{ one: number }>(
         sql(
           'SELECT 1 AS one FROM passkeys WHERE user_id = ? AND created_at >= ? LIMIT 1',
@@ -155,9 +162,15 @@ export async function describeSession(
           session.sessionCreatedAt,
         ),
       );
-      mustAddPasskey = added === null;
+      return {
+        user: session.user,
+        setupRequired: false,
+        mustAddPasskey: added === null,
+        recoveryCodesRemaining: await countUnusedRecoveryCodes(db, session.user.id),
+        emailSignIn,
+      };
     }
-    return { user: session.user, setupRequired: false, mustAddPasskey, emailSignIn };
+    return { user: session.user, setupRequired: false, mustAddPasskey: false, emailSignIn };
   }
   return {
     user: null,

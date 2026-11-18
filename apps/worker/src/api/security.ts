@@ -20,10 +20,11 @@ export interface ApiRateLimiter {
 /**
  * Spec 8.1 and 8.3: the routes that need no session. Everything else under `/api` requires one,
  * *including paths no handler exists for*, so a route added later is protected by default and
- * cannot be made public by forgetting to register a guard. `recover` belongs to TID-009.
+ * cannot be made public by forgetting to register a guard.
  */
 const PUBLIC_ROUTES: ReadonlySet<string> = new Set([
   'GET /api/health',
+  'HEAD /api/health',
   'GET /api/auth/session',
   'POST /api/auth/setup/options',
   'POST /api/auth/setup/verify',

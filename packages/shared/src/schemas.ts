@@ -3,6 +3,7 @@ import {
   DISPLAY_NAME_MAX,
   FOLDER_NAME_MAX,
   IMPORT_CHUNK_SIZE,
+  PASSKEY_NAME_MAX,
   READ_STATE_MAX_IDS,
   SUBSCRIPTION_TITLE_MAX,
 } from './index';
@@ -62,6 +63,17 @@ export const authenticationResponseSchema = z.looseObject({
 
 export const loginVerifyRequestSchema = z.object({
   response: authenticationResponseSchema,
+});
+
+/** `POST /api/auth/recover`. Any string is accepted (up to a cap) so a wrong code and a malformed one are answered alike. */
+export const recoverRequestSchema = z.object({ code: z.string().max(256) });
+
+/** `POST /api/auth/passkeys/options` takes `{}`. */
+export const passkeyOptionsRequestSchema = z.looseObject({});
+
+export const passkeyVerifyRequestSchema = z.object({
+  response: registrationResponseSchema,
+  name: z.string().trim().min(1).max(PASSKEY_NAME_MAX),
 });
 
 /** `POST /api/subscriptions` (spec 8.4). A blank title means "no custom title". */

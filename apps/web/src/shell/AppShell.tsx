@@ -12,6 +12,7 @@ import { Lockup } from './Logo';
 import { FeedNav } from './FeedNav';
 import { LayerContext, ShellSlotsContext } from './slots';
 import { OfflineBanner } from './OfflineBanner';
+import { PasskeyBanner } from './PasskeyBanner';
 import { useDocumentTitle } from './useDocumentTitle';
 import { useRouteTitle } from './useRouteTitle';
 
@@ -235,6 +236,7 @@ export function AppShell() {
                 className="flex-1 py-4 pb-[max(1rem,env(safe-area-inset-bottom))] pl-[max(1rem,env(safe-area-inset-left))] pr-[max(1rem,env(safe-area-inset-right))]"
               >
                 <div className="mx-auto max-w-2xl">
+                  <PasskeyBanner />
                   <Outlet />
                 </div>
               </main>

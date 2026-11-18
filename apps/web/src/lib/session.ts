@@ -31,12 +31,18 @@ export function useSession() {
 }
 
 /** After a successful sign-in: publish the user and remember this device has had a session. */
-export function publishSignedIn(client: QueryClient, user: NonNullable<SessionResponse['user']>) {
+export function publishSignedIn(
+  client: QueryClient,
+  user: NonNullable<SessionResponse['user']>,
+  extra: Pick<SessionResponse, 'mustAddPasskey' | 'recoveryCodesRemaining'> = {
+    mustAddPasskey: false,
+  },
+) {
   markSignedIn();
   client.setQueryData<SessionResponse>(SESSION_KEY, {
     user,
     setupRequired: false,
-    mustAddPasskey: false,
     emailSignIn: false,
+    ...extra,
   });
 }

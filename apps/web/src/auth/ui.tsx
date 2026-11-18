@@ -138,7 +138,7 @@ export function TextField({
           aria-describedby={error ? `${helperId} ${errorId}` : helperId}
           className={`block min-h-12 w-full rounded-md bg-sunken px-3 text-base text-fg read-only:opacity-80 ${
             error ? 'border-2 border-danger' : 'border border-line-strong'
-          } ${trailing ? 'pr-14' : ''}`}
+          } ${trailing ? 'pr-14' : ''} ${inputProps.className ?? ''}`}
         />
         {trailing && <div className="absolute inset-y-0 right-0 flex items-center">{trailing}</div>}
       </div>

@@ -30,6 +30,8 @@ export interface RegistrationOptionsInput extends RelyingParty {
   userId: string;
   userName: string;
   displayName: string;
+  /** Credential IDs the authenticator must not re-register (adding a passkey, TID-009). */
+  excludeCredentialIds?: readonly string[];
 }
 
 export interface VerifiedPasskey {
@@ -94,6 +96,9 @@ export const defaultWebauthn: WebauthnApi = {
       userDisplayName: input.displayName,
       userID: new Uint8Array(new TextEncoder().encode(input.userId)),
       attestationType: 'none',
+      ...(input.excludeCredentialIds?.length
+        ? { excludeCredentials: input.excludeCredentialIds.map((id) => ({ id })) }
+        : {}),
       authenticatorSelection: { residentKey: 'required', userVerification: 'required' },
       supportedAlgorithmIDs: SUPPORTED_ALGORITHMS,
     });
