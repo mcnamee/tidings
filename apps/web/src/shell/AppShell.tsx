@@ -5,6 +5,7 @@ import { ArrowLeft, Menu } from 'lucide-react';
 import { useSyncAppearance } from '../lib/appearance';
 import { DESKTOP_QUERY, useMediaQuery } from '../lib/hooks';
 import { saveLastList } from '../lib/lastList';
+import { useSidebarHidden } from '../lib/sidebar';
 import { useCounts } from '../lib/queries';
 import { findRoute } from '../routes/table';
 import { SWIPE_EDGE_PX, isStandalone, useSwipe } from '../lib/useSwipe';
@@ -36,6 +37,7 @@ export function AppShell() {
   const navigate = useNavigate();
   const navType = useNavigationType();
   const isDesktop = useMediaQuery(DESKTOP_QUERY);
+  const [sidebarHidden, toggleSidebar] = useSidebarHidden();
   // Keeps the unread counts warm (focus and 5-minute refetch, FR-RD-10) whether or not the tree shows.
   useCounts();
   // FR-ST-1: the account's theme and text size win over what this device remembered.
@@ -59,7 +61,12 @@ export function AppShell() {
   );
   const [layerEl, setLayerEl] = useState<HTMLElement | null>(null);
   const pageRef = useRef<HTMLDivElement>(null);
-  const layer = useMemo(() => ({ root: layerEl, underlay: pageRef }), [layerEl]);
+  const layer = useMemo(
+    () => ({ root: layerEl, underlay: pageRef, sidebarHidden }),
+    [layerEl, sidebarHidden],
+  );
+  // Lists get a wider column on desktop for the card grid (TID-062); the rest keeps reading width.
+  const wide = route.kind === 'list';
 
   const menuButton = useRef<HTMLButtonElement>(null);
   const heading = useRef<HTMLHeadingElement>(null);
@@ -169,13 +176,23 @@ export function AppShell() {
           >
             Skip to content
           </a>
-          <div className="lg:flex">
+          <div className="group/shell lg:flex" data-sidebar={sidebarHidden ? 'hidden' : 'shown'}>
             {isDesktop && (
-              <aside className="sticky top-0 flex h-dvh w-72 shrink-0 flex-col border-r border-line bg-surface">
-                <div className="flex min-h-14 items-center px-4">
-                  <Lockup />
+              // Hidden: width 0 and inert (out of the tab order and the accessibility tree). The
+              // inner box keeps its width so the tree does not reflow while the column animates.
+              <aside
+                id="sidebar"
+                inert={sidebarHidden}
+                className={`sticky top-0 h-dvh shrink-0 overflow-hidden bg-surface transition-[width] duration-200 ease-out motion-reduce:transition-none ${
+                  sidebarHidden ? 'w-0' : 'w-72 border-r border-line'
+                }`}
+              >
+                <div className="flex h-full w-72 flex-col">
+                  <div className="flex min-h-14 items-center px-4">
+                    <Lockup />
+                  </div>
+                  <FeedNav />
                 </div>
-                <FeedNav />
               </aside>
             )}
             <div
@@ -187,7 +204,9 @@ export function AppShell() {
             >
               <div className="sticky top-0 z-20">
                 <header className="border-b border-line bg-surface pl-[max(1rem,env(safe-area-inset-left))] pr-[max(1rem,env(safe-area-inset-right))] pt-[env(safe-area-inset-top)]">
-                  <div className="flex min-h-14 items-center gap-2 py-2 lg:mx-auto lg:max-w-2xl">
+                  <div
+                    className={`flex min-h-14 items-center gap-2 py-2 lg:mx-auto ${wide ? 'lg:max-w-6xl' : 'lg:max-w-2xl'}`}
+                  >
                     {showBack ? (
                       <button
                         type="button"
@@ -198,20 +217,27 @@ export function AppShell() {
                         <ArrowLeft aria-hidden="true" className="size-6" />
                       </button>
                     ) : (
-                      !isDesktop && (
-                        <button
-                          ref={menuButton}
-                          type="button"
-                          aria-label="Open navigation"
-                          aria-haspopup="dialog"
-                          aria-expanded={open}
-                          aria-controls="nav-drawer"
-                          onClick={openDrawer}
-                          className={`${ICON_BUTTON} -ml-2`}
-                        >
-                          <Menu aria-hidden="true" className="size-6" />
-                        </button>
-                      )
+                      <button
+                        ref={menuButton}
+                        type="button"
+                        {...(isDesktop
+                          ? {
+                              'aria-label': sidebarHidden ? 'Show sidebar' : 'Hide sidebar',
+                              'aria-expanded': !sidebarHidden,
+                              'aria-controls': 'sidebar',
+                              onClick: toggleSidebar,
+                            }
+                          : {
+                              'aria-label': 'Open navigation',
+                              'aria-haspopup': 'dialog' as const,
+                              'aria-expanded': open,
+                              'aria-controls': 'nav-drawer',
+                              onClick: openDrawer,
+                            })}
+                        className={`${ICON_BUTTON} -ml-2`}
+                      >
+                        <Menu aria-hidden="true" className="size-6" />
+                      </button>
                     )}
                     <h1
                       ref={heading}
@@ -238,7 +264,7 @@ export function AppShell() {
                 tabIndex={-1}
                 className="flex-1 py-4 pb-[max(1rem,env(safe-area-inset-bottom))] pl-[max(1rem,env(safe-area-inset-left))] pr-[max(1rem,env(safe-area-inset-right))]"
               >
-                <div className="mx-auto max-w-2xl">
+                <div className={`mx-auto max-w-2xl ${wide ? 'lg:max-w-6xl' : ''}`}>
                   <PasskeyBanner />
                   <Outlet />
                 </div>

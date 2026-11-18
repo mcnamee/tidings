@@ -5,6 +5,14 @@ import { relativeTime, relativeTimeLong } from '../lib/time';
 import { rowLayout } from './rowLayout';
 
 /**
+ * The list's columns from `lg` (TID-062): the rows become magazine cards. Two columns beside the
+ * sidebar (the column is ~736px at 1024), three from `xl` (1280px, ~990px of column) and three at
+ * `lg` once the sidebar is hidden (the column is the full ~1024px). Below `lg` it stays one column.
+ */
+export const LIST_GRID =
+  'lg:grid lg:grid-cols-2 lg:gap-4 xl:grid-cols-3 group-data-[sidebar=hidden]/shell:lg:grid-cols-3';
+
+/**
  * One article in a list (FR-RD-5), in one of three layouts (TID-060): thumbnail on the left with
  * the text beside it (to flip it, add `flex-row-reverse` to the link), text-only, or a hero image
  * on top. The summary is not shown: the reference look has none. All feed text is rendered as
@@ -37,18 +45,25 @@ export function ArticleRow({
     />
   );
   return (
-    <li data-entry-id={entry.id} data-layout={layout} className="border-b border-line">
+    <li
+      data-entry-id={entry.id}
+      data-layout={layout}
+      className="border-b border-line lg:border-b-0"
+    >
       <Link
         to={to}
-        className={`-mx-4 min-h-11 px-4 py-4 hover:bg-sunken active:bg-sunken ${hero ? 'block' : 'flex items-start gap-3'}`}
+        className={`-mx-4 min-h-11 px-4 py-4 hover:bg-sunken active:bg-sunken lg:mx-0 lg:h-full lg:rounded-xl lg:p-3 ${
+          hero ? 'block lg:flex lg:flex-col' : 'flex items-start gap-3 lg:flex-col lg:gap-0'
+        }`}
       >
-        {hero && img('aspect-video max-h-80 w-full rounded-lg')}
-        {layout === 'thumb' && img('size-24 shrink-0 rounded-lg')}
+        {hero && img('aspect-video max-h-80 w-full rounded-lg lg:max-h-none')}
+        {layout === 'thumb' &&
+          img('size-24 shrink-0 rounded-lg lg:aspect-video lg:size-auto lg:w-full')}
         <div className="min-w-0 flex-1">
           <h2
-            className={`line-clamp-4 break-words leading-snug ${hero ? 'mt-3 text-xl' : 'text-lg'} ${
-              entry.isRead ? 'font-normal text-fg-muted' : 'font-semibold text-fg'
-            }`}
+            className={`line-clamp-4 break-words leading-snug ${hero ? 'mt-3 text-xl lg:text-lg' : 'text-lg'} ${
+              layout === 'text' ? '' : 'lg:mt-3'
+            } ${entry.isRead ? 'font-normal text-fg-muted' : 'font-semibold text-fg'}`}
           >
             {title}
           </h2>

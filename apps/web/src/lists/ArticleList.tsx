@@ -25,7 +25,7 @@ import { prefersReducedMotion } from '../lib/useSwipe';
 import { usePullToRefresh } from '../lib/usePullToRefresh';
 import { SHEET_BUTTON, Sheet } from '../manage/Sheet';
 import { BottomBar, HeaderActions } from '../shell/slots';
-import { ArticleRow } from './ArticleRow';
+import { ArticleRow, LIST_GRID } from './ArticleRow';
 
 const COUNT_FORMAT = new Intl.NumberFormat('en-US');
 const formatCount = (n: number) => COUNT_FORMAT.format(n);
@@ -46,15 +46,23 @@ function State({ title, children }: { title: string; children?: ReactNode }) {
 
 function Skeleton() {
   return (
-    <ul aria-busy="true" aria-label="Loading articles" data-testid="list-skeleton">
+    <ul
+      aria-busy="true"
+      aria-label="Loading articles"
+      data-testid="list-skeleton"
+      className={LIST_GRID}
+    >
       {[0, 1, 2, 3, 4, 5].map((n) => (
-        <li key={n} className="flex gap-3 border-b border-line py-4">
-          <div className="flex-1 space-y-2">
+        <li
+          key={n}
+          className="flex gap-3 border-b border-line py-4 lg:flex-col lg:gap-0 lg:border-b-0 lg:p-3"
+        >
+          <div className="flex-1 space-y-2 lg:mt-3">
             <div className="h-4 w-1/3 animate-skeleton rounded-sm bg-sunken" />
             <div className="h-5 w-11/12 animate-skeleton rounded-sm bg-sunken" />
             <div className="h-4 w-4/5 animate-skeleton rounded-sm bg-sunken" />
           </div>
-          <div className="order-first size-24 animate-skeleton rounded-lg bg-sunken" />
+          <div className="order-first size-24 animate-skeleton rounded-lg bg-sunken lg:aspect-video lg:size-auto lg:w-full" />
         </li>
       ))}
     </ul>
@@ -270,7 +278,7 @@ export function ArticleList({
   } else {
     body = (
       <>
-        <ul ref={listRef}>
+        <ul ref={listRef} data-testid="article-grid" className={LIST_GRID}>
           {items.map((entry, i) => (
             <ArticleRow
               key={entry.id}
