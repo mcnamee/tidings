@@ -34,20 +34,23 @@ Owner: product-manager. Last updated 2026-11-17 (TID-053 email sign-in added, AD
 | TID-020 | Mark all as read | MVP | Done (ADR 0015) | TID-018 |
 | TID-024 | Production deployment and runbook (MVP scope, ADR 0014) | MVP | Done (live at tidings.mcn.am 2026-11-17; manual "Deploy now" workflow; CI on main only) | all MVP stories |
 | TID-053 | Sign in with an emailed link (ADR 0016; Resend amendment) | R2 | Built and deployed; AC15 (real email) pending the owner's first sign-in | TID-008 |
-| TID-009 | Sign in with a recovery code | R2 | Ready | TID-008 |
+| TID-009 | Sign in with a recovery code | R2 | In progress (owner picked 2026-11-18) | TID-008 |
 | TID-017 | Export subscriptions as OPML | R2 | Ready | TID-014 |
 | TID-015 | Feed health and "Refresh now" (now includes problem feeds first in Manage) | R2 | Ready | TID-014 |
-| TID-022 | Settings: theme, reading, account | R2 | Blocked | TID-008, 009 |
+| TID-022 | Settings: theme, reading, account | R2 | Next, after TID-009 (owner picked 2026-11-18) | TID-008, 009 |
 | TID-048 | Mark read or unread from a list row (FR-RD-8) | R2 | Ready | TID-019 |
-| TID-049 | Folder view read cost (DEF-050) | R2 | Built, awaiting QA (owner approved option a) | TID-018 |
+| TID-049 | Folder view read cost (DEF-050) | R2 | Done (deployed 2026-11-17; QA in the next test batch) | TID-018 |
 | TID-050 | Tell me which OPML folders weren't created | R2 | Ready | TID-016 |
-| TID-021 | Retention and maintenance job | R2 | Ready | TID-012 |
+| TID-021 | Retention and maintenance job | R2 | In progress (owner picked 2026-11-18) | TID-012 |
 | TID-047 | Post-launch budget and CPU check (TID-024 AC3, AC4, AC6, AC7; replaces TID-039 as a gate) | R2 | Ready (48 h after launch, from 2026-11-19) | TID-024 |
-| TID-054 | Article title opens the original | R2 | In progress (owner request 2026-11-18) | TID-019 |
-| TID-026 | Mark as read on scroll (owner ruling: on by default) | R2 | In progress (owner request 2026-11-18) | TID-019 |
-| TID-035 | Swipe the drawer closed; edge-swipe to open in the installed app | R2 | In progress (owner request 2026-11-18) | TID-006 |
-| TID-055 | Edge-swipe back on the article view in the installed app | R2 | In progress (owner request 2026-11-18) | TID-019 |
-| TID-057 | Logo, app icons, and installable full-screen app (TID-023 AC4 and AC6) | R2 | In progress (owner request 2026-11-18) | TID-006 |
+| TID-054 | Article title opens the original | R2 | Done (deployed 2026-11-18) | TID-019 |
+| TID-026 | Mark as read on scroll (owner ruling: on by default) | R2 | Done (deployed 2026-11-18) | TID-019 |
+| TID-035 | Swipe the drawer closed; edge-swipe to open in the installed app | R2 | Done (deployed 2026-11-18) | TID-006 |
+| TID-055 | Edge-swipe back on the article view in the installed app | R2 | Done (deployed 2026-11-18) | TID-019 |
+| TID-058 | Pinned header on pull, app-style article slide-in | R2 | Done (deployed 2026-11-18) | TID-055 |
+| TID-059 | Launch splash screen (min 2 s) | R2 | Done (deployed 2026-11-18) | TID-057 |
+| TID-060 | News-style list rows and sans-serif article text | R2 | Done (deployed 2026-11-18) | TID-018 |
+| TID-057 | Logo, app icons, and installable full-screen app (TID-023 AC4 and AC6) | R2 | Done (deployed 2026-11-18) | TID-006 |
 | TID-023 | Persisted client cache and installable PWA shell | R3 | Ready | TID-018, 019 |
 | TID-036 | SSRF guard hardening (TID-010 follow-up) | R3 | Ready | TID-010 |
 | TID-037 | Design-token drift and contrast check in CI (TID-006 follow-up) | R3 | Ready | TID-006 |
