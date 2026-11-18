@@ -16,7 +16,7 @@ export function FeedNav({ replace = false }: { replace?: boolean }) {
   const total = useCounts().data?.total;
   return (
     <nav aria-label="Feeds and folders" className="flex min-h-0 flex-1 flex-col">
-      <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain py-2">
+      <div className="min-h-0 flex-1 touch-pan-y overflow-y-auto overscroll-contain py-2">
         <NavLink
           to="/all"
           replace={replace}

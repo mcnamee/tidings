@@ -19,7 +19,8 @@ import {
 } from '../lib/queries';
 import { markAllRead } from '../lib/markAllRead';
 import { useSession } from '../lib/session';
-import { unreadOnlyDefault } from '../lib/settings';
+import { markReadOnScroll, unreadOnlyDefault } from '../lib/settings';
+import { useMarkReadOnScroll } from '../lib/readOnScroll';
 import { usePullToRefresh } from '../lib/usePullToRefresh';
 import { SHEET_BUTTON, Sheet } from '../manage/Sheet';
 import { BottomBar, HeaderActions } from '../shell/slots';
@@ -197,6 +198,10 @@ export function ArticleList({ view, id }: { view: EntryListView; id: string | nu
     void markAllRead(client, { view, id, before: asOf });
   }
 
+  // TID-026: rows scrolled past are marked read (batched). Rows stay in an unread-only list.
+  const listRef = useRef<HTMLUListElement>(null);
+  useMarkReadOnScroll(client, listRef, items, markReadOnScroll(session.data?.user?.settings));
+
   const sentinel = useRef<HTMLDivElement>(null);
   const { hasNextPage, isFetchingNextPage, fetchNextPage } = entries;
   const canObserve = typeof IntersectionObserver !== 'undefined';
@@ -256,7 +261,7 @@ export function ArticleList({ view, id }: { view: EntryListView; id: string | nu
   } else {
     body = (
       <>
-        <ul>
+        <ul ref={listRef}>
           {items.map((entry) => (
             <ArticleRow
               key={entry.id}

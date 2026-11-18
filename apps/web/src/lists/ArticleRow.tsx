@@ -20,7 +20,7 @@ export function ArticleRow({
 }) {
   const title = entry.title?.trim() || 'Untitled article';
   return (
-    <li className="border-b border-line">
+    <li data-entry-id={entry.id} className="border-b border-line">
       <Link
         to={to}
         onClick={onOpen}

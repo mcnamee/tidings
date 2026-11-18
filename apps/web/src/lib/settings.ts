@@ -15,3 +15,8 @@ export function hideReadFeeds(settings: Settings | undefined): boolean {
 export function markReadOnOpen(settings: Settings | undefined): boolean {
   return settings?.markReadOnOpen !== false;
 }
+
+/** TID-026: `markReadOnScroll`, default true (owner ruling 2026-11-18). */
+export function markReadOnScroll(settings: Settings | undefined): boolean {
+  return settings?.markReadOnScroll !== false;
+}

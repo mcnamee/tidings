@@ -225,7 +225,19 @@ function ArticleScreen({
 
       {/* Title, feed, author and date are feed text: rendered as text, never as HTML (spec 10.5). */}
       <h2 className="break-words text-[1.75rem] font-bold leading-tight text-fg md:text-4xl">
-        {title}
+        {entry.url ? (
+          // TID-054: the title opens the original, like the header's Open original button.
+          <a
+            href={entry.url}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="rounded-sm text-inherit no-underline hover:text-accent active:text-accent"
+          >
+            {title}
+          </a>
+        ) : (
+          title
+        )}
       </h2>
       <p className="mt-2 flex flex-wrap items-center gap-x-2 text-sm text-fg-muted">
         <span>{entry.feedTitle}</span>

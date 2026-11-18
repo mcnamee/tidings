@@ -348,3 +348,8 @@ html.scroll-locked {
     opacity: 0;
   }
 }
+
+/* Swipe gestures (useSwipe): the browser keeps vertical pans and pinch-zoom, we get the rest. */
+html.swipe-nav {
+  touch-action: pan-y pinch-zoom;
+}
