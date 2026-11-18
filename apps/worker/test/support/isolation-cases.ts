@@ -15,6 +15,15 @@ export interface IsolationCase {
 }
 
 export const ISOLATION_CASES: Readonly<Record<string, IsolationCase>> = {
+  // TID-022: a passkey ID in the path.
+  'PATCH /api/auth/passkeys/:id path:id': {
+    file: 'settings-account.test.ts',
+    test: 'B renaming A’s passkey gets 404 not_found, and A’s passkey is unchanged',
+  },
+  'DELETE /api/auth/passkeys/:id path:id': {
+    file: 'settings-account.test.ts',
+    test: 'B removing A’s passkey gets 404 not_found, and A’s passkeys are unchanged',
+  },
   // TID-018 AC8. `id` names a folder (view=folder) or a subscription (view=feed).
   'GET /api/entries query:id': {
     file: 'entries-api.test.ts',

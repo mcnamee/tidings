@@ -105,6 +105,8 @@ describe('routing placeholders (spec 11.1)', () => {
       expect(screen.getByLabelText('Feed or website address')).toBeInTheDocument();
     } else if (route === '/manage/import') {
       expect(screen.getByText('Choose OPML file')).toBeInTheDocument(); // TID-016
+    } else if (route === '/settings') {
+      expect(screen.getByRole('heading', { level: 2, name: 'Appearance' })).toBeInTheDocument(); // TID-022
     } else if (route === '/all') {
       expect(screen.getByTestId('list-skeleton')).toBeInTheDocument();
     } else if (route === '/all/a/e1') {

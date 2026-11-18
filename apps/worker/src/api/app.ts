@@ -1,5 +1,7 @@
 import { Hono } from 'hono';
 import type { ApiError, HealthResponse } from '@tidings/shared';
+import { createAccountRoutes } from '../auth/account';
+import { createMeRoutes } from './me';
 import { createEmailRoutes } from '../auth/email-signin';
 import type { EmailSender } from '../auth/mail';
 import { createAuthRoutes, type AuthDeps } from '../auth/routes';
@@ -51,6 +53,8 @@ export function createApp(deps?: Partial<AppDeps>): Hono<AppEnv> {
   app.use('*', apiGuard({ clock: deps?.clock ?? systemClock, apiRateLimit: deps?.apiRateLimit }));
 
   app.route('/auth', createAuthRoutes(deps));
+  app.route('/auth', createAccountRoutes({ clock: deps?.clock }));
+  app.route('/me', createMeRoutes());
   app.route('/auth/email', createEmailRoutes({ clock: deps?.clock, sendEmail: deps?.sendEmail }));
   app.route('/folders', createFolderRoutes({ clock: deps?.clock }));
   app.route(

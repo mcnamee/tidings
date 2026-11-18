@@ -478,6 +478,7 @@ type UserSettings = {
   markReadOnOpen: boolean;                 // default true
   textSize: 's' | 'm' | 'l';               // default 'm'
   hideReadFeeds: boolean;                  // default false
+  markReadOnScroll: boolean;               // default true (TID-026)
 };
 ```
 
@@ -671,15 +672,15 @@ type Passkey = { id: string; name: string; createdAt: string; lastUsedAt: string
 | `POST /api/auth/email/request` | Public, rate-limited | `{ email: string (1–254) }` | `202 {}` whether or not the address matches; the email is sent after the response (`ctx.waitUntil`). `400 validation_failed`; `404 not_found` when FR-AU-9 isn't configured (TID-053, ADR 0016). |
 | `POST /api/auth/email/verify` | Public, rate-limited | `{ token: string }` (from the link's `#token=` fragment) | `200 { user: User }`; sets session cookie, `auth_method = 'email'`; `401 invalid_link` (unknown, used, superseded or expired); `404 not_found` when not configured. |
 | `POST /api/auth/logout` | Session | `{}` | `204`; clears cookie. |
-| `POST /api/auth/logout-all` | Session | `{}` | `204`; deletes all the user's sessions. |
-| `GET /api/auth/passkeys` | Session | – | `200 { items: Passkey[] }` |
+| `POST /api/auth/logout-all` | Session | `{}` | `204`; deletes all the user's sessions and clears the cookie. |
+| `GET /api/auth/passkeys` | Session | – | `200 { items: Passkey[] }`, oldest first: `{ id, name, createdAt, lastUsedAt }` (TID-022). |
 | `POST /api/auth/passkeys/options` | Session | `{}` | `200 PublicKeyCredentialCreationOptionsJSON` (`excludeCredentials` = existing) |
 | `POST /api/auth/passkeys/verify` | Session | `{ response: RegistrationResponseJSON, name: string (1–64) }` | `201 Passkey`; `401 webauthn_failed`; `409 conflict` if that credential is already registered. Built in TID-009 (the recovery banner uses it; TID-022 adds the Settings list). |
-| `PATCH /api/auth/passkeys/:id` | Session | `{ name }` | `200 Passkey` |
-| `DELETE /api/auth/passkeys/:id` | Session | – | `204`; `409 last_passkey` |
-| `POST /api/auth/recovery-codes` | Session + `authenticated_at` within 15 min, not an `email` session | `{}` | `200 { recoveryCodes: string[10] }`; `403 reauth_required` |
+| `PATCH /api/auth/passkeys/:id` | Session | `{ name: string (1–64, trimmed) }` | `200 Passkey`; `404 not_found` for an ID that is missing or another user's (TID-022). |
+| `DELETE /api/auth/passkeys/:id` | Session | – | `204`; `409 last_passkey` (one statement, so two removals can't both pass); `404 not_found` as for PATCH (TID-022). |
+| `POST /api/auth/recovery-codes` | Session + `authenticated_at` within 15 min, not an `email` session | `{}` | `200 { recoveryCodes: string[10] }`: all the user's old codes, used or not, are deleted and the 10 new ones stored (hashes only) in one batch; `403 reauth_required` when `authenticated_at` is more than 15 minutes old (TID-022). |
 | `GET /api/me` | Session | – | `200 User` |
-| `PATCH /api/me` | Session | `{ displayName?: string, settings?: Partial<UserSettings> }` | `200 User` |
+| `PATCH /api/me` | Session | `{ displayName?: string (1–64), settings?: Partial<UserSettings> }`, at least one field; unknown settings keys and wrong types are `400 validation_failed` | `200 User`. Settings are merged into `settings_json` in the database (`json_patch`), so two devices changing different keys don't overwrite each other (TID-022). |
 
 Each `/api/auth/session` call counts as use and slides the session like any authenticated request (§10.2), re-issuing the cookie when it does. `POST /api/auth/logout` deletes only the calling session.
 

@@ -20,3 +20,18 @@ export function markReadOnOpen(settings: Settings | undefined): boolean {
 export function markReadOnScroll(settings: Settings | undefined): boolean {
   return settings?.markReadOnScroll !== false;
 }
+
+export type ThemePref = 'system' | 'light' | 'dark';
+export type TextSize = 's' | 'm' | 'l';
+
+/** Spec 6.2: `theme`, default system. */
+export function themePref(settings: Settings | undefined): ThemePref {
+  const t = settings?.theme;
+  return t === 'light' || t === 'dark' ? t : 'system';
+}
+
+/** Spec 6.2: `textSize`, default m. */
+export function textSizePref(settings: Settings | undefined): TextSize {
+  const t = settings?.textSize;
+  return t === 's' || t === 'l' ? t : 'm';
+}

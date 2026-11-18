@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect } from 'react';
 import {
   Link,
   Navigate,
@@ -19,13 +19,14 @@ import { ArticleList } from './lists/ArticleList';
 import { ArticleRoute } from './reader/ArticleView';
 import { AddFeed } from './manage/AddFeed';
 import { ImportOpml } from './manage/ImportOpml';
+import { Settings } from './settings/Settings';
 import { Manage } from './manage/Manage';
 import { useFolders, useSubscriptions } from './lib/queries';
 import { Setup } from './auth/Setup';
 import { readLastList } from './lib/lastList';
 import { SESSION_KEY, SIGNED_OUT, useSession } from './lib/session';
 import { hasSignedInHint } from './lib/signedInHint';
-import { isExplicitSignOut, signOut } from './lib/signOut';
+import { isExplicitSignOut } from './lib/signOut';
 import { AppShell } from './shell/AppShell';
 import { AuthLayout } from './shell/AuthLayout';
 import { Toasts } from './shell/Toasts';
@@ -86,51 +87,6 @@ function RequireAuth() {
     return <Navigate to="/login" replace state={state} />;
   }
   return <Outlet />;
-}
-
-/**
- * Stands in for the Settings screen (TID-022) so there is somewhere to Sign out. TID-022 replaces
- * it with the Account section (FR-ST-3).
- */
-function SettingsPlaceholder() {
-  const client = useQueryClient();
-  const [busy, setBusy] = useState(false);
-  const [failed, setFailed] = useState(false);
-  async function onSignOut() {
-    if (busy) return;
-    setBusy(true);
-    setFailed(false);
-    const ok = await signOut(client);
-    if (!ok) {
-      setFailed(true);
-      setBusy(false);
-    }
-  }
-  return (
-    <>
-      <Placeholder />
-      <section aria-labelledby="account-h2" className="mt-6">
-        <h2 id="account-h2" className="text-lg font-semibold text-fg">
-          Account
-        </h2>
-        <div role="alert" className="mt-2">
-          {failed && (
-            <p className="rounded-md bg-danger-subtle p-3 text-sm text-danger-subtle-fg">
-              Couldn&apos;t sign out. Check your connection and try again.
-            </p>
-          )}
-        </div>
-        <button
-          type="button"
-          onClick={() => void onSignOut()}
-          aria-disabled={busy ? true : undefined}
-          className="mt-2 inline-flex min-h-11 items-center rounded-md border border-line-strong bg-surface px-4 text-base font-medium text-fg"
-        >
-          {busy ? 'Signing out...' : 'Sign out'}
-        </button>
-      </section>
-    </>
-  );
 }
 
 // Keyed by the ID so moving between two folders (or feeds) starts a fresh list, not a reused one.
@@ -207,7 +163,7 @@ function RootRedirect() {
 }
 
 function screenFor(path: string) {
-  if (path === '/settings') return <SettingsPlaceholder />;
+  if (path === '/settings') return <Settings />;
   if (path === '/manage') return <Manage />;
   if (path === '/manage/add') return <AddFeed />;
   if (path === '/manage/import') return <ImportOpml />;

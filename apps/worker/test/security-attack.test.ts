@@ -160,7 +160,7 @@ describe('methods', () => {
 
   it('HEAD and OPTIONS with a session get 404 (nothing registered), never data, and no CORS', async () => {
     for (const method of ['HEAD', 'OPTIONS']) {
-      const res = await raw('/api/me', {
+      const res = await raw('/api/not-registered', {
         method,
         headers: { Cookie: `${SESSION_COOKIE}=${token}` },
       });

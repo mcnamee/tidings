@@ -1,14 +1,9 @@
 import { useMemo, useRef, useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { KeyRound, Loader } from 'lucide-react';
-import {
-  RECOVERY_CODE_COUNT,
-  type CreationOptionsJSON,
-  type Passkey,
-  type SessionResponse,
-} from '@tidings/shared';
-import { ApiRequestError, NetworkError, apiPost } from '../api';
-import { detectPasskeySupport, passkeyLabel } from '../auth/helpers';
+import { RECOVERY_CODE_COUNT, type SessionResponse } from '@tidings/shared';
+import { detectPasskeySupport } from '../auth/helpers';
+import { addPasskey } from '../auth/passkeyFlows';
 import { useOnline } from '../lib/hooks';
 import { SESSION_KEY, useSession } from '../lib/session';
 import { toast } from '../lib/toast';
@@ -45,54 +40,23 @@ export function PasskeyBanner() {
   if (!session.data?.user || !session.data.mustAddPasskey) return null;
   const left = codesLeft(session.data.recoveryCodesRemaining);
 
-  async function addPasskey() {
+  async function onAdd() {
     if (inFlight.current || !online) return;
     inFlight.current = true;
     setBusy(true);
     setError(null);
     try {
-      const options = await apiPost<CreationOptionsJSON>('/api/auth/passkeys/options', {});
-      let credential;
-      try {
-        const { startRegistration } = await import('@simplewebauthn/browser');
-        credential = await startRegistration({
-          optionsJSON: options as unknown as Parameters<typeof startRegistration>[0]['optionsJSON'],
-        });
-      } catch (err) {
-        const name = err instanceof Error ? err.name : '';
-        if (name === 'NotAllowedError' || name === 'AbortError') {
-          setError('Passkey setup was cancelled. Try again.');
-        } else if (name === 'InvalidStateError') {
-          setError('This device already has a passkey for Tidings. Sign in with it next time.');
-        } else if (name === 'NotSupportedError') {
-          setError(
-            "This device can't use passkeys. Turn on a screen lock, or connect a security key, then try again.",
-          );
-        } else {
-          setError('Something went wrong on our side. Try again.');
-        }
+      const result = await addPasskey();
+      if (!result.ok) {
+        setError(result.message);
         return;
       }
-      await apiPost<Passkey>('/api/auth/passkeys/verify', {
-        response: credential,
-        name: passkeyLabel(navigator.userAgent),
-      });
       // The server now answers mustAddPasskey: false; reflect it at once, and confirm it by refetching.
       client.setQueryData<SessionResponse>(SESSION_KEY, (old) =>
         old ? { ...old, mustAddPasskey: false } : old,
       );
       void client.invalidateQueries({ queryKey: SESSION_KEY });
       toast.success('Passkey added. You can sign in with it next time.');
-    } catch (err) {
-      if (err instanceof ApiRequestError && err.status === 429) {
-        setError('Too many attempts. Try again in a few minutes.');
-      } else if (err instanceof ApiRequestError && err.code === 'webauthn_failed') {
-        setError("We couldn't verify that passkey. Try again.");
-      } else if (err instanceof NetworkError) {
-        setError("Couldn't reach Tidings. Check your connection and try again.");
-      } else {
-        setError('Something went wrong on our side. Try again.');
-      }
     } finally {
       inFlight.current = false;
       setBusy(false);
@@ -113,7 +77,7 @@ export function PasskeyBanner() {
           <>
             <button
               type="button"
-              onClick={() => void addPasskey()}
+              onClick={() => void onAdd()}
               aria-disabled={busy || !online ? true : undefined}
               aria-busy={busy ? true : undefined}
               className="mt-3 inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-md border border-line-strong bg-surface px-4 text-base font-medium text-fg md:w-auto"

@@ -42,8 +42,36 @@ export interface ApiError {
 
 // ── Auth (spec 8.2, 8.3) ───────────────────────────────────────
 
-/** Spec 6.2. Only the stored document is typed here; defaults are applied by the settings story. */
-export type UserSettings = Record<string, unknown>;
+/**
+ * Spec 6.2 (`users.settings_json`). The stored document may lack any key, so every field is
+ * optional here and each reader applies the default (`apps/web/src/lib/settings.ts`).
+ * `markReadOnScroll` was added by TID-026 (default on).
+ */
+export interface UserSettings {
+  theme?: 'system' | 'light' | 'dark';
+  unreadOnly?: boolean;
+  markReadOnOpen?: boolean;
+  markReadOnScroll?: boolean;
+  textSize?: 's' | 'm' | 'l';
+  hideReadFeeds?: boolean;
+}
+
+export const THEMES = ['system', 'light', 'dark'] as const;
+export const TEXT_SIZES = ['s', 'm', 'l'] as const;
+
+/** `PATCH /api/me` (spec 8.3, TID-022). */
+export interface UpdateMeRequest {
+  displayName?: string;
+  settings?: UserSettings;
+}
+
+export interface PasskeysResponse {
+  items: Passkey[];
+}
+
+export interface RecoveryCodesResponse {
+  recoveryCodes: string[];
+}
 
 export interface User {
   id: string;

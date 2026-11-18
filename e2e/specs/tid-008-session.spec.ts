@@ -89,7 +89,7 @@ test.describe('AC5: sign out', () => {
       .poll(() => page.evaluate(() => localStorage.getItem('tidings.hasSession')))
       .toBe('1');
 
-    await page.getByRole('button', { name: 'Sign out' }).click();
+    await page.getByRole('button', { name: 'Sign out', exact: true }).click();
     await expect(page).toHaveURL(/\/login$/);
     await expect(h1(page, 'Sign in')).toBeVisible();
     // Plain card: no banner, no remembered route.
@@ -119,7 +119,7 @@ test.describe('AC5: sign out', () => {
   }) => {
     await signInAs(context, createSession(), baseURL);
     await page.goto('/settings');
-    await page.getByRole('button', { name: 'Sign out' }).click();
+    await page.getByRole('button', { name: 'Sign out', exact: true }).click();
     await expect(h1(page, 'Sign in')).toBeVisible();
     await page.goto('/manage');
     await expect(page).toHaveURL(/\/login$/);
@@ -246,7 +246,10 @@ test.describe('API guard on the running Worker', () => {
     request,
   }) => {
     const token = createSession();
-    const res = await request.get('/api/me', { headers: { Cookie: `${SESSION_COOKIE}=${token}` } });
+    // A route no story has built yet (TID-017 builds /api/export/opml; /api/me was this until TID-022).
+    const res = await request.get('/api/export/opml', {
+      headers: { Cookie: `${SESSION_COOKIE}=${token}` },
+    });
     expect(res.status()).toBe(404);
     expect((await res.json()).error.code).toBe('not_found');
     deleteSessionRow(token);
