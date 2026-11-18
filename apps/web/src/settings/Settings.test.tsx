@@ -321,15 +321,14 @@ describe('AC5: sign out', () => {
 });
 
 describe('AC6 and small things: data section, name and version', () => {
-  it('Import OPML goes to /manage/import and Export OPML is a download of the export route', () => {
+  it('Import OPML goes to /manage/import; Export OPML is hidden until TID-017', () => {
     renderSettings();
     expect(screen.getByRole('link', { name: 'Import OPML' })).toHaveAttribute(
       'href',
       '/manage/import',
     );
-    const exportLink = screen.getByRole('link', { name: 'Export OPML' });
-    expect(exportLink).toHaveAttribute('href', '/api/export/opml');
-    expect(exportLink).toHaveAttribute('download');
+    // Hidden until TID-017 builds the export route.
+    expect(screen.queryByRole('link', { name: 'Export OPML' })).not.toBeInTheDocument();
     expect(screen.getByText('Articles are kept for 30 days after you read them.')).toBeVisible();
   });
 

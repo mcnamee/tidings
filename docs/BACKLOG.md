@@ -34,14 +34,14 @@ Owner: product-manager. Last updated 2026-11-17 (TID-053 email sign-in added, AD
 | TID-020 | Mark all as read | MVP | Done (ADR 0015) | TID-018 |
 | TID-024 | Production deployment and runbook (MVP scope, ADR 0014) | MVP | Done (live at tidings.mcn.am 2026-11-17; manual "Deploy now" workflow; CI on main only) | all MVP stories |
 | TID-053 | Sign in with an emailed link (ADR 0016; Resend amendment) | R2 | Built and deployed; AC15 (real email) pending the owner's first sign-in | TID-008 |
-| TID-009 | Sign in with a recovery code | R2 | In progress (owner picked 2026-11-18) | TID-008 |
-| TID-017 | Export subscriptions as OPML | R2 | Ready | TID-014 |
+| TID-009 | Sign in with a recovery code | R2 | Done (deployed 2026-11-18) | TID-008 |
+| TID-017 | Export subscriptions as OPML | R2 | Ready (also shows the hidden Export OPML link in Settings) | TID-014 |
 | TID-015 | Feed health and "Refresh now" (now includes problem feeds first in Manage) | R2 | Ready | TID-014 |
-| TID-022 | Settings: theme, reading, account | R2 | Next, after TID-009 (owner picked 2026-11-18) | TID-008, 009 |
+| TID-022 | Settings: theme, reading, account | R2 | Done (deployed 2026-11-18; UX review of Settings pending) | TID-008, 009 |
 | TID-048 | Mark read or unread from a list row (FR-RD-8) | R2 | Ready | TID-019 |
 | TID-049 | Folder view read cost (DEF-050) | R2 | Done (deployed 2026-11-17; QA in the next test batch) | TID-018 |
 | TID-050 | Tell me which OPML folders weren't created | R2 | Ready | TID-016 |
-| TID-021 | Retention and maintenance job | R2 | In progress (owner picked 2026-11-18) | TID-012 |
+| TID-021 | Retention and maintenance job | R2 | Done (deployed 2026-11-18) | TID-012 |
 | TID-047 | Post-launch budget and CPU check (TID-024 AC3, AC4, AC6, AC7; replaces TID-039 as a gate) | R2 | Ready (48 h after launch, from 2026-11-19) | TID-024 |
 | TID-054 | Article title opens the original | R2 | Done (deployed 2026-11-18) | TID-019 |
 | TID-026 | Mark as read on scroll (owner ruling: on by default) | R2 | Done (deployed 2026-11-18) | TID-019 |

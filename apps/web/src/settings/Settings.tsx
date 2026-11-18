@@ -263,6 +263,9 @@ function Version() {
   );
 }
 
+/** TID-017 builds GET /api/export/opml; until then the Export link is hidden. */
+const EXPORT_OPML_AVAILABLE = false;
+
 export function Settings() {
   const session = useSession();
   const save = useUpdateSettings();
@@ -361,9 +364,11 @@ export function Settings() {
           <Link to="/manage/import" className={BUTTON}>
             Import OPML
           </Link>
-          <a href="/api/export/opml" download className={BUTTON}>
-            Export OPML
-          </a>
+          {EXPORT_OPML_AVAILABLE && (
+            <a href="/api/export/opml" download className={BUTTON}>
+              Export OPML
+            </a>
+          )}
         </div>
         <p className="mt-2 text-sm text-fg-muted">
           Articles are kept for 30 days after you read them.

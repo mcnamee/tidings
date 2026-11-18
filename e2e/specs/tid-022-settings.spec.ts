@@ -156,15 +156,14 @@ signedInTest.describe('settings and screen', () => {
   );
 
   signedInTest(
-    'AC6: Import OPML opens /manage/import and Export OPML is a download link',
+    'AC6: Import OPML opens /manage/import; Export OPML is hidden until TID-017',
     async ({ page }) => {
       await page.goto('/settings');
       await expect(
         page.getByText('Articles are kept for 30 days after you read them.'),
       ).toBeVisible();
-      const exportLink = page.getByRole('link', { name: 'Export OPML' });
-      await expect(exportLink).toHaveAttribute('href', '/api/export/opml');
-      await expect(exportLink).toHaveAttribute('download', '');
+      // Hidden until TID-017 builds the export route.
+      await expect(page.getByRole('link', { name: 'Export OPML' })).toHaveCount(0);
       await page.getByRole('link', { name: 'Import OPML' }).click();
       await expect(page).toHaveURL(/\/manage\/import$/);
     },
