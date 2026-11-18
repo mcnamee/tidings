@@ -50,6 +50,7 @@ Owner: product-manager. Last updated 2026-11-17 (TID-053 email sign-in added, AD
 | TID-058 | Pinned header on pull, app-style article slide-in | R2 | Done (deployed 2026-11-18) | TID-055 |
 | TID-059 | Launch splash screen (min 2 s) | R2 | Done (deployed 2026-11-18) | TID-057 |
 | TID-060 | News-style list rows and sans-serif article text | R2 | Done (deployed 2026-11-18) | TID-018 |
+| TID-061 | Hide duplicate articles across feeds (same URL or headline) | R2 | Ready (owner request 2026-11-18) | TID-012, TID-021 |
 | TID-057 | Logo, app icons, and installable full-screen app (TID-023 AC4 and AC6) | R2 | Done (deployed 2026-11-18) | TID-006 |
 | TID-023 | Persisted client cache and installable PWA shell | R3 | Ready | TID-018, 019 |
 | TID-036 | SSRF guard hardening (TID-010 follow-up) | R3 | Ready | TID-010 |
@@ -1109,3 +1110,27 @@ Native apps; Inoreader API sync or starred-item migration (Q7); social features;
 - **Three row layouts**, chosen per entry: thumbnail row (image on the LEFT, text beside it; flip with `flex-row-reverse`), text-only row (full width), and hero row (full-width 16:9 image on top, larger title below). Hero is about 1 in 5 image entries, chosen from a hash of the entry id (`lists/rowLayout.ts`), so it never changes between renders; a hero straight after a would-be hero becomes a thumbnail row. An image that fails to load falls back to the text-only layout.
 - **Meta line:** feed name in the accent colour, then "· 4m ago" muted. Titles are `text-lg` semibold (hero `text-xl`), meta 15 px. The summary line is dropped (the reference has none). Read rows stay dimmed; the unread dot stays in the meta line.
 - **Article body is sans-serif** (the UI stack); `docs/ux/DESIGN_SYSTEM.md` updated.
+
+### TID-061: Hide duplicate articles across feeds (owner request 2026-11-18)
+
+- **Agents:** PM (refine), SE, QA
+- **Depends on:** TID-012 (refresh pipeline), TID-021 (retention, so the lookup window stays small)
+- **Release:** R2
+- **Status:** Ready
+
+**User story:** As a reader who subscribes to overlapping feeds (for example BBC Top Stories and BBC Business), I want each story to appear only once in my lists, so that I don't read the same article twice.
+
+**Context:** Today dedup is per feed only (GUID, plus TID-046's link-and-title key within one feed). The same story published in two of my feeds becomes two entries and two rows. Matching must be per user (another user may follow only one of the feeds) and cheap enough for the free-tier write and read budgets (spec §9).
+
+**Acceptance criteria**
+
+1. Given I subscribe to feeds A and B and both publish an item with the same canonical article URL (spec §6.4 canonicalisation, ignoring tracking parameters such as `utm_*`, `at_medium`, `at_campaign`, and `http` vs `https`), when both are fetched, then the article appears once in All, once in a folder holding both feeds, and once per feed view is not required: it appears in the feed view of the feed it arrived from first.
+2. Given two items with different URLs but the same headline after normalisation (case, whitespace, punctuation and quote styles folded; empty or very short headlines (under 4 words) never match), published within 48 hours of each other, then only the first one is shown.
+3. Given the duplicate arrives after I've read the first copy, then it does not appear as a new unread article. Given I mark the visible copy read or unread, then the hidden copy follows (or simply never existed for me), and unread counts count the story once.
+4. Given a different user who follows only feed B, then they still see B's copy (dedup is per user).
+5. Given an article that is genuinely updated (same URL, new content), then it is not shown twice (the existing copy stands; TID-045 handles in-place updates later).
+6. Given the matching lookup, then it is bounded and indexed: at most one indexed lookup per new candidate entry, comparing only against my entries from the last 7 days, and the extra D1 cost per refresh is measured and recorded in spec §9 (target: under 10% extra rows written per day at the spec's assumed load). If a new column or index is needed, it goes through a numbered migration and the write cost is justified in an ADR.
+7. Given a duplicate is hidden, then nothing is lost: it is either not linked to me at all, or linked and marked as a duplicate so it's excluded from lists and counts. The choice is recorded in the ADR.
+
+**Out of scope:** fuzzy matching of near-identical headlines (edit distance), clustering "related coverage" from different publishers, and showing "also in: Business" on the row (could be a later nicety).
+
