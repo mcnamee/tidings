@@ -40,7 +40,7 @@ export function ArticleRow({
     <li data-entry-id={entry.id} data-layout={layout} className="border-b border-line">
       <Link
         to={to}
-        className={`min-h-11 py-4 active:bg-sunken ${hero ? 'block' : 'flex items-start gap-3'}`}
+        className={`-mx-4 min-h-11 px-4 py-4 hover:bg-sunken active:bg-sunken ${hero ? 'block' : 'flex items-start gap-3'}`}
       >
         {hero && img('aspect-video max-h-80 w-full rounded-lg')}
         {layout === 'thumb' && img('size-24 shrink-0 rounded-lg')}
