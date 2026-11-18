@@ -15,6 +15,8 @@ export interface ShellSlots {
 export interface LayerSlots {
   root: HTMLElement | null;
   underlay: RefObject<HTMLElement | null> | null;
+  /** Desktop: the sidebar is collapsed, so the layer covers the full width (TID-062). */
+  sidebarHidden?: boolean;
 }
 export const LayerContext = createContext<LayerSlots>({ root: null, underlay: null });
 

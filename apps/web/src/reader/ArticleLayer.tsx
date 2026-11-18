@@ -52,7 +52,9 @@ export function ArticleLayer({
   contentKey: string;
   children: ReactNode;
 }) {
-  const { root, underlay } = useContext(LayerContext);
+  const { root, underlay, sidebarHidden } = useContext(LayerContext);
+  // Desktop: the layer covers the content column only, so its left edge follows the sidebar.
+  const left = sidebarHidden ? '' : 'lg:left-72';
   const location = useLocation();
   const navigate = useNavigate();
   const navType = useNavigationType();
@@ -246,12 +248,12 @@ export function ArticleLayer({
         ref={scrimRef}
         aria-hidden="true"
         data-testid="article-scrim"
-        className="pointer-events-none fixed inset-0 z-30 bg-scrim opacity-0 lg:left-72"
+        className={`pointer-events-none fixed inset-0 z-30 bg-scrim opacity-0 ${left}`}
       />
       <div
         ref={layerRef}
         data-testid="article-layer"
-        className="fixed inset-0 z-30 flex flex-col bg-canvas touch-pan-y overscroll-contain lg:left-72"
+        className={`fixed inset-0 z-30 flex flex-col bg-canvas touch-pan-y overscroll-contain ${left}`}
       >
         <div className="flex-none">
           <header className="border-b border-line bg-surface pl-[max(1rem,env(safe-area-inset-left))] pr-[max(1rem,env(safe-area-inset-right))] pt-[env(safe-area-inset-top)]">
