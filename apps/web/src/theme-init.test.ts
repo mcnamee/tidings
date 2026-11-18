@@ -113,7 +113,8 @@ describe('theme-init.js', () => {
   });
 
   it('is small and ES5-safe in shape', () => {
-    expect(source.length).toBeLessThan(1500);
+    // 2000 since TID-059 added the 10 s splash failsafe (still a tiny blocking script).
+    expect(source.length).toBeLessThan(2000);
     expect(source).not.toMatch(/=>|\bconst\b|\blet\b|`/);
   });
 });
