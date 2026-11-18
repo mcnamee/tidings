@@ -183,15 +183,15 @@ describe('AC3: daily cap', () => {
 });
 
 describe('AC4: normal feeds cost the same', () => {
-  it('3 new in 50, 2 subscribers: 46 rows written, 121 read, 5 statements (none added)', async () => {
+  it('3 new in 50, 2 subscribers: 49 rows written, 139 read, 5 statements (none added)', async () => {
     const id = await seedFeed({ url: FEED_URL, subscribers: ['u1', 'u2'] });
     const feed = fx.fake.serveFeed(FEED_URL, rss(items(4, 50)), { etag: '"v1"' });
     await refresh(id);
     feed.update(rss(items(1, 50)), '"v2"');
     const out = await refresh(id);
     expect(out.newEntries).toBe(3);
-    expect(out.usage.rowsWritten).toBe(46); // 3 x 3 + 3 x 6 x 2 + 1 (ue_entry, TID-021)
-    expect(out.usage.rowsRead).toBe(121);
+    expect(out.usage.rowsWritten).toBe(49); // 3 x 4 + 3 x 6 x 2 + 1 (ue_entry, TID-021; entries_url_key, TID-061)
+    expect(out.usage.rowsRead).toBe(139); // 121 + 3 new x 2 subscribers x 3 for the TID-061 duplicate probe
     // parked check, dedup lookup, then one batch: entries insert, link, feed update.
     expect(out.usage.statements).toBe(5);
   });

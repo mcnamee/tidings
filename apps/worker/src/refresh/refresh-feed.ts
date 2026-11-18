@@ -7,6 +7,7 @@
  * recorded as fixed codes; `safeFetch`'s `message`, headers and bodies are dropped here.
  */
 import { httpErrorCode, type FeedErrorCode } from '@tidings/shared';
+import { dedupKeys } from '@tidings/shared/dedup-keys';
 import { itemGuidHash, parseFeed, type ParsedItem } from '@tidings/feed-parser';
 import {
   Db,
@@ -17,6 +18,7 @@ import {
   type Clock,
   type Statement,
 } from '../db';
+import { notDuplicateOf } from '../db/dedup';
 import { safeFetch, type FetchFn, type SafeFetchResult } from '../fetch';
 import { parseRetryAfter } from './backoff';
 import {
@@ -38,8 +40,8 @@ import {
 } from './store';
 import type { RefreshJob, RefreshOutcome, RefreshResult } from './types';
 
-/** `entries` has 10 bound columns per row; 9 rows keep a statement within D1's 100 parameters. */
-const ENTRY_ROWS_PER_STATEMENT = 9;
+/** `entries` has 12 bound columns per row; 8 rows keep a statement within D1's 100 parameters. */
+const ENTRY_ROWS_PER_STATEMENT = 8;
 /** FR-SU-3: the first fetch of a feed links only the newest items to its subscribers. */
 export const FIRST_FETCH_LINK_LIMIT = 10;
 
@@ -189,14 +191,34 @@ export async function refreshFeed(job: RefreshJob, deps: RefreshDeps): Promise<R
     secondary.filter((k): k is string => k !== null).slice(0, MAX_RECENT_KEYS),
   );
 
+  // Link to every subscriber in one statement. A feed that has never succeeded links only its
+  // newest items (FR-SU-3); the rest are stored but not shown.
+  const firstFetch = job.lastSuccessAt === null;
+  const toLink = firstFetch
+    ? [...fresh]
+        .sort((a, b) => b.item.publishedAt - a.item.publishedAt)
+        .slice(0, FIRST_FETCH_LINK_LIMIT)
+    : fresh;
+  // Cross-feed duplicate keys (spec 6.3, ADR 0017), only for the items that will be linked: an entry
+  // nobody links can never be matched against, so it gets no keys and no index rows (first fetches
+  // store up to 50 entries and link 10). A key shared by two items of this fetch is dropped, as in
+  // the churn guard: such feeds point many items at one page or reuse one headline, and the key
+  // would hide real articles.
+  const keyed = await Promise.all(toLink.map((h) => dedupKeys(h.item)));
+  const urlKeys = uniqueKeys(keyed.map((k) => k.urlKey));
+  const headlineKeys = uniqueKeys(keyed.map((k) => k.headlineKey));
+  const keysOf = new Map(
+    toLink.map((h, i) => [h.hash, { url: urlKeys[i] ?? null, headline: headlineKeys[i] ?? null }]),
+  );
+
   const statements: Statement[] = [];
   for (let i = 0; i < fresh.length; i += ENTRY_ROWS_PER_STATEMENT) {
     const chunk = fresh.slice(i, i + ENTRY_ROWS_PER_STATEMENT);
     statements.push(
       sql(
         `INSERT INTO entries (feed_id, guid_hash, url, title, author, summary, content_html,
-                              image_url, published_at, fetched_at)
-         VALUES ${chunk.map(() => '(?, ?, ?, ?, ?, ?, ?, ?, ?, ?)').join(', ')}
+                              image_url, published_at, fetched_at, url_key, headline_key)
+         VALUES ${chunk.map(() => '(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)').join(', ')}
          ON CONFLICT (feed_id, guid_hash) DO NOTHING`,
         ...chunk.flatMap(({ hash, item }) => [
           job.feedId,
@@ -209,23 +231,19 @@ export async function refreshFeed(job: RefreshJob, deps: RefreshDeps): Promise<R
           item.imageUrl,
           item.publishedAt,
           now,
+          keysOf.get(hash)?.url ?? null,
+          keysOf.get(hash)?.headline ?? null,
         ]),
       ),
     );
   }
 
-  // Link to every subscriber in one statement. A feed that has never succeeded links only its
-  // newest items (FR-SU-3); the rest are stored but not shown.
-  const firstFetch = job.lastSuccessAt === null;
-  const toLink = firstFetch
-    ? [...fresh]
-        .sort((a, b) => b.item.publishedAt - a.item.publishedAt)
-        .slice(0, FIRST_FETCH_LINK_LIMIT)
-    : fresh;
   if (toLink.length > 0) {
     // FR-SU-3: on a first fetch, items older than 7 days are linked already read. Later fetches
     // pass a cutoff of 0, which no item is older than.
     const readCutoff = firstFetch ? now - READ_AFTER_SECONDS : 0;
+    // A subscriber who already has this story from another feed is not linked (ADR 0017).
+    const notDup = notDuplicateOf('e', { column: 's.user_id' }, now);
     statements.push(
       sql(
         `INSERT INTO user_entries (user_id, entry_id, feed_id, published_at, is_read, read_at)
@@ -233,12 +251,14 @@ export async function refreshFeed(job: RefreshJob, deps: RefreshDeps): Promise<R
                 e.published_at < ?, CASE WHEN e.published_at < ? THEN ? END
            FROM entries e JOIN subscriptions s ON s.feed_id = e.feed_id
           WHERE e.feed_id = ? AND e.guid_hash IN (${placeholders(toLink.length)})
+            AND ${notDup.sql}
          ON CONFLICT DO NOTHING`,
         readCutoff,
         readCutoff,
         now,
         job.feedId,
         ...toLink.map((h) => h.hash),
+        ...notDup.params,
       ),
     );
   }

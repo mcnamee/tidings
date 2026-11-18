@@ -317,31 +317,37 @@ describe('clock edges', () => {
 });
 
 describe('write budget (spec 9.4)', () => {
-  it('first fetch of a 50-item feed stores 50 entries but links 10: 211 rows, not the 81 in spec 9.8 (DEF-015)', async () => {
+  it('first fetch of a 50-item feed stores 50 entries but links 10: 221 rows, not the 81 in spec 9.8 (DEF-015)', async () => {
     const id = await seedFeed({ url: FEED_URL, lastSuccessAt: null, state: 'pending' });
     fx.fake.route(FEED_URL, { status: 200, body: rss(items(1, 50)) });
     const out = await refresh(id);
-    expect(out.usage.rowsWritten).toBe(50 * 3 + 10 * 6 + 1);
+    // Only the 10 linked entries are keyed (ADR 0017), 1 extra row each (no headline key here).
+    expect(out.usage.rowsWritten).toBe(50 * 3 + 10 * 1 + 10 * 6 + 1);
   });
 
   it('a realistic mix writes only what spec 9.4 predicts', async () => {
+    // Each feed has its own links: the same links in several feeds would be cross-feed duplicates
+    // (TID-061) and not be linked to the one user who follows them all.
+    const own = (n: number, from: number, to: number) =>
+      items(from, to).map((i) => ({ ...i, link: `https://m${n}.example.com/posts/${i.guid}` }));
     const ids: number[] = [];
     for (let n = 0; n < 30; n++)
       ids.push(await seedFeed({ url: `https://m${n}.example.com/f.xml` }));
     for (let n = 0; n < 30; n++) {
       const url = `https://m${n}.example.com/f.xml`;
-      if (n < 20) fx.fake.serveFeed(url, rss(items(1, 10)), { etag: '"s"' });
+      if (n < 20) fx.fake.serveFeed(url, rss(own(n, 1, 10)), { etag: '"s"' });
       else if (n < 25) fx.fake.route(url, { status: 500 });
-      else fx.fake.serveFeed(url, rss(items(1, 10)), { etag: '"c"' });
+      else fx.fake.serveFeed(url, rss(own(n, 1, 10)), { etag: '"c"' });
     }
     for (const id of ids) await refresh(id); // warm: everything is new once
     for (let n = 25; n < 30; n++) {
-      fx.fake.serveFeed(`https://m${n}.example.com/f.xml`, rss(items(1, 12)), { etag: '"c2"' });
+      fx.fake.serveFeed(`https://m${n}.example.com/f.xml`, rss(own(n, 1, 12)), { etag: '"c2"' });
     }
     let written = 0;
     for (const id of ids) written += (await refresh(id)).usage.rowsWritten;
-    // 20 unchanged (0), 5 failing (1 each), 5 changed with 2 new items (2x3 + 2x6 + 1 = 19).
-    expect(written).toBe(5 + 5 * 19);
+    // 20 unchanged (0), 5 failing (1 each), 5 changed with 2 new items (2x4 + 2x6 + 1 = 21; 4 per
+    // entry since TID-061's entries_url_key).
+    expect(written).toBe(5 + 5 * 21);
   });
 
   it('a near-1 MiB feed with 50 large items still writes in one batch under 15 statements', async () => {
