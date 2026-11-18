@@ -61,7 +61,7 @@ The right-hand and bottom slots are provided by the shell and filled by each scr
 
 - Opens from the Menu button. Also closes on Escape, backdrop tap, choosing a destination, and browser/system Back. Open and close are in the TID-006 scope; the drawer pushes one history entry while open (spec 11.1).
 - Modal: focus is trapped and the page behind is inert.
-- There is deliberately no swipe-from-the-left-edge to open: it collides with the iOS Safari back gesture. There is no swipe-to-close in MVP either: it moved to TID-035 (Later, M2). Every close path above has a button or key equivalent.
+- Swipe the open drawer left to close it (TID-035, all modes). Swipe from the left edge to open it only in the installed (standalone) app: in Safari the edge belongs to the browser's back gesture. In the installed app, an edge swipe on the article view goes back (TID-055). Every gesture has a button or key equivalent.
 
 ### 1.6 Back behaviour
 
