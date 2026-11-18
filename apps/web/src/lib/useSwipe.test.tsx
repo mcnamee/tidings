@@ -221,3 +221,54 @@ describe('isStandalone', () => {
     expect(isStandalone()).toBe(true);
   });
 });
+
+// iOS Safari ignores `touch-action: pan-y`, so touch events drive the gesture there and the
+// non-passive touchmove blocks the page scroll once the move is sideways.
+describe('touch events (iOS)', () => {
+  const touch = (type: string, x: number, y = 300, target: EventTarget = document) => {
+    const e = new Event(type, { bubbles: true, cancelable: true });
+    const t = { identifier: 7, clientX: x, clientY: y };
+    Object.defineProperty(e, 'changedTouches', { value: [t] });
+    Object.defineProperty(e, 'touches', { value: type === 'touchend' ? [] : [t] });
+    act(() => {
+      target.dispatchEvent(e);
+    });
+    return e;
+  };
+
+  it('a touch-only edge swipe commits and blocks the page scroll while sideways', () => {
+    const spies = setup();
+    touch('touchstart', 5);
+    vi.advanceTimersByTime(50);
+    const first = touch('touchmove', 40);
+    vi.advanceTimersByTime(50);
+    const second = touch('touchmove', 300);
+    touch('touchend', 300);
+    expect(first.defaultPrevented).toBe(true);
+    expect(second.defaultPrevented).toBe(true);
+    expect(spies.onCommit).toHaveBeenCalledTimes(1);
+  });
+
+  it('a vertical touch is left to the page (no preventDefault, no swipe)', () => {
+    const spies = setup();
+    touch('touchstart', 5);
+    const e = touch('touchmove', 8, 360);
+    touch('touchend', 8, 360);
+    expect(e.defaultPrevented).toBe(false);
+    expect(spies.onCommit).not.toHaveBeenCalled();
+  });
+
+  it('when pointer and touch events both arrive, the touch stream takes over', () => {
+    const spies = setup();
+    fire('pointerdown', 5);
+    touch('touchstart', 5);
+    // iOS cancels the pointer once it would scroll; that must not end the touch-driven swipe.
+    fire('pointercancel', 5);
+    vi.advanceTimersByTime(50);
+    touch('touchmove', 40);
+    vi.advanceTimersByTime(50);
+    touch('touchmove', 300);
+    touch('touchend', 300);
+    expect(spies.onCommit).toHaveBeenCalledTimes(1);
+  });
+});
