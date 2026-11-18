@@ -1,4 +1,5 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
+import { flushSync } from 'react-dom';
 import { Outlet, useLocation, useNavigate, useNavigationType } from 'react-router';
 import { ArrowLeft, Menu, WifiOff } from 'lucide-react';
 import { useOffline } from '../lib/connectivity';
@@ -6,7 +7,8 @@ import { DESKTOP_QUERY, useMediaQuery } from '../lib/hooks';
 import { saveLastList } from '../lib/lastList';
 import { useCounts } from '../lib/queries';
 import { findRoute } from '../routes/table';
-import { Drawer } from './Drawer';
+import { SWIPE_EDGE_PX, isStandalone, settleTo, useSwipe } from '../lib/useSwipe';
+import { Drawer, drawerWidth, type DrawerControl } from './Drawer';
 import { FeedNav } from './FeedNav';
 import { ShellSlotsContext } from './slots';
 import { useDocumentTitle } from './useDocumentTitle';
@@ -120,6 +122,67 @@ export function AppShell() {
     else navigate(route.parent ?? '/all', { replace: route.kind === 'sub' });
   }
 
+  // TID-055: edge swipes, only in the installed app (in a browser tab the edges belong to the
+  // browser's own back gesture). Below 1024px: from the left edge a screen with the Menu button
+  // drags the drawer in, an article drags right and goes back (one history step, like Back).
+  const standalone = useMemo(isStandalone, []);
+  const drawerControl = useRef<DrawerControl>(null);
+  const [peeking, setPeeking] = useState(false);
+  useSwipe({
+    enabled: standalone && !isDesktop && !open && !showBack && route.kind !== 'auth',
+    direction: 'right',
+    edgePx: SWIPE_EDGE_PX,
+    extent: drawerWidth,
+    commitAt: 0.4,
+    onStart: () => flushSync(() => setPeeking(true)),
+    onDrag: (p) => drawerControl.current?.setOpenness(p),
+    onCommit: () => {
+      if (!drawerControl.current) return openDrawer(); // reduced motion: no drag, just open
+      drawerControl.current.settle(true);
+      openDrawer();
+      setPeeking(false);
+    },
+    onCancel: () => drawerControl.current?.settle(false, () => setPeeking(false)),
+  });
+
+  const pageRef = useRef<HTMLDivElement>(null);
+  const backdropRef = useRef<HTMLDivElement>(null);
+  const canSwipeBack = standalone && !isDesktop && !open && route.kind === 'article';
+  const pageWidth = () => window.innerWidth;
+  useSwipe({
+    enabled: canSwipeBack,
+    direction: 'right',
+    edgePx: SWIPE_EDGE_PX,
+    extent: pageWidth,
+    commitAt: 0.35,
+    onDrag: (p) => {
+      if (pageRef.current) {
+        pageRef.current.style.transition = '';
+        pageRef.current.style.transform = `translateX(${p * pageWidth()}px)`;
+      }
+      if (backdropRef.current) backdropRef.current.style.opacity = String(1 - p);
+    },
+    onCommit: () => {
+      if (!pageRef.current?.style.transform) return goBack(); // reduced motion
+      settleTo(backdropRef.current, { transform: '', opacity: '0' });
+      settleTo(pageRef.current, { transform: `translateX(${pageWidth()}px)` }, goBack);
+    },
+    onCancel: () => {
+      settleTo(backdropRef.current, { transform: '', opacity: '0' });
+      settleTo(pageRef.current, { transform: 'translateX(0)' }, () => {
+        if (pageRef.current) pageRef.current.style.transform = '';
+      });
+    },
+  });
+  // The page the swipe moved is the same element on the next screen: put it back.
+  useLayoutEffect(() => {
+    if (pageRef.current) {
+      pageRef.current.style.transform = '';
+      pageRef.current.style.transition = '';
+    }
+    if (backdropRef.current) backdropRef.current.style.opacity = '';
+  }, [location.key]);
+
   return (
     <ShellSlotsContext.Provider value={slots}>
       <div inert={open}>
@@ -138,7 +201,7 @@ export function AppShell() {
               <FeedNav />
             </aside>
           )}
-          <div className="flex min-h-dvh min-w-0 flex-1 flex-col">
+          <div ref={pageRef} className="flex min-h-dvh min-w-0 flex-1 flex-col">
             <div className="sticky top-0 z-20">
               <header className="border-b border-line bg-surface pl-[max(1rem,env(safe-area-inset-left))] pr-[max(1rem,env(safe-area-inset-right))] pt-[env(safe-area-inset-top)]">
                 <div className="flex min-h-14 items-center gap-2 py-2 lg:mx-auto lg:max-w-2xl">
@@ -214,7 +277,16 @@ export function AppShell() {
           </div>
         </div>
       </div>
-      {open && <Drawer onClose={closeDrawer} />}
+      {canSwipeBack && (
+        <div
+          ref={backdropRef}
+          aria-hidden="true"
+          className="pointer-events-none fixed inset-0 -z-10 bg-scrim opacity-0"
+        />
+      )}
+      {(open || peeking) && (
+        <Drawer onClose={closeDrawer} peeking={peeking && !open} control={drawerControl} />
+      )}
     </ShellSlotsContext.Provider>
   );
 }

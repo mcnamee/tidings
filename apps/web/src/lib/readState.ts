@@ -12,7 +12,7 @@ import { toast } from './toast';
 
 export const READ_STATE_ERROR = "Couldn't update that article. Try again.";
 
-type Target = Pick<EntrySummary, 'id' | 'subscriptionId'>;
+export type Target = Pick<EntrySummary, 'id' | 'subscriptionId'>;
 
 function adjustCounts(
   counts: Counts,
@@ -35,7 +35,7 @@ function adjustCounts(
 }
 
 /** Writes the new state into every cache that shows it. Calling it twice with the same value is harmless for the flags, so callers only apply it when the state really changes. */
-function applyRead(client: QueryClient, target: Target, isRead: boolean): void {
+export function applyRead(client: QueryClient, target: Target, isRead: boolean): void {
   client.setQueryData<Entry>(entryKey(target.id), (old) =>
     old && old.isRead !== isRead ? { ...old, isRead } : old,
   );
