@@ -1,5 +1,5 @@
 import { useEffect, useLayoutEffect, useRef, useState, type ReactNode } from 'react';
-import { Link, useLocation, useNavigationType, useSearchParams } from 'react-router';
+import { Link, useSearchParams } from 'react-router';
 import { useQueryClient } from '@tanstack/react-query';
 import { Check, CheckCheck, Filter, Loader2, RefreshCw } from 'lucide-react';
 import {
@@ -25,7 +25,6 @@ import { usePullToRefresh } from '../lib/usePullToRefresh';
 import { SHEET_BUTTON, Sheet } from '../manage/Sheet';
 import { BottomBar, HeaderActions } from '../shell/slots';
 import { ArticleRow } from './ArticleRow';
-import { clearOpened, markOpened, scrollOf, wasOpenedFrom } from './returning';
 
 const COUNT_FORMAT = new Intl.NumberFormat('en-US');
 const formatCount = (n: number) => COUNT_FORMAT.format(n);
@@ -134,10 +133,20 @@ function Empty({
  * The three list views (`/all`, `/folders/:id`, `/feeds/:id`): FR-RD-1 to FR-RD-6, FR-RD-11 and
  * FR-RD-12. The unread/all filter lives in the URL (`?state=`), so Back from an article keeps it.
  */
-export function ArticleList({ view, id }: { view: EntryListView; id: string | null }) {
+export function ArticleList({
+  view,
+  id,
+  base,
+  covered = false,
+}: {
+  view: EntryListView;
+  id: string | null;
+  /** The list's own path (`/all`, `/folders/:id`, `/feeds/:id`): rows link to `${base}/a/:entryId`. */
+  base: string;
+  /** An article is open above this list: no pull to refresh, no mark-read-on-scroll underneath. */
+  covered?: boolean;
+}) {
   const client = useQueryClient();
-  const location = useLocation();
-  const navType = useNavigationType();
   const session = useSession();
   const [params, setParams] = useSearchParams();
 
@@ -149,26 +158,16 @@ export function ArticleList({ view, id }: { view: EntryListView; id: string | nu
         ? 'unread'
         : 'all';
   const key = entriesKey(view, id, state);
-  const listKey = `${location.pathname}?${state}`;
 
-  // FR-RD-4: Back from an article keeps the loaded pages (rows read meanwhile stay, shown as
-  // read). Any other arrival starts again from page 1.
-  const [returning] = useState(() => navType === 'POP' && wasOpenedFrom(listKey));
-  useState(() => {
-    if (!returning) trimToFirstPage(client, key);
-  });
-  useEffect(() => {
-    if (!returning) clearOpened();
-  }, [returning]);
-  // Back from an article lands at the same scroll position. The browser's own restoration runs
-  // before the list is back on screen, so the list puts it back itself.
+  // An article opens as a layer above this list, which stays mounted: Back finds the loaded
+  // pages, the rows read meanwhile (shown as read, FR-RD-4) and the scroll position as they were.
+  // Any other arrival starts again from page 1, with the browser's scroll restoration off.
+  useState(() => trimToFirstPage(client, key));
   useLayoutEffect(() => {
     if ('scrollRestoration' in window.history) window.history.scrollRestoration = 'manual';
-    if (returning) window.scrollTo(0, scrollOf(listKey));
-    // Only on arrival.
   }, []);
 
-  const entries = useEntries(view, id, state, returning ? false : 'always');
+  const entries = useEntries(view, id, state, 'always');
   const subscriptions = useSubscriptions();
   const items = entries.data?.pages.flatMap((p) => p.items) ?? [];
 
@@ -177,7 +176,7 @@ export function ArticleList({ view, id }: { view: EntryListView; id: string | nu
     trimToFirstPage(client, key);
     await Promise.all([entries.refetch(), client.refetchQueries({ queryKey: COUNTS_KEY })]);
   }
-  const pull = usePullToRefresh(refresh);
+  const pull = usePullToRefresh(refresh, !covered);
 
   // FR-RD-9. The watermark is the first page's `asOf`; the number for the confirm step is the
   // unread count the sidebar already holds for this view (or the loaded unread rows, if more).
@@ -200,7 +199,12 @@ export function ArticleList({ view, id }: { view: EntryListView; id: string | nu
 
   // TID-026: rows scrolled past are marked read (batched). Rows stay in an unread-only list.
   const listRef = useRef<HTMLUListElement>(null);
-  useMarkReadOnScroll(client, listRef, items, markReadOnScroll(session.data?.user?.settings));
+  useMarkReadOnScroll(
+    client,
+    listRef,
+    items,
+    !covered && markReadOnScroll(session.data?.user?.settings),
+  );
 
   const sentinel = useRef<HTMLDivElement>(null);
   const { hasNextPage, isFetchingNextPage, fetchNextPage } = entries;
@@ -266,8 +270,7 @@ export function ArticleList({ view, id }: { view: EntryListView; id: string | nu
             <ArticleRow
               key={entry.id}
               entry={entry}
-              to={`${location.pathname}/a/${entry.id}?state=${state}`}
-              onOpen={() => markOpened(listKey)}
+              to={`${base}/a/${entry.id}?state=${state}`}
               now={now}
             />
           ))}

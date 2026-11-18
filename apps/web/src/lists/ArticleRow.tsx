@@ -7,25 +7,11 @@ import { relativeTime, relativeTimeLong } from '../lib/time';
  * thumbnail when there is one, and a read/unread state. All feed text is rendered as text: React
  * escapes it, and nothing here ever sets HTML (spec 10.5).
  */
-export function ArticleRow({
-  entry,
-  to,
-  onOpen,
-  now,
-}: {
-  entry: EntrySummary;
-  to: string;
-  onOpen: () => void;
-  now: number;
-}) {
+export function ArticleRow({ entry, to, now }: { entry: EntrySummary; to: string; now: number }) {
   const title = entry.title?.trim() || 'Untitled article';
   return (
     <li data-entry-id={entry.id} className="border-b border-line">
-      <Link
-        to={to}
-        onClick={onOpen}
-        className="flex min-h-11 items-start gap-3 py-3 active:bg-sunken"
-      >
+      <Link to={to} className="flex min-h-11 items-start gap-3 py-3 active:bg-sunken">
         <div className="min-w-0 flex-1">
           <p className="flex items-center gap-2 text-sm text-fg-muted">
             {!entry.isRead && (

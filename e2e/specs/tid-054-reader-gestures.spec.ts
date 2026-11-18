@@ -50,6 +50,21 @@ async function swipe(cdp: CDPSession, x0: number, x1: number, y = 400, steps = 1
   await cdp.send('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [] });
 }
 
+/** Puts a finger down at x0 and drags to x1, then holds. Returns the release. */
+async function hold(cdp: CDPSession, x0: number, x1: number, y = 400, steps = 12) {
+  const pt = (x: number) => [{ x, y }];
+  await cdp.send('Input.dispatchTouchEvent', { type: 'touchStart', touchPoints: pt(x0) });
+  for (let i = 1; i <= steps; i++) {
+    await cdp.send('Input.dispatchTouchEvent', {
+      type: 'touchMove',
+      touchPoints: pt(x0 + ((x1 - x0) * i) / steps),
+    });
+    await new Promise((r) => setTimeout(r, 16));
+  }
+  await new Promise((r) => setTimeout(r, 150));
+  return () => cdp.send('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [] });
+}
+
 test.describe('TID-054: the title opens the original', () => {
   test('is a link in a new tab, and plain text without a URL', async ({ page }) => {
     await page.goto('/all/a/9500');
@@ -185,5 +200,122 @@ test.describe('TID-055: swipe gestures in the installed app', () => {
     const cdp = await page.context().newCDPSession(page);
     await swipe(cdp, 6, 220);
     await expect(page.getByRole('dialog', { name: 'Navigation' })).toBeVisible();
+  });
+
+  test('the drawer keeps going from the finger to open: same element, no second slide-in', async ({
+    page,
+  }, testInfo) => {
+    mobileOnly(testInfo.project.name);
+    await installed(page);
+    await page.goto('/all');
+    await expect(page.getByRole('heading', { level: 2, name: 'Row 1', exact: true })).toBeVisible();
+    const cdp = await page.context().newCDPSession(page);
+
+    const release = await hold(cdp, 6, 200);
+    // Mid-drag: a peeking panel, partly out, with no entrance animation of its own.
+    await page.evaluate(() => {
+      const el = document.getElementById('nav-drawer');
+      if (!el) throw new Error('no peeking drawer');
+      const w = window as unknown as { __d: Element; __s: { same: boolean; left: number }[] };
+      w.__d = el;
+      w.__s = [];
+      const tick = () => {
+        const cur = document.getElementById('nav-drawer');
+        w.__s.push({ same: cur === w.__d, left: cur?.getBoundingClientRect().left ?? NaN });
+        requestAnimationFrame(tick);
+      };
+      tick();
+    });
+    expect(
+      await page.evaluate(() => document.getElementById('nav-drawer')?.getAnimations().length),
+    ).toBe(0);
+    await release();
+    await expect(page.getByRole('button', { name: 'Close navigation' })).toBeVisible();
+    await page.waitForTimeout(500);
+    const samples = await page.evaluate(
+      () => (window as unknown as { __s: { same: boolean; left: number }[] }).__s,
+    );
+    expect(samples.length).toBeGreaterThan(10);
+    expect(samples.every((x) => x.same)).toBe(true);
+    // Never moves back toward the edge once released (no jump), and ends fully open.
+    for (let i = 1; i < samples.length; i++) {
+      expect(samples[i]!.left).toBeGreaterThanOrEqual(samples[i - 1]!.left - 0.5);
+    }
+    expect(samples.at(-1)!.left).toBe(0);
+    expect(
+      await page.evaluate(() => document.getElementById('nav-drawer')?.getAnimations().length),
+    ).toBe(0);
+
+    // And a swipe-close goes straight out: same element, only ever moving left.
+    await page.evaluate(() => {
+      const w = window as unknown as { __d: Element; __s: { same: boolean; left: number }[] };
+      w.__s = [];
+    });
+    await swipe(cdp, 260, 40);
+    await expect(page.getByRole('dialog', { name: 'Navigation' })).toHaveCount(0);
+    const out = await page.evaluate(
+      () => (window as unknown as { __s: { same: boolean; left: number }[] }).__s,
+    );
+    const lefts = out.filter((x) => x.same && !Number.isNaN(x.left)).map((x) => x.left);
+    for (let i = 1; i < lefts.length; i++)
+      expect(lefts[i]!).toBeLessThanOrEqual(lefts[i - 1]! + 0.5);
+  });
+
+  test('swipe back from an article shows the list underneath, then lands on it unmoved', async ({
+    page,
+  }, testInfo) => {
+    mobileOnly(testInfo.project.name);
+    await installed(page);
+    await page.goto('/all');
+    await expect(page.getByRole('heading', { level: 2, name: 'Row 1', exact: true })).toBeVisible();
+    await page.evaluate(() => window.scrollTo(0, 400));
+    const y = await page.evaluate(() => window.scrollY);
+    expect(y).toBeGreaterThan(100);
+    const href = await page.evaluate(
+      () =>
+        [...document.querySelectorAll<HTMLAnchorElement>('a[href^="/all/a/"]')]
+          .find((a) => a.getBoundingClientRect().top > 200)
+          ?.getAttribute('href') ?? '',
+    );
+    await page.locator(`a[href="${href}"]`).click();
+    await expect(page.getByRole('article')).toBeVisible();
+    // One heading set exposed; the list is there but inert and hidden.
+    await expect(page.getByRole('heading', { level: 1 })).toHaveCount(1);
+    const under = page.getByTestId('list-underlay');
+    await expect(under).toHaveAttribute('inert', '');
+    expect(await page.evaluate(() => window.scrollY)).toBe(y);
+    const cdp = await page.context().newCDPSession(page);
+
+    // Cancel: the article slides back, the list returns underneath.
+    const cancel = await hold(cdp, 6, 60, 400, 20);
+    await expect(under).toBeInViewport();
+    expect(await under.evaluate((e) => (e as HTMLElement).style.transform)).toMatch(
+      /translateX\(-/,
+    );
+    await cancel();
+    await expect(page.getByRole('article')).toBeVisible();
+    await expect(page.getByTestId('article-layer')).toHaveCSS('transform', 'none');
+    await expect(under).toHaveCSS('transform', 'none');
+
+    // Mid-drag: the list is visible beneath, shifted left, and the scrim is lighter than at rest.
+    const end = await hold(cdp, 6, 200);
+    const layerX = await page
+      .getByTestId('article-layer')
+      .evaluate((e) => new DOMMatrix(getComputedStyle(e).transform).m41);
+    const underX = await under.evaluate((e) => new DOMMatrix(getComputedStyle(e).transform).m41);
+    expect(layerX).toBeGreaterThan(100);
+    expect(underX).toBeLessThan(0);
+    expect(underX).toBeGreaterThan(-0.3 * 375);
+    const scrim = await page
+      .getByTestId('article-scrim')
+      .evaluate((e) => Number((e as HTMLElement).style.opacity));
+    expect(scrim).toBeGreaterThan(0);
+    expect(scrim).toBeLessThan(1);
+    await end();
+
+    await expect(page).toHaveURL(/\/all(\?|$)/);
+    await expect(page.getByTestId('article-layer')).toHaveCount(0);
+    await expect(under).toHaveCSS('transform', 'none');
+    expect(await page.evaluate(() => window.scrollY)).toBe(y);
   });
 });

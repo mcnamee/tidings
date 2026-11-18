@@ -344,19 +344,20 @@ describe('AC7: Next and Previous', () => {
     expect(await screen.findByRole('heading', { level: 2, name: 'Title 2' })).toBeInTheDocument();
   });
 
-  it('Back restores the list scroll position after Next and Previous', async () => {
+  it('keeps the list mounted under the article, so Back finds it as it was (no scroll restore)', async () => {
     const scrollTo = vi.fn();
     window.scrollTo = scrollTo as unknown as typeof window.scrollTo;
-    Object.defineProperty(window, 'scrollY', { value: 640, configurable: true });
     const user = userEvent.setup();
     renderApp('/all');
     await user.click(await screen.findByRole('link', { name: /Title 1/ }));
-    Object.defineProperty(window, 'scrollY', { value: 0, configurable: true });
+    const list = screen.getByTestId('list-underlay').querySelector('ul');
+    expect(list).not.toBeNull();
     await user.click(await screen.findByRole('button', { name: 'Next' }));
     await user.click(await screen.findByRole('button', { name: 'Previous' }));
     await user.click(screen.getByRole('button', { name: 'system back' }));
     await screen.findByRole('link', { name: /Title 1/ });
-    expect(scrollTo).toHaveBeenLastCalledWith(0, 640);
+    expect(screen.getByTestId('list-underlay').querySelector('ul')).toBe(list);
+    expect(scrollTo).not.toHaveBeenCalled();
   });
 });
 

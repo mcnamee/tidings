@@ -1091,3 +1091,8 @@ Native apps; Inoreader API sync or starred-item migration (Q7); social features;
 - **TID-035 (amended): Drawer swipes.** Swipe the open drawer left to close (all modes). In the installed (standalone) app only, a swipe from the left screen edge on a list opens the drawer; in Safari the edge belongs to the browser's back gesture, so it is not used there.
 - **TID-055: Edge-swipe back on the article (installed app only).** A swipe from the left edge drags the article and, past 35% or on a flick, goes back one history step. Vertical scrolling is never hijacked; `prefers-reduced-motion` removes the follow-the-finger animation.
 - **TID-057: Logo, icons and full-screen app.** An original slanted, rounded "T" mark (construction in `docs/ux/brand.md`), favicon, 192/512/maskable/180 icons, web manifest with `display: standalone`, Apple web-app meta tags, safe-area insets. Covers TID-023 AC4 and AC6; the IndexedDB cache (AC1-AC3) stays in TID-023.
+
+### TID-035 / TID-055 fix, 2026-11-18 (owner report from a real iPhone)
+- **Drawer double jump:** the peeking drawer is now kept (same element) until the open lands, then switches to open in place: no remount, no entrance animation. Swipe-close was already one element and now has a test.
+- **Swipe back from an article was blank:** the article is a full-screen layer above its list, which stays mounted (inert, aria-hidden). The list moves from -30% to 0 and un-dims as the article is dragged away; after Back it is the same list at the same scroll position, so the manual scroll restore and `lists/returning.ts` are gone. Pull to refresh and mark-read-on-scroll are off while the list is covered.
+

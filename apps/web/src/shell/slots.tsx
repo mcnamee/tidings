@@ -1,4 +1,4 @@
-import { createContext, useContext, useEffect, type ReactNode } from 'react';
+import { createContext, useContext, useEffect, type ReactNode, type RefObject } from 'react';
 import { createPortal } from 'react-dom';
 
 // The header's right-hand actions and the bottom bar are the only parts of the shell a screen may
@@ -7,7 +7,16 @@ import { createPortal } from 'react-dom';
 export interface ShellSlots {
   headerActions: HTMLElement | null;
   bottomBar: HTMLElement | null;
+  /** True while another layer covers this one (a list under an article): it must not publish --bottom-offset. */
+  inactive?: boolean;
 }
+
+/** Where a full-screen layer (the article) mounts, and the page under it that its swipe-back moves. */
+export interface LayerSlots {
+  root: HTMLElement | null;
+  underlay: RefObject<HTMLElement | null> | null;
+}
+export const LayerContext = createContext<LayerSlots>({ root: null, underlay: null });
 
 export const ShellSlotsContext = createContext<ShellSlots>({
   headerActions: null,
@@ -25,9 +34,9 @@ export function HeaderActions({ children }: { children: ReactNode }) {
  * bar's own bottom padding (that inset) is subtracted here. Removed when the bar unmounts.
  */
 export function BottomBar({ children }: { children: ReactNode }) {
-  const { bottomBar } = useContext(ShellSlotsContext);
+  const { bottomBar, inactive } = useContext(ShellSlotsContext);
   useEffect(() => {
-    if (!bottomBar) return;
+    if (!bottomBar || inactive) return;
     const root = document.documentElement;
     const publish = () => {
       const inset = parseFloat(getComputedStyle(bottomBar).paddingBottom) || 0;
@@ -40,7 +49,7 @@ export function BottomBar({ children }: { children: ReactNode }) {
       observer?.disconnect();
       root.style.removeProperty('--bottom-offset');
     };
-  }, [bottomBar]);
+  }, [bottomBar, inactive]);
   return bottomBar
     ? createPortal(
         <div className="mx-auto flex min-h-14 max-w-2xl flex-wrap items-center gap-2">

@@ -6,6 +6,7 @@ import {
   Route,
   Routes,
   matchPath,
+  useOutlet,
   useLocation,
   useParams,
 } from 'react-router';
@@ -158,14 +159,49 @@ function SettingsPlaceholder() {
 }
 
 // Keyed by the ID so moving between two folders (or feeds) starts a fresh list, not a reused one.
+// An open article is the child route: it renders as a layer above its list, which stays mounted.
+function AllList() {
+  const article = useOutlet();
+  return (
+    <>
+      <ArticleList view="all" id={null} base="/all" covered={!!article} />
+      {article}
+    </>
+  );
+}
+
 function FolderList() {
   const { folderId = '' } = useParams();
-  return <ArticleList key={folderId} view="folder" id={folderId} />;
+  const article = useOutlet();
+  return (
+    <>
+      <ArticleList
+        key={folderId}
+        view="folder"
+        id={folderId}
+        base={`/folders/${folderId}`}
+        covered={!!article}
+      />
+      {article}
+    </>
+  );
 }
 
 function FeedList() {
   const { subscriptionId = '' } = useParams();
-  return <ArticleList key={subscriptionId} view="feed" id={subscriptionId} />;
+  const article = useOutlet();
+  return (
+    <>
+      <ArticleList
+        key={subscriptionId}
+        view="feed"
+        id={subscriptionId}
+        base={`/feeds/${subscriptionId}`}
+        covered={!!article}
+      />
+      {article}
+    </>
+  );
 }
 
 /**
@@ -200,10 +236,9 @@ function screenFor(path: string) {
   if (path === '/manage') return <Manage />;
   if (path === '/manage/add') return <AddFeed />;
   if (path === '/manage/import') return <ImportOpml />;
-  if (path === '/all') return <ArticleList view="all" id={null} />;
+  if (path === '/all') return <AllList />;
   if (path === '/folders/:folderId') return <FolderList />;
   if (path === '/feeds/:subscriptionId') return <FeedList />;
-  if (path.includes('/a/:entryId')) return <ArticleRoute />;
   return <Placeholder />;
 }
 
@@ -211,7 +246,7 @@ const authRoutes = ROUTES.filter(
   (r) =>
     r.kind === 'auth' && r.path !== '/setup' && r.path !== '/login' && r.path !== '/login/email',
 );
-const shellRoutes = ROUTES.filter((r) => r.kind !== 'auth');
+const shellRoutes = ROUTES.filter((r) => r.kind !== 'auth' && r.kind !== 'article');
 
 export function App() {
   const queryClient = useQueryClient();
@@ -237,7 +272,9 @@ export function App() {
         <Route element={<RequireAuth />}>
           <Route element={<AppShell />}>
             {shellRoutes.map((r) => (
-              <Route key={r.path} path={r.path} element={screenFor(r.path)} />
+              <Route key={r.path} path={r.path} element={screenFor(r.path)}>
+                {r.kind === 'list' && <Route path="a/:entryId" element={<ArticleRoute />} />}
+              </Route>
             ))}
             <Route path="*" element={<NotFound />} />
           </Route>

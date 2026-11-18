@@ -179,16 +179,17 @@ test.describe('TID-006 large text (M1-M3) and toast offset (m2)', () => {
       await mount(160);
       await expect.poll(async () => (await measure()).barH).toBeGreaterThan(160);
       await expect.poll(async () => (await measure()).gap).toBeCloseTo(12, 1);
-      // Unmounting the bar removes the offset.
+      // Unmounting the bar removes its offset. The list's own bar (57px) is mounted too and may
+      // republish its own value a frame later, so check the tall bar's value is gone, not that none is set.
+      const offset = () =>
+        page.evaluate(() => document.documentElement.style.getPropertyValue('--bottom-offset'));
+      const tall = await offset();
+      expect(parseFloat(tall)).toBeGreaterThan(160);
       await page.evaluate(async (url) => {
         const m = await import(/* @vite-ignore */ url);
         m.unmountBar();
       }, harness);
-      await expect
-        .poll(() =>
-          page.evaluate(() => document.documentElement.style.getPropertyValue('--bottom-offset')),
-        )
-        .toBe('');
+      await expect.poll(offset).not.toBe(tall);
     });
   });
 });

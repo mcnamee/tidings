@@ -62,6 +62,7 @@ The right-hand and bottom slots are provided by the shell and filled by each scr
 - Opens from the Menu button. Also closes on Escape, backdrop tap, choosing a destination, and browser/system Back. Open and close are in the TID-006 scope; the drawer pushes one history entry while open (spec 11.1).
 - Modal: focus is trapped and the page behind is inert.
 - Swipe the open drawer left to close it (TID-035, all modes). Swipe from the left edge to open it only in the installed (standalone) app: in Safari the edge belongs to the browser's back gesture. In the installed app, an edge swipe on the article view goes back (TID-055). Every gesture has a button or key equivalent.
+- Swipes continue from the finger. An edge swipe that opens the drawer keeps the same panel and finishes sliding to open with no second entrance animation; a swipe-close slides straight out. An article is a full-screen layer above the list it was opened from (the list stays mounted underneath, inert and hidden from assistive tech): dragging the article right shows the list moving in from 30% to the left while the dim fades; releasing past 35% (or a flick) finishes the slide and the list is there at the same scroll position, otherwise the article slides back. From 1024px the layer covers only the content column, the sidebar stays (no swipe on desktop).
 
 ### 1.6 Back behaviour
 
