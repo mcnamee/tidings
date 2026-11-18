@@ -206,3 +206,9 @@ Decision recorded here for the list spec: in Unread-only mode a row that has jus
 | Loading with cache | Show cached content instantly and refresh quietly: no spinner, no flash. | |
 | Loading without cache | Skeleton rows shaped like the final content. | |
 | Rate limited | Toast with the wait time where known. | "Too many requests. Try again in a minute." |
+
+## Native-feel transitions (TID-058, owner request 2026-11-18)
+
+- **Pull to refresh:** the document never bounces (`overscroll-behavior-y: none`); the header and status-bar area stay pinned while only the list content stretches down with resistance, revealing "Pull to refresh" / "Release to refresh" under the header.
+- **Opening an article:** the article slides in from the right (300 ms, iOS ease) while the list shifts left by 30% and dims; the Back button plays the reverse; the edge swipe-back finishes the same slide. Next/Previous slide the body 32 px with a fade (180 ms). No animation on a direct link, a reload, reduced motion, or at desktop width.
+
