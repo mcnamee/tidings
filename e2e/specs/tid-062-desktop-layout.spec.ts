@@ -11,18 +11,25 @@ const svg = (hue: number) =>
     `<svg xmlns="http://www.w3.org/2000/svg" width="640" height="360"><rect width="640" height="360" fill="hsl(${hue} 45% 60%)"/></svg>`,
   )}`;
 
-const ITEMS = Array.from({ length: 12 }, (_, i) => ({
+const SUMMARIES = [
+  'The company says the update rolls out over the coming weeks, with the biggest changes aimed at people who read offline on slow connections and want fewer interruptions.',
+  'A close look at how small teams are replacing sprawling toolchains with a handful of boring, dependable parts, and what they gave up in the process.',
+  'Researchers found the effect held across every group they tested, though they caution that the sample was small and the follow-up period short.',
+  'It is the first major revision in a decade, and it quietly fixes a long list of annoyances that never made the headlines.',
+];
+
+const ITEMS = Array.from({ length: 18 }, (_, i) => ({
   id: `9${400 + i}`,
   subscriptionId: 's1',
   feedTitle: 'Ars Technica',
   title:
-    i % 4 === 3
+    i % 5 === 3
       ? `Text only story ${i}`
       : `A reasonably long magazine headline number ${i} that wraps over a few lines`,
   author: null,
   url: `https://example.com/${i}`,
-  summary: null,
-  imageUrl: i % 4 === 3 ? null : svg(i * 31),
+  summary: SUMMARIES[i % SUMMARIES.length],
+  imageUrl: i % 5 === 3 ? null : svg(i * 31),
   publishedAt: new Date(NOW - (i + 1) * 3_600_000).toISOString(),
   isRead: i === 5,
   isStarred: false,
@@ -89,7 +96,7 @@ test('the list is a card grid: 3 columns at 1280, 2 at 1100 with the sidebar, 3 
 }) => {
   await mockEntries(page);
   await page.goto('/all');
-  await expect(page.getByTestId('article-grid').locator('li')).toHaveCount(12);
+  await expect(page.getByTestId('article-grid').locator('li')).toHaveCount(18);
   expect(await columns(page)).toBe(3);
   await page.setViewportSize({ width: 1100, height: 800 });
   expect(await columns(page)).toBe(2);
@@ -106,14 +113,42 @@ test('the list is a card grid: 3 columns at 1280, 2 at 1100 with the sidebar, 3 
   await expect(img).toHaveAttribute('referrerpolicy', 'no-referrer');
 });
 
-// Review screenshots for docs/ux/reviews (run with TID062_SHOTS=1 on desktop-light).
-test('review screenshots', async ({ page }) => {
+test('hero entries are featured cards: two columns wide, summary clamped, no holes', async ({
+  page,
+}) => {
+  await mockEntries(page);
+  await page.goto('/all');
+  const grid = page.getByTestId('article-grid');
+  const featured = grid.locator('li[data-layout="hero"]');
+  await expect(featured).toHaveCount(3);
+  const single = (await grid.locator('li[data-layout="thumb"]').first().boundingBox())!;
+  const wide = (await featured.first().boundingBox())!;
+  expect(wide.width).toBeGreaterThan(single.width * 1.9);
+  // Image on the left half, title and summary beside it.
+  const img = (await featured.first().locator('img').boundingBox())!;
+  const title = (await featured.first().getByRole('heading').boundingBox())!;
+  expect(title.x).toBeGreaterThanOrEqual(img.x + img.width);
+  const summary = featured.first().getByTestId('entry-summary');
+  await expect(summary).toBeVisible();
+  // The text-only card shows its summary too.
+  await expect(
+    grid.locator('li[data-layout="text"]').first().getByTestId('entry-summary'),
+  ).toBeVisible();
+});
+
+// Review screenshots for docs/ux/reviews (run with TID062_SHOTS=1 on desktop-light and -dark).
+test('review screenshots', async ({ page }, testInfo) => {
   test.skip(!process.env.TID062_SHOTS, 'only when capturing screenshots');
+  const dark = testInfo.project.name.endsWith('dark');
   await mockEntries(page);
   await page.setViewportSize({ width: 1440, height: 900 });
   await page.goto('/all');
-  await expect(page.getByTestId('article-grid').locator('li')).toHaveCount(12);
+  await expect(page.getByTestId('article-grid').locator('li')).toHaveCount(18);
   await page.waitForTimeout(400);
+  if (dark) {
+    await page.screenshot({ path: '../docs/ux/reviews/tid-062-desktop-dark.png' });
+    return;
+  }
   await page.screenshot({ path: '../docs/ux/reviews/tid-062-desktop-sidebar.png' });
   await page.getByRole('button', { name: 'Hide sidebar' }).click();
   await page.waitForTimeout(500);

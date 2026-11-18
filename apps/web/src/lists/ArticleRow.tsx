@@ -10,13 +10,17 @@ import { rowLayout } from './rowLayout';
  * `lg` once the sidebar is hidden (the column is the full ~1024px). Below `lg` it stays one column.
  */
 export const LIST_GRID =
-  'lg:grid lg:grid-cols-2 lg:gap-4 xl:grid-cols-3 group-data-[sidebar=hidden]/shell:lg:grid-cols-3';
+  'lg:grid lg:grid-flow-dense lg:grid-cols-2 lg:gap-4 xl:grid-cols-3 group-data-[sidebar=hidden]/shell:lg:grid-cols-3';
 
 /**
  * One article in a list (FR-RD-5), in one of three layouts (TID-060): thumbnail on the left with
  * the text beside it (to flip it, add `flex-row-reverse` to the link), text-only, or a hero image
- * on top. The summary is not shown: the reference look has none. All feed text is rendered as
- * text: React escapes it, and nothing here ever sets HTML (spec 10.5).
+ * on top. Below `lg` there is no summary. From `lg` every card shows a clamped plain-text summary
+ * (when the feed has one) and a hero entry is a featured card: it spans two columns (a full row in
+ * the 2-column grid), image on the left half, bigger title and summary on the right. The grid is
+ * `grid-flow-dense`, so featured cards leave no holes; the cost is that their visual order can
+ * differ slightly from DOM and keyboard order. All feed text is rendered as text: React escapes
+ * it, and nothing here ever sets HTML (spec 10.5).
  */
 export function ArticleRow({
   entry,
@@ -33,6 +37,7 @@ export function ArticleRow({
   const title = entry.title?.trim() || 'Untitled article';
   const layout = broken ? 'text' : rowLayout(entry, prev);
   const hero = layout === 'hero';
+  const summary = entry.summary?.replace(/\s+/g, ' ').trim() ?? '';
   const img = (cls: string) => (
     <img
       src={entry.imageUrl ?? undefined}
@@ -48,25 +53,37 @@ export function ArticleRow({
     <li
       data-entry-id={entry.id}
       data-layout={layout}
-      className="border-b border-line lg:border-b-0"
+      className={`border-b border-line lg:border-b-0 ${hero ? 'lg:col-span-2' : ''}`}
     >
       <Link
         to={to}
         className={`-mx-4 min-h-11 px-4 py-4 hover:bg-sunken active:bg-sunken lg:mx-0 lg:h-full lg:rounded-xl lg:p-3 ${
-          hero ? 'block lg:flex lg:flex-col' : 'flex items-start gap-3 lg:flex-col lg:gap-0'
+          hero
+            ? 'block lg:flex lg:items-start lg:gap-5'
+            : 'flex items-start gap-3 lg:flex-col lg:gap-0'
         }`}
       >
-        {hero && img('aspect-video max-h-80 w-full rounded-lg lg:max-h-none')}
+        {hero && img('aspect-video max-h-80 w-full rounded-lg lg:max-h-none lg:w-1/2 lg:shrink-0')}
         {layout === 'thumb' &&
           img('size-24 shrink-0 rounded-lg lg:aspect-video lg:size-auto lg:w-full')}
         <div className="min-w-0 flex-1">
           <h2
-            className={`line-clamp-4 break-words leading-snug ${hero ? 'mt-3 text-xl lg:text-lg' : 'text-lg'} ${
+            className={`line-clamp-4 break-words leading-snug ${hero ? 'mt-3 text-xl lg:mt-0 lg:text-2xl' : 'text-lg'} ${
               layout === 'text' ? '' : 'lg:mt-3'
             } ${entry.isRead ? 'font-normal text-fg-muted' : 'font-semibold text-fg'}`}
           >
             {title}
           </h2>
+          {summary && (
+            <p
+              data-testid="entry-summary"
+              className={`mt-2 hidden break-words text-base leading-normal text-fg-muted ${
+                hero ? 'lg:line-clamp-4' : 'lg:line-clamp-3'
+              }`}
+            >
+              {summary}
+            </p>
+          )}
           <p className="mt-1.5 flex items-center gap-1.5 text-[0.9375rem] text-fg-muted">
             {!entry.isRead && (
               <>
