@@ -135,7 +135,7 @@ describe('AC1: the list views', () => {
     const first = row('Title 1');
     expect(within(first!).getByText('Daring Fireball')).toBeInTheDocument();
     expect(within(first!).getByText('1h')).toBeInTheDocument();
-    expect(within(first!).getByText('Summary 1')).toBeInTheDocument();
+    expect(within(first!).queryByText('Summary 1')).toBeNull();
     expect(first!.querySelector('img')).toHaveAttribute('src', 'https://img.example.com/a.jpg');
     const second = row('Title 2')!;
     expect(second.querySelector('img')).toBeNull();
@@ -606,7 +606,7 @@ describe('AC14: feed text is text', () => {
     expect(heading.textContent).toBe(title);
     expect(heading.querySelector('b')).toBeNull();
     const item = heading.closest('li')!;
-    expect(item).toHaveTextContent(summary);
+    expect(item).not.toHaveTextContent(summary);
     expect(item.querySelector('script, img')).toBeNull();
     expect(document.querySelector('main img')).toBeNull();
     expect(alertSpy).not.toHaveBeenCalled();

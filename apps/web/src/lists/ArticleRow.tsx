@@ -1,53 +1,72 @@
+import { useState } from 'react';
 import { Link } from 'react-router';
 import type { EntrySummary } from '@tidings/shared';
 import { relativeTime, relativeTimeLong } from '../lib/time';
+import { rowLayout } from './rowLayout';
 
 /**
- * One article in a list (FR-RD-5): feed title, relative time, title (3 lines), summary (2 lines),
- * thumbnail when there is one, and a read/unread state. All feed text is rendered as text: React
- * escapes it, and nothing here ever sets HTML (spec 10.5).
+ * One article in a list (FR-RD-5), in one of three layouts (TID-060): thumbnail on the left with
+ * the text beside it (to flip it, add `flex-row-reverse` to the link), text-only, or a hero image
+ * on top. The summary is not shown: the reference look has none. All feed text is rendered as
+ * text: React escapes it, and nothing here ever sets HTML (spec 10.5).
  */
-export function ArticleRow({ entry, to, now }: { entry: EntrySummary; to: string; now: number }) {
+export function ArticleRow({
+  entry,
+  to,
+  now,
+  prev,
+}: {
+  entry: EntrySummary;
+  to: string;
+  now: number;
+  prev?: EntrySummary;
+}) {
+  const [broken, setBroken] = useState(false);
   const title = entry.title?.trim() || 'Untitled article';
+  const layout = broken ? 'text' : rowLayout(entry, prev);
+  const hero = layout === 'hero';
+  const img = (cls: string) => (
+    <img
+      src={entry.imageUrl ?? undefined}
+      alt=""
+      loading="lazy"
+      decoding="async"
+      referrerPolicy="no-referrer"
+      onError={() => setBroken(true)}
+      className={`bg-sunken object-cover ${cls}`}
+    />
+  );
   return (
-    <li data-entry-id={entry.id} className="border-b border-line">
-      <Link to={to} className="flex min-h-11 items-start gap-3 py-3 active:bg-sunken">
+    <li data-entry-id={entry.id} data-layout={layout} className="border-b border-line">
+      <Link
+        to={to}
+        className={`min-h-11 py-4 active:bg-sunken ${hero ? 'block' : 'flex items-start gap-3'}`}
+      >
+        {hero && img('aspect-video max-h-80 w-full rounded-lg')}
+        {layout === 'thumb' && img('size-24 shrink-0 rounded-lg')}
         <div className="min-w-0 flex-1">
-          <p className="flex items-center gap-2 text-sm text-fg-muted">
+          <h2
+            className={`line-clamp-4 break-words leading-snug ${hero ? 'mt-3 text-xl' : 'text-lg'} ${
+              entry.isRead ? 'font-normal text-fg-muted' : 'font-semibold text-fg'
+            }`}
+          >
+            {title}
+          </h2>
+          <p className="mt-1.5 flex items-center gap-1.5 text-[0.9375rem] text-fg-muted">
             {!entry.isRead && (
               <>
                 <span aria-hidden="true" className="size-2 shrink-0 rounded-full bg-accent" />
                 <span className="sr-only">Unread.</span>
               </>
             )}
-            <span className="min-w-0 truncate">{entry.feedTitle}</span>
+            <span className="min-w-0 truncate font-medium text-accent">{entry.feedTitle}</span>
             <span aria-hidden="true">&middot;</span>
             <time dateTime={entry.publishedAt} className="shrink-0">
               <span aria-hidden="true">{relativeTime(entry.publishedAt, now)}</span>
               <span className="sr-only">{relativeTimeLong(entry.publishedAt, now)}</span>
             </time>
           </p>
-          <h2
-            className={`mt-1 line-clamp-3 break-words text-base ${
-              entry.isRead ? 'font-normal text-fg-muted' : 'font-semibold text-fg'
-            }`}
-          >
-            {title}
-          </h2>
-          {entry.summary && (
-            <p className="mt-1 line-clamp-2 break-words text-sm text-fg-muted">{entry.summary}</p>
-          )}
         </div>
-        {entry.imageUrl && (
-          <img
-            src={entry.imageUrl}
-            alt=""
-            loading="lazy"
-            decoding="async"
-            referrerPolicy="no-referrer"
-            className="size-[80px] shrink-0 rounded-md bg-sunken object-cover"
-          />
-        )}
       </Link>
     </li>
   );

@@ -274,7 +274,7 @@ Rules that follow from the table:
 
 ### 4.1 Families
 
-System stacks only (CSP, privacy, bundle). UI is sans. Article body is serif (`font-serif`): it reads well in long form and every platform has a decent serif (iOS and macOS Charter or Iowan, Android Noto Serif, Windows Georgia). Titles and all UI stay sans. This is a one-line change (`.article-prose { font-family }`) if the owner dislikes it.
+System stacks only (CSP, privacy, bundle). UI is sans. Article body is sans (owner request, TID-060), same stack as the UI; `--font-serif` stays defined but unused.
 
 ### 4.2 Respecting the user's size
 
@@ -313,7 +313,7 @@ Apply to the single component that renders sanitised HTML (`ArticleContent`, spe
 
 @layer components {
   .article-prose {
-    font-family: var(--font-serif);
+    font-family: var(--font-sans);
     font-size: var(--article-size);
     line-height: 1.65;
     max-inline-size: 65ch;            /* ch follows the font size, so the measure holds at S, M, L */

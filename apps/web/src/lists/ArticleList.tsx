@@ -48,13 +48,13 @@ function Skeleton() {
   return (
     <ul aria-busy="true" aria-label="Loading articles" data-testid="list-skeleton">
       {[0, 1, 2, 3, 4, 5].map((n) => (
-        <li key={n} className="flex gap-3 border-b border-line py-3">
+        <li key={n} className="flex gap-3 border-b border-line py-4">
           <div className="flex-1 space-y-2">
             <div className="h-4 w-1/3 animate-skeleton rounded-sm bg-sunken" />
             <div className="h-5 w-11/12 animate-skeleton rounded-sm bg-sunken" />
             <div className="h-4 w-4/5 animate-skeleton rounded-sm bg-sunken" />
           </div>
-          <div className="size-20 animate-skeleton rounded-md bg-sunken" />
+          <div className="order-first size-24 animate-skeleton rounded-lg bg-sunken" />
         </li>
       ))}
     </ul>
@@ -271,17 +271,18 @@ export function ArticleList({
     body = (
       <>
         <ul ref={listRef}>
-          {items.map((entry) => (
+          {items.map((entry, i) => (
             <ArticleRow
               key={entry.id}
               entry={entry}
               to={`${base}/a/${entry.id}?state=${state}`}
               now={now}
+              prev={items[i - 1]}
             />
           ))}
         </ul>
         {hasNextPage && (
-          <div ref={sentinel} className="flex min-h-14 items-center justify-center py-3">
+          <div ref={sentinel} className="flex min-h-14 items-center justify-center py-4">
             {entries.isFetchNextPageError ? (
               <button type="button" onClick={() => void fetchNextPage()} className={BUTTON}>
                 Couldn&apos;t load more. Try again

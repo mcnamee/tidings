@@ -61,7 +61,7 @@ test('AC14: markup in an article title and summary is shown as text and runs not
   const heading = page.getByRole('heading', { level: 2, name: XSS_TITLE });
   await expect(heading).toHaveText(XSS_TITLE);
   const item = page.getByRole('main').getByRole('listitem').filter({ has: heading });
-  await expect(item).toContainText(XSS_SUMMARY);
+  await expect(item).not.toContainText(XSS_SUMMARY);
   await expect(item.locator('b, script, img')).toHaveCount(0);
   await expect(page.getByRole('main').locator('script')).toHaveCount(0);
   await page.waitForTimeout(300);
