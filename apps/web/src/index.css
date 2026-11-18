@@ -114,6 +114,7 @@
   --radius-lg: 1rem;
 
   --ease-standard: cubic-bezier(0.2, 0, 0, 1);
+  --ease-ios: cubic-bezier(0.32, 0.72, 0, 1);
   --ease-exit: cubic-bezier(0.4, 0, 1, 1);
   --animate-skeleton: skeleton 1.4s ease-in-out infinite;
   @keyframes skeleton {
@@ -303,6 +304,12 @@
 /* Shell base. */
 html {
   background-color: var(--c-bg);
+}
+/* No document rubber-band (iOS 16+): the sticky header and the status-bar area never move.
+   Pull to refresh stretches the list content instead (usePullToRefresh). */
+html,
+body {
+  overscroll-behavior-y: none;
 }
 body {
   background-color: var(--c-bg);

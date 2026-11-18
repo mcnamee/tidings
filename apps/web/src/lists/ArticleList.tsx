@@ -21,6 +21,7 @@ import { markAllRead } from '../lib/markAllRead';
 import { useSession } from '../lib/session';
 import { markReadOnScroll, unreadOnlyDefault } from '../lib/settings';
 import { useMarkReadOnScroll } from '../lib/readOnScroll';
+import { prefersReducedMotion } from '../lib/useSwipe';
 import { usePullToRefresh } from '../lib/usePullToRefresh';
 import { SHEET_BUTTON, Sheet } from '../manage/Sheet';
 import { BottomBar, HeaderActions } from '../shell/slots';
@@ -176,7 +177,11 @@ export function ArticleList({
     trimToFirstPage(client, key);
     await Promise.all([entries.refetch(), client.refetchQueries({ queryKey: COUNTS_KEY })]);
   }
-  const pull = usePullToRefresh(refresh, !covered);
+  const stretchRef = useRef<HTMLDivElement>(null);
+  const pull = usePullToRefresh(refresh, !covered, stretchRef);
+  // The indicator waits above the list content, under the header, and is uncovered as the content
+  // is pulled down. With reduced motion nothing stretches, so it shows in the flow instead.
+  const stretches = !prefersReducedMotion();
 
   // FR-RD-9. The watermark is the first page's `asOf`; the number for the confirm step is the
   // unread count the sidebar already holds for this view (or the loaded unread rows, if more).
@@ -353,21 +358,23 @@ export function ArticleList({
       <div role="status" className="sr-only">
         {pull === 'refreshing' ? 'Refreshing' : ''}
       </div>
-      {pull !== 'idle' && (
-        <p
-          aria-hidden="true"
-          className="flex min-h-10 items-center justify-center gap-2 text-sm text-fg-muted"
-        >
-          {pull === 'refreshing' ? (
-            <Loader2 className="size-4 animate-spin" />
-          ) : pull === 'ready' ? (
-            'Release to refresh'
-          ) : (
-            'Pull to refresh'
-          )}
-        </p>
-      )}
-      {body}
+      <div ref={stretchRef} className="relative">
+        {pull !== 'idle' && (
+          <p
+            aria-hidden="true"
+            className={`flex h-10 items-center justify-center gap-2 text-sm text-fg-muted ${stretches ? 'absolute inset-x-0 bottom-full' : ''}`}
+          >
+            {pull === 'refreshing' ? (
+              <Loader2 className="size-4 animate-spin" />
+            ) : pull === 'ready' ? (
+              'Release to refresh'
+            ) : (
+              'Pull to refresh'
+            )}
+          </p>
+        )}
+        {body}
+      </div>
     </div>
   );
 }

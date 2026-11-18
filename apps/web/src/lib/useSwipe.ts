@@ -225,13 +225,14 @@ export function settleTo(
   to: { transform: string; opacity?: string },
   done?: () => void,
   ms = 200,
+  ease = 'var(--ease-standard)',
 ): number {
   if (!el) {
     done?.();
     return 0;
   }
   const t = prefersReducedMotion() ? 0 : ms;
-  el.style.transition = `transform ${t}ms var(--ease-standard), opacity ${t}ms var(--ease-standard)`;
+  el.style.transition = `transform ${t}ms ${ease}, opacity ${t}ms ${ease}`;
   el.style.transform = to.transform;
   if (to.opacity !== undefined) el.style.opacity = to.opacity;
   return window.setTimeout(() => {

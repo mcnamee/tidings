@@ -66,7 +66,7 @@ export function Sheet({
         aria-modal="true"
         aria-labelledby={titleId}
         tabIndex={-1}
-        className="relative max-h-[85dvh] w-full max-w-md overflow-y-auto rounded-t-lg bg-raised p-4 pb-[max(1rem,env(safe-area-inset-bottom))] text-fg shadow-overlay sm:rounded-lg"
+        className="relative max-h-[85dvh] w-full max-w-md overflow-y-auto overscroll-contain rounded-t-lg bg-raised p-4 pb-[max(1rem,env(safe-area-inset-bottom))] text-fg shadow-overlay sm:rounded-lg"
       >
         <h2 id={titleId} className="text-lg font-semibold text-fg">
           {title}
