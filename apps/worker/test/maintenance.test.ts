@@ -373,8 +373,8 @@ describe('AC6: sessions, challenges, rate limits, magic links', () => {
       db.run(
         sql('INSERT INTO rate_limits (key, window_start, count) VALUES (?, ?, 3)', key, start),
       );
-    await ins('stale', NOW - 3_601);
-    await ins('current', NOW - 3_599);
+    await ins('stale', NOW - 86_401);
+    await ins('current', NOW - 86_399);
     await ins('fresh', NOW);
     const { summary } = await run();
     expect(summary.rateLimitsDeleted).toBe(1);

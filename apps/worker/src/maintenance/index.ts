@@ -19,8 +19,8 @@ export const READ_RETENTION_S = 30 * DAY;
 export const UNREAD_RETENTION_S = 90 * DAY;
 export const TOMBSTONE_RETENTION_S = 180 * DAY;
 export const DEAD_FEED_AFTER_S = 7 * DAY;
-/** Longest rate-limit window in use (auth routes: 3,600 s). Older rows reset on the next hit. */
-export const RATE_LIMIT_MAX_WINDOW_S = 3_600;
+/** Longest rate-limit window in use (86,400 s: the daily email-send cap, DEF-110). Older rows reset on the next hit. */
+export const RATE_LIMIT_MAX_WINDOW_S = 86_400;
 
 export interface MaintenanceSummary {
   readDeleted: number;
