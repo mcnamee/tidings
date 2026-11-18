@@ -137,7 +137,7 @@
 
 @layer components {
   .article-prose {
-    font-family: var(--font-serif);
+    font-family: var(--font-sans);
     font-size: var(--article-size);
     line-height: 1.65;
     max-inline-size: 65ch; /* ch follows the font size, so the measure holds at S, M, L */
