@@ -22,13 +22,13 @@ export function resetExplicitSignOut(): void {
 /**
  * Explicit sign out (TID-008 AC5, AC13): end the session on the server, forget this device's
  * hint, clear the cache (including the persisted copy), then publish "signed out" so the guard
- * routes to `/login`. Returns false when the server could not be reached, in which case nothing
+ * routes to `/login`. With `everywhere`, every session of the account ends (TID-022). Returns false when the server could not be reached, in which case nothing
  * is cleared and the person is still signed in.
  */
-export async function signOut(client: QueryClient): Promise<boolean> {
+export async function signOut(client: QueryClient, everywhere = false): Promise<boolean> {
   explicit = true;
   try {
-    await apiPost('/api/auth/logout', {});
+    await apiPost(everywhere ? '/api/auth/logout-all' : '/api/auth/logout', {});
   } catch (err) {
     // 401: the session was already gone, which is what was asked for.
     if (!(err instanceof ApiRequestError && err.status === 401)) {

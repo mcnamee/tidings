@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { flushSync } from 'react-dom';
 import { Outlet, useLocation, useNavigate, useNavigationType } from 'react-router';
 import { ArrowLeft, Menu } from 'lucide-react';
+import { useSyncAppearance } from '../lib/appearance';
 import { DESKTOP_QUERY, useMediaQuery } from '../lib/hooks';
 import { saveLastList } from '../lib/lastList';
 import { useCounts } from '../lib/queries';
@@ -37,6 +38,8 @@ export function AppShell() {
   const isDesktop = useMediaQuery(DESKTOP_QUERY);
   // Keeps the unread counts warm (focus and 5-minute refetch, FR-RD-10) whether or not the tree shows.
   useCounts();
+  // FR-ST-1: the account's theme and text size win over what this device remembered.
+  useSyncAppearance();
   const route = findRoute(location.pathname);
   const title = useRouteTitle(route, location.pathname);
   useDocumentTitle(title.documentTitle);

@@ -6,6 +6,8 @@ import {
   PASSKEY_NAME_MAX,
   READ_STATE_MAX_IDS,
   SUBSCRIPTION_TITLE_MAX,
+  TEXT_SIZES,
+  THEMES,
 } from './index';
 import { cleanName, tidyText } from './text';
 
@@ -183,3 +185,27 @@ export const markAllReadRequestSchema = z
 /** TID-053. Any string up to 254 characters is well formed; the server trims and lower-cases before comparing. */
 export const emailRequestSchema = z.object({ email: z.string().max(254) });
 export const emailVerifyRequestSchema = z.object({ token: z.string().min(1).max(256) });
+
+/** `PATCH /api/auth/passkeys/:id`: 1 to 64 characters after trimming. */
+export const renamePasskeyRequestSchema = z.object({
+  name: z.string().trim().min(1).max(PASSKEY_NAME_MAX),
+});
+
+/** `PATCH /api/me`: known settings keys only, so the stored document cannot grow junk (spec 6.2). */
+export const userSettingsPatchSchema = z.strictObject({
+  theme: z.enum(THEMES).optional(),
+  unreadOnly: z.boolean().optional(),
+  markReadOnOpen: z.boolean().optional(),
+  markReadOnScroll: z.boolean().optional(),
+  textSize: z.enum(TEXT_SIZES).optional(),
+  hideReadFeeds: z.boolean().optional(),
+});
+
+export const updateMeRequestSchema = z
+  .strictObject({
+    displayName: displayNameSchema.optional(),
+    settings: userSettingsPatchSchema.optional(),
+  })
+  .refine((v) => v.displayName !== undefined || v.settings !== undefined, {
+    message: 'Nothing to change',
+  });

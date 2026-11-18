@@ -47,6 +47,7 @@ interface SessionUserRow {
   settings_json: string;
   auth_method: AuthMethod;
   session_created_at: number;
+  authenticated_at: number;
   expires_at: number;
   absolute_expires_at: number;
 }
@@ -62,6 +63,11 @@ export function parseSettings(json: string): User['settings'] {
   }
 }
 
+/** Deletes every session of the user (sign out everywhere). */
+export async function deleteAllSessions(db: Db, userId: string): Promise<void> {
+  await db.run(sql('DELETE FROM sessions WHERE user_id = ?', userId));
+}
+
 export async function anyUserExists(db: Db): Promise<boolean> {
   return (await db.first<{ one: number }>(sql('SELECT 1 AS one FROM users LIMIT 1'))) !== null;
 }
@@ -70,6 +76,8 @@ export interface ResolvedSession {
   user: User;
   authMethod: AuthMethod;
   sessionCreatedAt: number;
+  /** Last passkey or recovery sign-in, for the 15-minute step-up (spec 8.3). */
+  authenticatedAt: number;
   idHash: string;
   /**
    * Set when this request pushed `expires_at` out: the new cookie lifetime in seconds. The
@@ -95,7 +103,7 @@ export async function resolveSession(
   const row = await db.first<SessionUserRow>(
     sql(
       `SELECT u.id, u.display_name, u.role, u.settings_json, s.auth_method,
-              s.created_at AS session_created_at, s.expires_at, s.absolute_expires_at
+              s.created_at AS session_created_at, s.authenticated_at, s.expires_at, s.absolute_expires_at
        FROM sessions s JOIN users u ON u.id = s.user_id
        WHERE s.id_hash = ? AND s.expires_at > ? AND s.absolute_expires_at > ?`,
       idHash,
@@ -128,6 +136,7 @@ export async function resolveSession(
     },
     authMethod: row.auth_method,
     sessionCreatedAt: row.session_created_at,
+    authenticatedAt: row.authenticated_at,
     idHash,
     renewedMaxAge,
   };
