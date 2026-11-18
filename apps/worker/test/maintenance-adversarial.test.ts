@@ -2,7 +2,7 @@ import { env } from 'cloudflare:workers';
 import { beforeEach, describe, expect, it } from 'vitest';
 import { Db, sql, type Meta, type Statement } from '../src/db';
 import { runMaintenance } from '../src/maintenance';
-import { count, db, resetData, seedFeed, seedUser } from './support/refresh-harness';
+import { count, db, resetData, seedFeed } from './support/refresh-harness';
 
 // TID-021 adversarial cases (tester). Fixed clock; the real local D1 in workerd.
 const DAY = 86_400;
