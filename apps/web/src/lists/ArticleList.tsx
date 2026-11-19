@@ -289,6 +289,21 @@ export function ArticleList({
             />
           ))}
         </ul>
+        {!hasNextPage && (
+          <div
+            data-testid="list-end"
+            className="flex min-h-[calc(100dvh-7rem-env(safe-area-inset-top)-env(safe-area-inset-bottom))] flex-col items-center gap-2 pt-10 text-sm text-fg-muted lg:min-h-40"
+          >
+            {items.every((i) => i.isRead) ? (
+              <>
+                <Check aria-hidden="true" className="size-5" strokeWidth={1.75} />
+                <p>You&apos;re all caught up</p>
+              </>
+            ) : (
+              <p>End of list</p>
+            )}
+          </div>
+        )}
         {hasNextPage && (
           <div ref={sentinel} className="flex min-h-14 items-center justify-center py-4">
             {entries.isFetchNextPageError ? (
