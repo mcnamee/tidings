@@ -91,6 +91,11 @@ export const subscribeRequestSchema = z.object({
     .optional(),
 });
 
+/** `POST /api/subscriptions/:id/url` (TID-068): same address rules as subscribe. */
+export const changeFeedUrlRequestSchema = z.object({
+  url: z.string().trim().min(1).max(2048),
+});
+
 /** `POST` and `PATCH /api/folders`: 1 to 64 characters after trimming (FR-FO-1). */
 export const folderRequestSchema = z.object({
   name: z.string().transform(tidyText).pipe(z.string().min(1).max(FOLDER_NAME_MAX)),

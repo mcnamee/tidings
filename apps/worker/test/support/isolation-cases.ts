@@ -72,6 +72,10 @@ export const ISOLATION_CASES: Readonly<Record<string, IsolationCase>> = {
     file: 'folders.test.ts',
     test: 'B moving their own subscription into A’s folder gets 404 not_found, and nothing changes',
   },
+  'POST /api/subscriptions/:id/url path:id': {
+    file: 'change-feed-url.test.ts',
+    test: 'B changing A’s subscription’s address gets 404 not_found, and nothing changes',
+  },
   'DELETE /api/subscriptions/:id path:id': {
     file: 'folders.test.ts',
     test: 'B unsubscribing with A’s subscription ID gets 404 not_found, and A’s subscription and entries are unchanged',

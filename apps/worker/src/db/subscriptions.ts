@@ -107,6 +107,79 @@ export interface CreateSubscription {
   limit: number;
 }
 
+interface FeedAttach {
+  userId: string;
+  subscriptionId: string;
+  feedUrl: string;
+  now: number;
+  jitterS: number;
+}
+
+const MINE = 'id = ? AND user_id = ?';
+
+/**
+ * Reset a parked, `dead` or `gone` feed so the dispatcher tries it again (spec 7.1, ADR 0013
+ * decision 7). Only acts when the user's subscription points at the feed.
+ */
+function resetFeedStatement(p: FeedAttach): Statement {
+  return sql(
+    `UPDATE feeds
+        SET state = CASE WHEN state IN ('dead', 'gone') THEN 'pending' ELSE state END,
+            error_count = CASE WHEN state IN ('dead', 'gone') THEN 0 ELSE error_count END,
+            next_fetch_at = ?
+      WHERE url = ? AND (next_fetch_at = ? OR state IN ('dead', 'gone'))
+        AND EXISTS (SELECT 1 FROM subscriptions WHERE ${MINE} AND feed_id = feeds.id)`,
+    p.now + p.jitterS,
+    p.feedUrl,
+    PARKED_AT,
+    p.subscriptionId,
+    p.userId,
+  );
+}
+
+/**
+ * Link the newest existing entries of the subscription's feed to the user (FR-SU-3; items older
+ * than 7 days arrive already read; stories the user already has from another feed are skipped,
+ * ADR 0017), and queue the unread ones for embedding (TID-067). Entries are matched on
+ * `entries.feed_id`, so rows the user already has (even re-pointed ones) are never re-queued.
+ */
+function linkNewestStatements(p: FeedAttach): Statement[] {
+  const readCutoff = p.now - READ_AFTER_SECONDS;
+  const notDup = notDuplicateOf('e', { param: p.userId }, p.now);
+  return [
+    sql(
+      `INSERT INTO user_entries (user_id, entry_id, feed_id, published_at, is_read, read_at)
+       SELECT ?, e.id, e.feed_id, e.published_at,
+              e.published_at < ?, CASE WHEN e.published_at < ? THEN ? END
+         FROM entries e
+        WHERE e.feed_id = (SELECT feed_id FROM subscriptions WHERE ${MINE})
+          AND e.purged_at IS NULL
+          AND ${notDup.sql}
+        ORDER BY e.published_at DESC, e.id DESC
+        LIMIT ?
+       ON CONFLICT DO NOTHING`,
+      p.userId,
+      readCutoff,
+      readCutoff,
+      p.now,
+      p.subscriptionId,
+      p.userId,
+      ...notDup.params,
+      NEW_SUBSCRIBER_LINK_LIMIT,
+    ),
+    sql(
+      `INSERT OR IGNORE INTO embed_queue (entry_id)
+       SELECT ue.entry_id FROM user_entries ue JOIN entries e ON e.id = ue.entry_id
+        WHERE ue.user_id = ? AND ue.is_read = 0
+          AND e.feed_id = (SELECT feed_id FROM subscriptions WHERE ${MINE})
+          AND NOT EXISTS (SELECT 1 FROM entry_embeddings ee WHERE ee.entry_id = ue.entry_id)`,
+      p.userId,
+      p.subscriptionId,
+      p.userId,
+    ),
+  ];
+}
+
 /**
  * One batch (one transaction): upsert the feed, add the subscription, reset a parked, `dead` or
  * `gone` feed so the dispatcher tries it again (spec §7.1, ADR 0013 decision 7), and link the
@@ -117,10 +190,6 @@ export interface CreateSubscription {
  * subscription.
  */
 export async function createSubscription(db: Db, p: CreateSubscription): Promise<boolean> {
-  const mine = 'id = ? AND user_id = ?';
-  const readCutoff = p.now - READ_AFTER_SECONDS;
-  // Stories this user already has from another feed are not linked again (ADR 0017).
-  const notDup = notDuplicateOf('e', { param: p.userId }, p.now);
   const statements: Statement[] = [
     sql(
       `INSERT INTO feeds (url, next_fetch_at, state, created_at) VALUES (?, ?, 'pending', ?)
@@ -143,53 +212,69 @@ export async function createSubscription(db: Db, p: CreateSubscription): Promise
       p.userId,
       p.limit,
     ),
-    sql(
-      `UPDATE feeds
-          SET state = CASE WHEN state IN ('dead', 'gone') THEN 'pending' ELSE state END,
-              error_count = CASE WHEN state IN ('dead', 'gone') THEN 0 ELSE error_count END,
-              next_fetch_at = ?
-        WHERE url = ? AND (next_fetch_at = ? OR state IN ('dead', 'gone'))
-          AND EXISTS (SELECT 1 FROM subscriptions WHERE ${mine} AND feed_id = feeds.id)`,
-      p.now + p.jitterS,
-      p.feedUrl,
-      PARKED_AT,
-      p.subscriptionId,
-      p.userId,
-    ),
-    sql(
-      `INSERT INTO user_entries (user_id, entry_id, feed_id, published_at, is_read, read_at)
-       SELECT ?, e.id, e.feed_id, e.published_at,
-              e.published_at < ?, CASE WHEN e.published_at < ? THEN ? END
-         FROM entries e
-        WHERE e.feed_id = (SELECT feed_id FROM subscriptions WHERE ${mine})
-          AND e.purged_at IS NULL
-          AND ${notDup.sql}
-        ORDER BY e.published_at DESC, e.id DESC
-        LIMIT ?
-       ON CONFLICT DO NOTHING`,
-      p.userId,
-      readCutoff,
-      readCutoff,
-      p.now,
-      p.subscriptionId,
-      p.userId,
-      ...notDup.params,
-      NEW_SUBSCRIBER_LINK_LIMIT,
-    ),
-    // TID-067: linked entries that have no embedding yet join the embed queue (bounded by the link
-    // limit above; entries already embedded, e.g. by another subscriber, are skipped).
-    sql(
-      `INSERT OR IGNORE INTO embed_queue (entry_id)
-       SELECT ue.entry_id FROM user_entries ue
-        WHERE ue.user_id = ? AND ue.is_read = 0
-          AND ue.feed_id = (SELECT feed_id FROM subscriptions WHERE ${mine})
-          AND NOT EXISTS (SELECT 1 FROM entry_embeddings ee WHERE ee.entry_id = ue.entry_id)`,
-      p.userId,
-      p.subscriptionId,
-      p.userId,
-    ),
+    resetFeedStatement(p),
+    ...linkNewestStatements(p),
   ];
   const results = await db.batch(statements);
+  return Number(results[1]?.meta.changes ?? 0) > 0;
+}
+
+/**
+ * TID-068: point the user's subscription at the feed for `feedUrl` (found or created; the old
+ * shared row is never edited). One batch: upsert the new feed, move the subscription (id, custom
+ * title, folder and created date stay), re-point the user's `user_entries` to the new feed so
+ * read history and unread items stay in this subscription's views, reset a parked new feed, park
+ * the old feed if nobody follows it any more, and link the new feed's newest entries (the
+ * cross-feed duplicate test hides copies of stories the user already has).
+ *
+ * Returns false when nothing moved: the subscription is gone, no longer on `fromFeedId`, or the
+ * user already follows the new feed under another subscription (`UNIQUE (user_id, feed_id)`
+ * is pre-checked in the statement, so a conflict never throws).
+ */
+export async function changeSubscriptionFeed(
+  db: Db,
+  p: FeedAttach & { fromFeedId: number },
+): Promise<boolean> {
+  const newFeed = '(SELECT id FROM feeds WHERE url = ?)';
+  const moved = `EXISTS (SELECT 1 FROM subscriptions WHERE ${MINE} AND feed_id = ${newFeed})`;
+  const results = await db.batch([
+    sql(
+      `INSERT INTO feeds (url, next_fetch_at, state, created_at) VALUES (?, ?, 'pending', ?)
+       ON CONFLICT (url) DO NOTHING`,
+      p.feedUrl,
+      p.now + p.jitterS,
+      p.now,
+    ),
+    sql(
+      `UPDATE subscriptions SET feed_id = ${newFeed}
+        WHERE ${MINE} AND feed_id = ?
+          AND NOT EXISTS (SELECT 1 FROM subscriptions WHERE user_id = ? AND feed_id = ${newFeed})`,
+      p.feedUrl,
+      p.subscriptionId,
+      p.userId,
+      p.fromFeedId,
+      p.userId,
+      p.feedUrl,
+    ),
+    sql(
+      `UPDATE user_entries SET feed_id = ${newFeed}
+        WHERE user_id = ? AND feed_id = ? AND ${moved}`,
+      p.feedUrl,
+      p.userId,
+      p.fromFeedId,
+      p.subscriptionId,
+      p.userId,
+      p.feedUrl,
+    ),
+    resetFeedStatement(p),
+    sql(
+      `UPDATE feeds SET next_fetch_at = ?
+        WHERE id = ? AND NOT EXISTS (SELECT 1 FROM subscriptions WHERE feed_id = feeds.id)`,
+      PARKED_AT,
+      p.fromFeedId,
+    ),
+    ...linkNewestStatements(p),
+  ]);
   return Number(results[1]?.meta.changes ?? 0) > 0;
 }
 

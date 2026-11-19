@@ -270,7 +270,9 @@ export async function runMaintenance(deps: MaintenanceDeps): Promise<Maintenance
   });
 
   // 5. Feeds nobody subscribes to, last attempted over 7 days ago: empty them in chunks, then
-  //    delete the rows that are empty. Both statements re-check "no subscriptions".
+  //    delete the rows that are empty. Both statements re-check "no subscriptions". Entries a
+  //    user still has (TID-068: kept when they changed a subscription's address) are left for the
+  //    retention steps above, which delete them with the user's rows; the feed row goes after.
   await step(async () => {
     if (budget === 0) return;
     const cutoff = now - DEAD_FEED_AFTER_S;
@@ -285,6 +287,7 @@ export async function runMaintenance(deps: MaintenanceDeps): Promise<Maintenance
         `DELETE FROM entries WHERE id IN (
            SELECT e.id FROM entries e JOIN feeds f ON f.id = e.feed_id
             WHERE e.feed_id IN (SELECT value FROM json_each(?)) AND ${DEAD_FEED_WHERE}
+              AND NOT EXISTS (SELECT 1 FROM user_entries ue WHERE ue.entry_id = e.id)
             LIMIT ${CHUNK})`,
         ids,
         cutoff,

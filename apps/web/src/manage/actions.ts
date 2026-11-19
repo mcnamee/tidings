@@ -1,5 +1,8 @@
 import { useQueryClient } from '@tanstack/react-query';
 import type {
+  ChangeFeedUrlRequest,
+  ChangeFeedUrlResponse,
+  FeedCandidate,
   Folder,
   FolderRequest,
   Subscription,
@@ -7,6 +10,7 @@ import type {
 } from '@tidings/shared';
 import { ApiRequestError, NetworkError, apiDelete, apiPatch, apiPost } from '../api';
 import { toast } from '../lib/toast';
+import { ADDRESS_COPY, existingId, isCandidates } from './feedAddress';
 import { FOLDERS_KEY, SUBSCRIPTIONS_KEY } from './data';
 
 export const COPY = {
@@ -29,6 +33,17 @@ export function failureMessage(err: unknown): string {
   }
   return COPY.server;
 }
+
+/** What the Change feed address sheet shows after the server answers (TID-068). */
+export type ChangeAddressResult =
+  | { ok: true; changed: boolean; fetch: ChangeFeedUrlResponse['fetch'] }
+  | { ok: false; kind: 'choice'; candidates: FeedCandidate[] }
+  | { ok: false; kind: 'already'; subscriptionId: string | null }
+  /** `field`: the message is about the address and shows under the field. */
+  | { ok: false; kind: 'message'; message: string; field: boolean };
+
+/** The server waits up to 10 s to look at the address and 10 s for the first fetch. */
+const CHANGE_ADDRESS_TIMEOUT_MS = 30_000;
 
 export type Result = { ok: true } | { ok: false; message: string };
 
@@ -124,6 +139,54 @@ export function useManageActions() {
       // Folder unread counts and folder lists change with the move.
       if (ok) refresh(['counts'], ['entries']);
       return ok;
+    },
+
+    /**
+     * Points the subscription at another feed address (TID-068). Waits for the server: the answer
+     * can be a choice of feeds or an inline error, and a successful change runs the first fetch.
+     */
+    async changeFeedAddress(sub: Subscription, url: string): Promise<ChangeAddressResult> {
+      try {
+        const res = await apiPost<ChangeFeedUrlResponse>(
+          `/api/subscriptions/${sub.id}/url`,
+          { url } satisfies ChangeFeedUrlRequest,
+          { timeoutMs: CHANGE_ADDRESS_TIMEOUT_MS },
+        );
+        patchSubs((items) =>
+          items.map((s) => (s.id === res.subscription.id ? res.subscription : s)),
+        );
+        // The articles now belong to the same subscription under the new feed.
+        refresh(SUBSCRIPTIONS_KEY, ['counts'], ['entries']);
+        return { ok: true, changed: res.changed, fetch: res.fetch };
+      } catch (err) {
+        if (err instanceof NetworkError) {
+          return { ok: false, kind: 'message', message: ADDRESS_COPY.network, field: false };
+        }
+        if (!(err instanceof ApiRequestError)) {
+          return { ok: false, kind: 'message', message: ADDRESS_COPY.server, field: false };
+        }
+        switch (err.code) {
+          case 'feed_choice_required':
+            if (isCandidates(err.details)) {
+              return { ok: false, kind: 'choice', candidates: err.details.candidates };
+            }
+            break;
+          case 'no_feed_found':
+            return { ok: false, kind: 'message', message: ADDRESS_COPY.noFeed, field: true };
+          case 'blocked_address':
+            return { ok: false, kind: 'message', message: ADDRESS_COPY.blocked, field: true };
+          case 'validation_failed':
+            return { ok: false, kind: 'message', message: ADDRESS_COPY.invalid, field: true };
+          case 'already_subscribed':
+            return { ok: false, kind: 'already', subscriptionId: existingId(err.details) };
+          case 'rate_limited':
+            return { ok: false, kind: 'message', message: ADDRESS_COPY.rateLimited, field: false };
+          case 'not_found':
+            refresh(SUBSCRIPTIONS_KEY);
+            return { ok: false, kind: 'message', message: COPY.gone, field: false };
+        }
+        return { ok: false, kind: 'message', message: ADDRESS_COPY.server, field: false };
+      }
     },
 
     async deleteFolder(folder: Folder): Promise<boolean> {

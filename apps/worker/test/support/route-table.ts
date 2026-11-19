@@ -58,6 +58,7 @@ export const ROUTE_TABLE: readonly RouteRow[] = [
   session('POST', '/api/subscriptions', 'body:folderId'),
   session('PATCH', '/api/subscriptions/:id', 'path:id', 'body:folderId'),
   session('DELETE', '/api/subscriptions/:id', 'path:id'),
+  session('POST', '/api/subscriptions/:id/url', 'path:id'),
   session('POST', '/api/subscriptions/:id/refresh', 'path:id'),
   // 8.5 Entries and counts
   session('GET', '/api/entries', 'query:id'),

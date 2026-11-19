@@ -19,6 +19,7 @@ import { PrimaryButton, TextField } from '../auth/ui';
 import { HeaderActions } from '../shell/slots';
 import { useManageActions } from './actions';
 import { groupByFolder, sortedFolders, useFolders, useSubscriptions } from './data';
+import { ChangeAddressSheet } from './ChangeAddressSheet';
 import { SHEET_BUTTON, SHEET_DANGER, Sheet } from './Sheet';
 
 /**
@@ -33,6 +34,7 @@ type Modal =
   | { kind: 'feed'; sub: Subscription }
   | { kind: 'renameFeed'; sub: Subscription }
   | { kind: 'move'; sub: Subscription }
+  | { kind: 'changeAddress'; sub: Subscription }
   | { kind: 'unsubscribe'; sub: Subscription };
 
 const ICON_BUTTON =
@@ -275,6 +277,13 @@ export function Manage() {
             <button
               type="button"
               className={SHEET_BUTTON}
+              onClick={() => setModal({ kind: 'changeAddress', sub: modal.sub })}
+            >
+              Change feed address
+            </button>
+            <button
+              type="button"
+              className={SHEET_BUTTON}
               onClick={() => setModal({ kind: 'unsubscribe', sub: modal.sub })}
             >
               Unsubscribe
@@ -285,6 +294,8 @@ export function Manage() {
           </div>
         </Sheet>
       )}
+
+      {modal?.kind === 'changeAddress' && <ChangeAddressSheet sub={modal.sub} onClose={close} />}
 
       {modal?.kind === 'move' && (
         <Sheet title="Move to folder" onClose={close}>
