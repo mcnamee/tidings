@@ -1,6 +1,7 @@
 import { expectNoSeriousA11yViolations } from '../support/axe.ts';
 import { clearListData, seedListData } from '../support/list-data.ts';
 import { expect, signedInTest as test } from '../support/test.ts';
+import { scrollY } from '../support/scroll.ts';
 
 // TID-019 article view and read state, against the real Worker and a seeded D1. Written by the SE
 // and not yet run: the tester owns running and extending it. Projects: mobile-light, mobile-dark
@@ -238,7 +239,7 @@ test('AC7: Back returns to the list at the same scroll position after Next and P
   await page.goto('/all');
   const row = page.getByRole('link', { name: /Scroll row 25/ });
   await row.scrollIntoViewIfNeeded();
-  const before = await page.evaluate(() => window.scrollY);
+  const before = await scrollY(page);
   expect(before).toBeGreaterThan(200);
   await row.click();
   await expect(page.getByRole('heading', { level: 2, name: 'Scroll row 25' })).toBeVisible();
@@ -252,8 +253,8 @@ test('AC7: Back returns to the list at the same scroll position after Next and P
   await page.getByRole('button', { name: 'Back' }).click();
   await expect(page).toHaveURL(/\/all$/);
   await expect(page.getByRole('link', { name: /Scroll row 25/ })).toBeVisible();
-  await expect.poll(() => page.evaluate(() => window.scrollY)).toBeGreaterThan(before - 150);
-  expect(await page.evaluate(() => window.scrollY)).toBeLessThan(before + 150);
+  await expect.poll(() => scrollY(page)).toBeGreaterThan(before - 150);
+  expect(await scrollY(page)).toBeLessThan(before + 150);
 });
 
 const HOSTILE = [

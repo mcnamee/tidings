@@ -3,9 +3,9 @@ import { prefersReducedMotion } from './useSwipe';
 
 export type PullState = 'idle' | 'pulling' | 'ready' | 'refreshing';
 
-/** Distance in px the content must be stretched down before releasing refreshes. */
+/** Distance in px the content must be pulled down before releasing refreshes. */
 export const PULL_THRESHOLD = 64;
-/** The content rests this far down while the refresh runs, showing the indicator. */
+/** The content rests this far down while the refresh runs (touch fallback), showing the indicator. */
 export const REFRESH_HOLD = 48;
 /** Past the threshold the stretch gets stiffer and approaches this many extra px. */
 const OVERSHOOT = 40;
@@ -17,53 +17,68 @@ export function dampen(travel: number): number {
   return PULL_THRESHOLD + OVERSHOOT * (1 - Math.exp(-(d - PULL_THRESHOLD) / OVERSHOOT));
 }
 
-/** True when the window is scrolled to the very end (sub-pixel rounding tolerated). */
-export function atScrollEnd(): boolean {
-  const root = document.documentElement;
-  return window.scrollY + window.innerHeight >= root.scrollHeight - 1;
+/** iOS and iPadOS (which reports as a Mac with a touch screen): WebKit scrollers rubber-band natively. */
+export function isIOSLike(): boolean {
+  if (typeof navigator === 'undefined') return false;
+  return (
+    /iP(hone|ad|od)/.test(navigator.userAgent) ||
+    (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1)
+  );
+}
+
+export interface PullToRefresh {
+  state: PullState;
+  /** The browser's own rubber band does the stretching (scrollTop goes negative); nothing is transformed. */
+  native: boolean;
 }
 
 /**
- * Pull to refresh (FR-RD-11) and an iOS-style rubber band at both ends, for a page that scrolls the
- * window. A downward drag that starts with the page scrolled to the top is a pull; an upward drag
- * that reaches the end of the page (even mid-gesture, after the finger has scrolled there) keeps
- * stretching the content up. `onRefresh` should refetch cached server data only.
+ * Pull to refresh (FR-RD-11). `onRefresh` should refetch cached server data only.
  *
- * Like a native app, the header and bottom bar never move: document bounce is off
- * (`overscroll-behavior-y: none`, index.css) and the drag moves `content` with a CSSOM transform,
- * with resistance (`dampen`). At the top it reveals the indicator that sits above it. It springs
- * back with the iOS ease on release, or rests at `REFRESH_HOLD` while refreshing. At the bottom
- * only the stretch happens (`state` stays idle). With reduced motion nothing is stretched, and
- * only the top pull changes `state`.
+ * `scroller` is the element the list scrolls in (the shell's `main` below `lg`, TID-064); `null`
+ * means the window scrolls (desktop layout); `undefined` waits for it to mount.
  *
- * The `touchmove` listener is non-passive but calls `preventDefault()` only while a stretch is
- * under way, so ordinary scrolling is never blocked. Sideways-dominant touches are ignored.
- * Momentum bounce at the end is not emulated: the browser gives no reliable end-of-fling signal
- * once document overscroll is off, and faking it risks jank.
+ * Native mode (iOS, or as soon as a scroll event reports a negative scrollTop): the scroller's own
+ * rubber band does the stretching, with real momentum, and the header never moves. The pull
+ * distance is `-scrollTop`; past `PULL_THRESHOLD`, while a finger is still down, the state is
+ * `ready`, and lifting the finger refreshes. A fling that bounces with no finger down never does.
+ *
+ * Touch fallback (Chromium, Android, anywhere scrollTop cannot go negative): a downward drag that
+ * starts with the scroller at the top moves `content` with a CSSOM transform, with resistance
+ * (`dampen`), springs back with the iOS ease on release, or rests at `REFRESH_HOLD` while
+ * refreshing. The `touchmove` listener is non-passive but calls `preventDefault()` only while a
+ * pull is under way, so ordinary scrolling is never blocked. Sideways-dominant touches are ignored.
+ * With reduced motion nothing is stretched, and only `state` changes.
  */
 export function usePullToRefresh(
   onRefresh: () => Promise<unknown>,
-  enabled = true,
+  enabled: boolean,
+  scroller: HTMLElement | null | undefined,
   content?: RefObject<HTMLElement | null>,
-): PullState {
+): PullToRefresh {
   const [state, setState] = useState<PullState>('idle');
+  const [native, setNative] = useState(isIOSLike);
   const refresh = useRef(onRefresh);
   refresh.current = onRefresh;
   const mode = useRef<PullState>('idle');
+  const isNative = useRef(native);
 
   useEffect(() => {
-    if (!enabled) return;
+    if (!enabled || scroller === undefined) return;
+    const target: HTMLElement | Window = scroller ?? window;
+    // Native bounce needs an element that scrolls; the window path is touch-only.
+    const top = () => (scroller ? scroller.scrollTop : window.scrollY);
+    const canBounce = scroller !== null;
     let startX = 0;
     let startY: number | null = null;
-    let lastY = 0;
-    let fromTop = false;
-    let edge: 'none' | 'top' | 'bottom' = 'none';
-    let anchor = 0;
+    let touching = false;
+    let pulling = false;
     let timer = 0;
     const set = (s: PullState) => {
       mode.current = s;
       setState(s);
     };
+    const useNative = () => canBounce && isNative.current;
     /** Moves the content by `px` (positive down); `ms` > 0 animates (release), 0 follows the finger. */
     const stretch = (px: number, ms = 0) => {
       const el = content?.current;
@@ -79,86 +94,99 @@ export function usePullToRefresh(
       }
     };
     const settle = () => {
-      const was = edge;
-      edge = 'none';
+      pulling = false;
       set('idle');
-      stretch(0, was === 'bottom' ? 350 : 250);
+      stretch(0, 250);
+    };
+    const startRefresh = () => {
+      pulling = false;
+      set('refreshing');
+      if (!useNative()) stretch(REFRESH_HOLD, 200);
+      void refresh.current().finally(() => {
+        set('idle');
+        if (!useNative()) stretch(0, 250);
+      });
     };
 
-    const onStart = (e: TouchEvent) => {
-      if (mode.current === 'refreshing' || e.touches.length !== 1) {
+    const onStart = (e: Event) => {
+      const t = e as TouchEvent;
+      touching = t.touches.length > 0;
+      if (mode.current === 'refreshing' || t.touches.length !== 1) {
         startY = null;
         return;
       }
-      startY = lastY = e.touches[0]?.clientY ?? 0;
-      startX = e.touches[0]?.clientX ?? 0;
-      fromTop = window.scrollY <= 0;
-      edge = 'none';
+      startY = t.touches[0]?.clientY ?? 0;
+      startX = t.touches[0]?.clientX ?? 0;
+      pulling = false;
     };
-    const onMove = (e: TouchEvent) => {
-      if (startY === null || mode.current === 'refreshing') return;
-      const y = e.touches[0]?.clientY ?? startY;
-      const prev = lastY;
-      lastY = y;
-      // A sideways swipe (menu, back) is not a stretch: give it up for the rest of this touch.
-      const across = Math.abs((e.touches[0]?.clientX ?? startX) - startX);
-      if (edge === 'none' && across > Math.abs(y - startY)) {
+    const onMove = (e: Event) => {
+      const t = e as TouchEvent;
+      if (useNative() || startY === null || mode.current === 'refreshing') return;
+      const y = t.touches[0]?.clientY ?? startY;
+      // A sideways swipe (menu, back) is not a pull: give it up for the rest of this touch.
+      const across = Math.abs((t.touches[0]?.clientX ?? startX) - startX);
+      if (!pulling && across > Math.abs(y - startY)) {
         startY = null;
         return;
       }
-      if (edge === 'none') {
-        if (fromTop && window.scrollY <= 0 && y > startY) {
-          edge = 'top';
-          anchor = startY;
-        } else if (!prefersReducedMotion() && atScrollEnd() && y < prev) {
-          edge = 'bottom';
-          anchor = prev;
-        } else return;
+      if (!pulling) {
+        if (top() <= 0 && y > startY) pulling = true;
+        else return;
       }
-      const travel = edge === 'top' ? y - anchor : anchor - y;
-      if (travel <= 0 || (edge === 'top' && window.scrollY > 0)) {
-        edge = 'none';
+      const travel = y - startY;
+      if (travel <= 0 || top() > 0) {
+        pulling = false;
         if (mode.current !== 'idle') set('idle');
         stretch(0);
         return;
       }
-      if (e.cancelable) e.preventDefault();
+      if (t.cancelable) t.preventDefault();
       const d = dampen(travel);
-      stretch(edge === 'top' ? d : -d);
-      if (edge === 'bottom') return;
+      stretch(d);
       const next = d >= PULL_THRESHOLD ? 'ready' : 'pulling';
       if (next !== mode.current) set(next);
     };
-    const onEnd = () => {
-      const was = mode.current;
-      startY = null;
-      if (was === 'ready') {
-        edge = 'none';
-        set('refreshing');
-        stretch(REFRESH_HOLD, 200);
-        void refresh.current().finally(() => {
-          set('idle');
-          stretch(0, 250);
-        });
-      } else if (was !== 'refreshing') {
-        settle();
+    /** Native: the scroller is overscrolled (scrollTop < 0) while the finger is down. */
+    const onScroll = () => {
+      if (!canBounce) return;
+      const t = top();
+      if (t < 0 && !isNative.current) {
+        isNative.current = true;
+        setNative(true);
       }
+      if (!isNative.current || mode.current === 'refreshing') return;
+      if (!touching || t >= 0) {
+        if (mode.current !== 'idle') set('idle');
+        return;
+      }
+      const next = -t >= PULL_THRESHOLD ? 'ready' : 'pulling';
+      if (next !== mode.current) set(next);
     };
-
+    const onEnd = (e: Event) => {
+      touching = (e as TouchEvent).touches.length > 0;
+      startY = null;
+      if (touching) return;
+      const was = mode.current;
+      if (was === 'ready') startRefresh();
+      else if (was !== 'refreshing') settle();
+    };
     const onCancel = () => {
+      touching = false;
       startY = null;
       if (mode.current !== 'refreshing') settle();
     };
 
-    window.addEventListener('touchstart', onStart, { passive: true });
-    window.addEventListener('touchmove', onMove, { passive: false });
-    window.addEventListener('touchend', onEnd);
-    window.addEventListener('touchcancel', onCancel);
+    target.addEventListener('touchstart', onStart, { passive: true });
+    target.addEventListener('touchmove', onMove, { passive: false });
+    target.addEventListener('touchend', onEnd);
+    target.addEventListener('touchcancel', onCancel);
+    target.addEventListener('scroll', onScroll, { passive: true });
     return () => {
-      window.removeEventListener('touchstart', onStart);
-      window.removeEventListener('touchmove', onMove);
-      window.removeEventListener('touchend', onEnd);
-      window.removeEventListener('touchcancel', onCancel);
+      target.removeEventListener('touchstart', onStart);
+      target.removeEventListener('touchmove', onMove);
+      target.removeEventListener('touchend', onEnd);
+      target.removeEventListener('touchcancel', onCancel);
+      target.removeEventListener('scroll', onScroll);
       window.clearTimeout(timer);
       const el = content?.current;
       if (el) {
@@ -166,7 +194,7 @@ export function usePullToRefresh(
         el.style.transform = '';
       }
     };
-  }, [enabled, content]);
+  }, [enabled, scroller, content]);
 
-  return state;
+  return { state, native };
 }

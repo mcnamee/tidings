@@ -457,6 +457,8 @@ describe('AC7: empty states', () => {
 });
 
 describe('AC9: pull to refresh', () => {
+  // TID-064: the list scrolls in the shell's main below lg, so that is where touches land.
+  const main = () => screen.getByTestId('main-scroll');
   it('refetches the list and the counts, and never fetches a feed', async () => {
     api.set(ENTRIES('all', 'unread'), page([entry(1)]));
     renderApp('/all');
@@ -465,11 +467,10 @@ describe('AC9: pull to refresh', () => {
     const before = api.calls.length;
     api.set(ENTRIES('all', 'unread'), page([entry(1), entry(9)]));
 
-    Object.defineProperty(window, 'scrollY', { value: 0, configurable: true });
-    fireEvent.touchStart(window, { touches: [{ clientY: 100 }] });
-    fireEvent.touchMove(window, { touches: [{ clientY: 300 }] });
+    fireEvent.touchStart(main(), { touches: [{ clientY: 100 }] });
+    fireEvent.touchMove(main(), { touches: [{ clientY: 300 }] });
     expect(await screen.findByText('Release to refresh')).toBeInTheDocument();
-    fireEvent.touchEnd(window);
+    fireEvent.touchEnd(main());
 
     expect(await screen.findByText('Title 9')).toBeInTheDocument();
     const added = api.calls.slice(before);
@@ -485,9 +486,9 @@ describe('AC9: pull to refresh', () => {
     renderApp('/all');
     await screen.findByText('Title 1');
     const before = entryCalls().length;
-    fireEvent.touchStart(window, { touches: [{ clientY: 100 }] });
-    fireEvent.touchMove(window, { touches: [{ clientY: 140 }] });
-    fireEvent.touchEnd(window);
+    fireEvent.touchStart(main(), { touches: [{ clientY: 100 }] });
+    fireEvent.touchMove(main(), { touches: [{ clientY: 140 }] });
+    fireEvent.touchEnd(main());
     expect(entryCalls()).toHaveLength(before);
   });
 
@@ -500,69 +501,56 @@ describe('AC9: pull to refresh', () => {
     expect(await screen.findByText('Title 8')).toBeInTheDocument();
     expect(api.calls.some((c) => c.method === 'POST')).toBe(false);
   });
+
+  describe('native bounce (iOS: scrollTop goes negative while overscrolled)', () => {
+    const overscroll = (px: number) => {
+      Object.defineProperty(main(), 'scrollTop', { value: -px, configurable: true });
+      fireEvent.scroll(main());
+    };
+
+    it('refreshes when released past the threshold, with nothing transformed', async () => {
+      api.set(ENTRIES('all', 'unread'), page([entry(1)]));
+      renderApp('/all');
+      await screen.findByText('Title 1');
+      api.set(ENTRIES('all', 'unread'), page([entry(1), entry(9)]));
+      fireEvent.touchStart(main(), { touches: [{ clientY: 100 }] });
+      overscroll(30);
+      expect(await screen.findByText('Pull to refresh')).toBeInTheDocument();
+      overscroll(80);
+      expect(await screen.findByText('Release to refresh')).toBeInTheDocument();
+      expect(
+        (screen.getByTestId('article-grid').parentElement as HTMLElement).style.transform,
+      ).toBe('');
+      fireEvent.touchEnd(main());
+      expect(await screen.findByText('Title 9')).toBeInTheDocument();
+    });
+
+    it('a short pull, or a fling that bounces with no finger down, never refreshes', async () => {
+      api.set(ENTRIES('all', 'unread'), page([entry(1)]));
+      renderApp('/all');
+      await screen.findByText('Title 1');
+      const before = entryCalls().length;
+      fireEvent.touchStart(main(), { touches: [{ clientY: 100 }] });
+      overscroll(20);
+      fireEvent.touchEnd(main());
+      overscroll(120); // momentum bounce after the finger lifted
+      overscroll(0);
+      expect(screen.queryByText('Release to refresh')).not.toBeInTheDocument();
+      expect(entryCalls()).toHaveLength(before);
+    });
+  });
 });
 
-describe('TID-063: rubber band at the end and room past the last article', () => {
-  const stretched = () =>
-    (screen.getByTestId('article-grid').parentElement as HTMLElement).style.transform;
-
-  it('pushing up at the end of the page stretches the content up with resistance, then springs back', async () => {
-    api.set(ENTRIES('all', 'unread'), page([entry(1)]));
-    renderApp('/all');
-    await screen.findByText('Title 1');
-    // jsdom has no layout, so the page counts as scrolled to its end.
-    fireEvent.touchStart(window, { touches: [{ clientY: 400, clientX: 100 }] });
-    fireEvent.touchMove(window, { touches: [{ clientY: 380, clientX: 100 }] });
-    fireEvent.touchMove(window, { touches: [{ clientY: 300, clientX: 100 }] });
-    // The push began at 400: 100px of finger is 50px of content.
-    expect(stretched()).toBe('translateY(-50px)');
-    expect(screen.queryByText('Pull to refresh')).not.toBeInTheDocument();
-    fireEvent.touchEnd(window);
-    expect(screen.getByTestId('article-grid').parentElement?.style.transition).toContain(
-      'var(--ease-ios)',
-    );
-    await waitFor(() => expect(stretched()).toBe(''));
-  });
-
-  it('does not stretch for a sideways swipe', async () => {
-    api.set(ENTRIES('all', 'unread'), page([entry(1)]));
-    renderApp('/all');
-    await screen.findByText('Title 1');
-    fireEvent.touchStart(window, { touches: [{ clientY: 400, clientX: 300 }] });
-    fireEvent.touchMove(window, { touches: [{ clientY: 380, clientX: 100 }] });
-    fireEvent.touchMove(window, { touches: [{ clientY: 300, clientX: 100 }] });
-    expect(stretched()).toBe('');
-  });
-
-  it('does not stretch with reduced motion', async () => {
-    installMatchMedia({ 'prefers-reduced-motion': true });
-    api.set(ENTRIES('all', 'unread'), page([entry(1)]));
-    renderApp('/all');
-    await screen.findByText('Title 1');
-    fireEvent.touchStart(window, { touches: [{ clientY: 400, clientX: 100 }] });
-    fireEvent.touchMove(window, { touches: [{ clientY: 380, clientX: 100 }] });
-    fireEvent.touchMove(window, { touches: [{ clientY: 300, clientX: 100 }] });
-    expect(stretched()).toBe('');
-  });
-
-  it('does not stretch while the page can still scroll down', async () => {
-    api.set(ENTRIES('all', 'unread'), page([entry(1)]));
-    renderApp('/all');
-    await screen.findByText('Title 1');
-    vi.spyOn(document.documentElement, 'scrollHeight', 'get').mockReturnValue(5000);
-    fireEvent.touchStart(window, { touches: [{ clientY: 400, clientX: 100 }] });
-    fireEvent.touchMove(window, { touches: [{ clientY: 380, clientX: 100 }] });
-    fireEvent.touchMove(window, { touches: [{ clientY: 300, clientX: 100 }] });
-    expect(stretched()).toBe('');
-  });
-
+describe('TID-063/064: room past the last article', () => {
   it('adds end space once no more pages can load: "End of list" while unread rows remain', async () => {
     api.set(ENTRIES('all', 'unread'), page([entry(1), entry(2, { isRead: true })]));
     renderApp('/all');
     await screen.findByText('Title 1');
     const end = screen.getByTestId('list-end');
     expect(end).toHaveTextContent('End of list');
-    expect(end.className).toContain('100dvh');
+    // Sized to the scroll container (--main-h), with the message centred in that space.
+    expect(end.className).toContain('--main-h');
+    expect(end.className).toContain('justify-center');
   });
 
   it('says "You\'re all caught up" when every row above is read', async () => {

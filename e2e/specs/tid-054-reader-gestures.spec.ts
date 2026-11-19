@@ -1,6 +1,7 @@
 import type { CDPSession, Page } from '@playwright/test';
 import { clearListData, seedListData } from '../support/list-data.ts';
 import { expect, signedInTest as test } from '../support/test.ts';
+import { scrollBy, scrollTo, scrollY } from '../support/scroll.ts';
 
 // TID-054 (title opens the original), TID-026 (mark as read on scroll) and TID-055 (edge swipes in
 // the installed app), against the real Worker and a seeded D1. Touch swipes are real touch events
@@ -98,7 +99,7 @@ test.describe('TID-026: mark as read on scroll', () => {
 
     // Scroll down in steps, as a thumb would, until the first rows are above the header.
     for (let i = 0; i < 6; i++) {
-      await page.evaluate(() => window.scrollBy(0, 150));
+      await scrollBy(page, 150);
       await page.waitForTimeout(50);
     }
     await expect(page.getByRole('heading', { level: 2, name: 'Row 1', exact: true })).toHaveClass(
@@ -122,7 +123,7 @@ test.describe('TID-026: mark as read on scroll', () => {
     await page.goto('/all');
     await expect(page.getByRole('heading', { level: 2, name: 'Row 1', exact: true })).toBeVisible();
     for (let i = 0; i < 6; i++) {
-      await page.evaluate(() => window.scrollBy(0, 150));
+      await scrollBy(page, 150);
       await page.waitForTimeout(50);
     }
     await page.waitForResponse((r) => r.url().endsWith('/api/entries/read-state'));
@@ -155,9 +156,9 @@ test.describe('TID-055: swipe gestures in the installed app', () => {
     await swipe(cdp, 46, 90, 400, 20);
     await expect(drawer).toHaveCount(0);
     // Vertical scroll from the edge is left alone.
-    const before = await page.evaluate(() => window.scrollY);
+    const before = await scrollY(page);
     await swipe(cdp, 48, 48, 600);
-    expect(await page.evaluate(() => window.scrollY)).toBe(before);
+    expect(await scrollY(page)).toBe(before);
   });
 
   test('in a browser tab the edge swipe does nothing', async ({ page }, testInfo) => {
@@ -269,8 +270,8 @@ test.describe('TID-055: swipe gestures in the installed app', () => {
     await installed(page);
     await page.goto('/all');
     await expect(page.getByRole('heading', { level: 2, name: 'Row 1', exact: true })).toBeVisible();
-    await page.evaluate(() => window.scrollTo(0, 400));
-    const y = await page.evaluate(() => window.scrollY);
+    await scrollTo(page, 400);
+    const y = await scrollY(page);
     expect(y).toBeGreaterThan(100);
     const href = await page.evaluate(
       () =>
@@ -284,7 +285,7 @@ test.describe('TID-055: swipe gestures in the installed app', () => {
     await expect(page.getByRole('heading', { level: 1 })).toHaveCount(1);
     const under = page.getByTestId('list-underlay');
     await expect(under).toHaveAttribute('inert', '');
-    expect(await page.evaluate(() => window.scrollY)).toBe(y);
+    expect(await scrollY(page)).toBe(y);
     const cdp = await page.context().newCDPSession(page);
 
     // Cancel: the article slides back, the list returns underneath.
@@ -317,6 +318,6 @@ test.describe('TID-055: swipe gestures in the installed app', () => {
     await expect(page).toHaveURL(/\/all(\?|$)/);
     await expect(page.getByTestId('article-layer')).toHaveCount(0);
     await expect(under).toHaveCSS('transform', 'none');
-    expect(await page.evaluate(() => window.scrollY)).toBe(y);
+    expect(await scrollY(page)).toBe(y);
   });
 });
