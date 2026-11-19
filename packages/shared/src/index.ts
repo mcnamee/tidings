@@ -360,6 +360,16 @@ export interface PatchEntryRequest {
   isRead: boolean;
 }
 
+/** `POST /api/entries/:id/engagement` (spec 8.5, ADR 0018). `open` = 1 point, `click` = 2. */
+export type EngagementKind = 'open' | 'click';
+export interface EngagementRequest {
+  kind: EngagementKind;
+}
+export interface EngagementResponse {
+  /** False when that kind was already recorded for the entry (a repeat is harmless and free). */
+  recorded: boolean;
+}
+
 /** `POST /api/entries/read-state`: 1 to 1,000 IDs. */
 export const READ_STATE_MAX_IDS = 1000;
 export interface ReadStateRequest {

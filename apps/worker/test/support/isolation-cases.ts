@@ -38,6 +38,11 @@ export const ISOLATION_CASES: Readonly<Record<string, IsolationCase>> = {
     file: 'entry-read.test.ts',
     test: 'B changing A’s entry gets 404 not_found, and A’s entry is unchanged',
   },
+  // TID-066: a signal for another user's entry is "not found" and writes nothing.
+  'POST /api/entries/:id/engagement path:id': {
+    file: 'engagement.test.ts',
+    test: 'B signalling A’s entry gets 404 not_found, and nothing is written',
+  },
   'POST /api/entries/read-state body:entryIds': {
     file: 'entry-read.test.ts',
     test: 'with another user’s IDs in the list, only mine change',

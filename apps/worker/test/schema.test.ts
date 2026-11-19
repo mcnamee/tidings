@@ -17,6 +17,7 @@ const SPEC_TABLES = [
   'subscriptions',
   'entries',
   'user_entries',
+  'engagement',
 ];
 const SPEC_INDEXES = [
   'passkeys_user',

@@ -297,7 +297,7 @@ describe('AC5: batch bounds', () => {
     while ((await count('entries', 'purged_at IS NULL')) > 0 && runs < 6) {
       const r = await run(NOW_0317 + runs);
       expect(Math.max(...r.changes)).toBeLessThanOrEqual(CHUNK);
-      expect(r.changes.length).toBeLessThanOrEqual(MAX_STATEMENTS + 5);
+      expect(r.changes.length).toBeLessThanOrEqual(MAX_STATEMENTS + 6);
       runs += 1;
     }
     expect(await count('entries', 'purged_at IS NULL')).toBe(0);

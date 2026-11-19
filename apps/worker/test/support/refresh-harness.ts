@@ -42,7 +42,15 @@ export function createFixture(overrides: Partial<RefreshDeps> = {}): Fixture {
 }
 
 export async function resetData(): Promise<void> {
-  for (const t of ['user_entries', 'entries', 'subscriptions', 'folders', 'feeds', 'users']) {
+  for (const t of [
+    'engagement',
+    'user_entries',
+    'entries',
+    'subscriptions',
+    'folders',
+    'feeds',
+    'users',
+  ]) {
     await env.DB.exec(`DELETE FROM ${t}`);
   }
 }

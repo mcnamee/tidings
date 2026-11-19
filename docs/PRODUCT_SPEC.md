@@ -35,7 +35,7 @@ The user pays for Inoreader to read a few hundred RSS/Atom feeds, mostly on a ph
 - Native iOS/Android apps. (The SPA is installable as a PWA.)
 - Social features, sharing, comments, public profiles.
 - Two-way sync with Inoreader or migration of Inoreader read state or starred items.
-- Full-text article extraction (readability), AI summaries, translations.
+- Full-text article extraction (readability), AI summaries, translations. (The one AI feature allowed is the owner-approved recommended sort, built from the owner's own engagement signals: ADR 0018, TID-066 and TID-067. Summaries, translations and any chat or generative feature stay out.)
 - Podcast playback beyond a link to the enclosure.
 - Server-rendered pages. (Hard constraint: SPA + JSON API.)
 
@@ -55,10 +55,12 @@ The user pays for Inoreader to read a few hundred RSS/Atom feeds, mostly on a ph
 | **M0 Foundations** | De-risk and scaffold | Monorepo, CI, test harness, D1 schema, design system and app shell, two time-boxed spikes (parser CPU, fan-out isolation). |
 | **MVP** (release 1) | Read my feeds on my phone, as soon as possible | Passkey sign-in (done); background refresh with caching, conditional GET and backoff (done); GUID churn guard; subscribe by URL with autodiscovery; folders and subscription management; OPML import; article lists for All, Folder and Feed with unread-only filter, cursor pagination and unread counts; article view with sanitised content; mark read on open, toggle unread, mark all as read; production deploy and runbook. |
 | **R2** (about 1 week after MVP) | Safe to cancel Inoreader | Sign in with a recovery code; OPML export; feed health and "Refresh now"; settings (theme, reading, passkeys, recovery codes, sign out); retention cleanup; post-launch budget and CPU check against real use (TID-047); mark read or unread from a list row (TID-048, FR-RD-8); folder view read cost (TID-049, DEF-050); report OPML folders that weren't created (TID-050). |
-| **R3** (about 2 weeks after MVP) | Polish and hardening | Persisted client cache and installable PWA shell; SSRF guard hardening; design-token and contrast check in CI; E2E harness stability; mark all as read skips backdated late arrivals (TID-051); deep-link heading focus (TID-052). |
+| **R3** (about 2 weeks after MVP) | Polish and hardening | Persisted client cache and installable PWA shell; SSRF guard hardening; design-token and contrast check in CI; E2E harness stability; mark all as read skips backdated late arrivals (TID-051); deep-link heading focus (TID-052); recommended sort, stage 1 engagement signals (TID-066) and stage 2 ranking (TID-067, ADR 0018). |
 | **M2 Comfort** | Inoreader parity for daily use | Star / "Saved" view; mark-read-on-scroll; swipe to next/previous article; oldest-first sort; "mark older than X as read"; adaptive refresh interval (honour `ttl`, `sy:updatePeriod`, back off quiet feeds); feed favicons; desktop keyboard shortcuts; active sessions list; reorder folders. |
 | **M3 Later** | Nice to have | Offline reading of article bodies; full-text search (D1 FTS5, after a budget check); invite-only multi-user; multiple folders per feed (tags); filter rules; update-in-place for edited articles. |
-| **Won't do** | | Native apps, Inoreader API sync, social, readability extraction, AI features, image proxying (see open question Q9). |
+| **Won't do** | | Native apps, Inoreader API sync, social, readability extraction, AI features other than the recommended sort below, image proxying (see open question Q9). |
+
+**Recommended sort (owner request 2026-11-19, ADR 0018).** The owner reversed "Won't do: AI features" for one feature, in two stages, both R3. **Stage 1, TID-066:** record engagement signals (opening an article 1 point, going through to the original website 2 points; marking read by scrolling or "Mark all as read" none) in the `engagement` table (§6.1), through `POST /api/entries/:id/engagement` (§8.5). It ranks nothing yet. **Stage 2, TID-067:** embed new entries with Workers AI, build an interest profile from the signals, and add a "Recommended" sort next to newest-first.
 
 The MVP, R2 and R3 together were previously "M1"; they were split on 2026-11-17 so the owner can use the product early (ADR 0014). The MVP is deliberately tight. Starring is M2 even though the `is_starred` column exists from the first migration, so adding it later is UI and API work only.
 
@@ -469,7 +471,23 @@ CREATE INDEX ue_unread_all ON user_entries(user_id, published_at DESC, entry_id 
 CREATE INDEX ue_unread_feed ON user_entries(user_id, feed_id, published_at DESC, entry_id DESC) WHERE is_read = 0;
 CREATE INDEX ue_entry      ON user_entries(entry_id);                                  -- FK cascade, "unreferenced" check (0005)
 CREATE INDEX ue_read_old   ON user_entries(published_at) WHERE is_read = 1 AND is_starred = 0; -- 30-day retention (0005)
+
+-- ── Engagement signals (0007, TID-066, ADR 0018) ─────────────
+CREATE TABLE engagement (
+  user_id    TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  entry_id   INTEGER NOT NULL,                -- no FK: the row outlives the entry's purge and tombstone
+  feed_id    INTEGER NOT NULL,                -- copied at write time
+  title      TEXT,                            -- copied at write time
+  url        TEXT,                            -- copied at write time
+  url_key    TEXT,                            -- copied at write time (§6.3)
+  opened_at  INTEGER,                         -- first open in the article view; NULL = never
+  clicked_at INTEGER,                         -- first click-through to the original; NULL = never
+  last_at    INTEGER NOT NULL,                -- latest signal; the 180-day retention clock
+  PRIMARY KEY (user_id, entry_id)
+) WITHOUT ROWID;                              -- no secondary index: one row written per signal
 ```
+
+Points are derived, never stored: `opened_at` set = 1, `clicked_at` set = 2, so an article opened and then clicked through is 3. Each kind counts once per entry, however often it is repeated.
 
 Every index costs one extra row written per insert (and per update that touches its columns). The four `user_entries` indexes are the minimum for the four list queries (All/Feed × all/unread); partial indexes mean marking read *removes* rows from the unread indexes rather than rewriting them. Starred indexes are added in M2.
 
@@ -529,6 +547,7 @@ Lower-case scheme and host; drop default ports (`:80` for http, `:443` for https
 - Hostile-input bounds: at most 64 nested XML elements (`MAX_DEPTH`). Past that the parser stops and returns the items closed so far, or `parse_error` if there are none. U+0000 is removed and lone surrogates are replaced with U+FFFD in every stored string (ADR 0009).
 - Atom is recognised only with the unprefixed namespace (`<feed xmlns="http://www.w3.org/2005/Atom">`). A prefixed root is `parse_error` (accepted for MVP).
 - Per-user limits: 1,000 subscriptions, 200 folders.
+- **Migration `0007_engagement.sql` (TID-066):** creates `engagement` (§6.1). It touches no existing table or row. Costs are in §9.4 and §9.5.
 - **Migration `0006_cross_feed_dedup.sql` (TID-061):** `entries` gains nullable `url_key` and `headline_key` and the partial indexes `entries_url_key` and `entries_headline_key` (§6.3). Costs are in §9.4 and §9.5.
 - **Migration `0003_feed_churn_guard.sql` (TID-046):** `feeds` gains `recent_keys TEXT` (JSON array of short hashes), `new_entries_day INTEGER` (UTC day number), `new_entries_count INTEGER NOT NULL DEFAULT 0` and `warning_code TEXT` (null or `new_item_cap`). None is indexed, so they add no rows written.
 
@@ -598,14 +617,15 @@ If the feed row already exists and `last_success_at` is within 30 minutes, no fe
 
 ### 7.6 Maintenance (cron `17 * * * *`, hourly)
 
-Every step is one self-contained, atomic statement of at most 500 rows (`CHUNK`), so a run is idempotent, safe next to refresh, and catches up over later runs. The retention steps (1 to 5) share a budget of **10 statements per run**, spent in order (an empty probe also costs one, so a deep backlog in step 1 delays step 3 to the next run). The four housekeeping deletes in step 6 are one statement each and sit outside that budget. A failed step is counted and does not stop the others. Each run logs one counts-only JSON line (`event: "maintenance"`, per-step counts, statements, `rowsRead`, `rowsWritten`, `errors`).
+Every step is one self-contained, atomic statement of at most 500 rows (`CHUNK`), so a run is idempotent, safe next to refresh, and catches up over later runs. The retention steps (1 to 5) share a budget of **10 statements per run**, spent in order (an empty probe also costs one, so a deep backlog in step 1 delays step 3 to the next run). The engagement delete (step 6, 03:17 UTC run only) and the four housekeeping deletes (step 6a) are one statement each and sit outside that budget. A failed step is counted and does not stop the others. Each run logs one counts-only JSON line (`event: "maintenance"`, per-step counts, statements, `rowsRead`, `rowsWritten`, `errors`).
 
 1. Delete `user_entries` where `is_read = 1 AND is_starred = 0 AND published_at < now − 30 d` (index `ue_read_old`), `RETURNING entry_id`.
 2. Delete `user_entries` where `is_read = 0 AND is_starred = 0 AND published_at < now − 90 d` (index `ue_unread_all`, probed per user), `RETURNING entry_id`.
 3. Purge content (`content_html = NULL, summary = NULL, purged_at = now`) of entries older than 30 days that no `user_entries` row references. Each statement re-checks "unreferenced", so a row a refresh links meanwhile is safe. Three triggers: (a) the entries that steps 1 and 2 just released (reads proportional to deletions); (b) the oldest 500 purge candidates every run, so an orphan is found at once in a small database; (c) on the 03:17 UTC run, every candidate, for orphans behind the window (unsubscribed feeds, items beyond the first-fetch link limit). Scanning all candidates hourly would cost 2 rows read per old-but-still-referenced entry per hour.
 4. Delete tombstones where `purged_at < now − 180 d`. **Measured from the purge, not from `published_at`** (§6.3 says "kept for 180 days"): with `published_at` an item purged at 31 days and still in the feed would lose its tombstone within a day of a 211-day-old post and come back unread.
 5. Delete feeds with no subscriptions whose `COALESCE(last_attempt_at, created_at)` is over 7 days old: pick up to 20 per run, delete their entries in chunks (cascades to `user_entries` through `ue_entry`), then the empty feed rows. Both statements re-check "no subscriptions".
-6. Housekeeping, one statement each: expired `sessions` (`expires_at` or `absolute_expires_at` passed), `webauthn_challenges` of every purpose past `expires_at`, `rate_limits` windows older than 86,400 s (the longest window in use, the daily email-send cap; DEF-110), `magic_links` that are expired or used (ADR 0016).
+6. Engagement (TID-066, ADR 0018), on the 03:17 UTC run only, one statement outside the retention budget: delete up to 500 `engagement` rows with `last_at < now − 180 d`. The table has no index on `last_at` (one would add a row written per signal), so the statement scans it: a few thousand rows at most (§9.5). Reported as `engagementDeleted`.
+6a. Housekeeping, one statement each: expired `sessions` (`expires_at` or `absolute_expires_at` passed), `webauthn_challenges` of every purpose past `expires_at`, `rate_limits` windows older than 86,400 s (the longest window in use, the daily email-send cap; DEF-110), `magic_links` that are expired or used (ADR 0016).
 7. The 03:17 UTC run also logs `daily: { dbSizeBytes, entriesPublishedYesterday }`. D1 reports its size on every result (`meta.size_after`), so no `PRAGMA` is needed. Per-step deletion counts are in each hourly line; no counts are stored in D1 (that would cost rows written).
 
 Migration `0005_maintenance_indexes.sql` (TID-021): `ue_read_old`, `ue_entry`, `entries_tombstones`, and `entries_published` made partial (`WHERE purged_at IS NULL`). Costs are in §9.4 and §9.5.
@@ -724,6 +744,7 @@ Rate limits for Public routes: 10 requests / 10 min per IP per route family (set
 | `GET /api/entries` | Query: `view=all\|folder\|feed`, `id` (folder or subscription ID; required unless `view=all`), `state=unread\|all` (default from settings), `limit`, `cursor` | `200 { items: EntrySummary[], nextCursor: string \| null, asOf: string }` |
 | `GET /api/entries/:id` | – | `200 Entry` |
 | `PATCH /api/entries/:id` | `{ isRead?: boolean, isStarred?: boolean }` (`isStarred` accepted from M2) | `200 EntrySummary` |
+| `POST /api/entries/:id/engagement` | `{ kind: 'open' \| 'click' }` (strict) | `200 { recorded: boolean }` (`false` when that kind was already recorded) |
 | `POST /api/entries/read-state` | `{ entryIds: string[] (1–1000), isRead: boolean }` | `200 { updated: number }` (IDs not owned are ignored silently) |
 | `POST /api/entries/mark-all-read` | `{ view, id?, before: string (ISO, the list's asOf) }` | `200 { updated: number, entryIds: string[] \| null }` (`entryIds` only when `updated ≤ 1000`, for undo) |
 | `GET /api/counts` | – | `200 Counts` (unread only; folders aggregate their subscriptions) |
@@ -731,6 +752,8 @@ Rate limits for Public routes: 10 requests / 10 min per IP per route family (set
 `GET /api/entries` details (TID-018): `view` is required; `id` is required for `folder` and `feed` (the folder ID or the subscription ID), and ignored for `all`. A missing or invalid `view`, `id`, `state`, `limit` (1 to 100, default 50) or a malformed `cursor` is `400 validation_failed`. A folder or subscription that is not the caller's is `404 not_found`, the same as one that does not exist. `state` defaults to the user's `unreadOnly` setting (default unread). Items are newest first by `published_at`, then entry ID. The route only reads cached data: it never fetches a feed (FR-RD-11). `GET /api/counts` returns the unread total, and a count for every subscription and for every folder that has a subscription (0 when nothing is unread); `total` equals the number of unread `user_entries`, and a folder's count is the sum of its subscriptions. It reads the unread index once plus the user's subscriptions (NFR-7: unread rows + subscriptions + 10).
 
 Single-entry routes (TID-019): `GET /api/entries/:id` returns the `Entry` (raw `contentHtml`) for an entry in the caller's library; an ID that is not the caller's, does not exist, or is not a plain integer is `404 not_found`. `PATCH /api/entries/:id` takes exactly `{ isRead: boolean }` (any other key, `isStarred` included, is `400 validation_failed` until M2) and returns the `EntrySummary`. It sets `read_at` to the server time when marking read and to `NULL` when marking unread, and it only writes when the state changes (the `UPDATE` is guarded by `is_read = <opposite>`), so a repeat costs no rows written and one change costs the §9.4 figure of 3. `POST /api/entries/read-state` takes 1 to 1,000 string IDs (more, none, or a non-string is `400 validation_failed`) and runs one `UPDATE` with the IDs as a single JSON parameter (D1 allows 100 bound parameters per statement). IDs that are not integers or not the caller's are ignored, and `updated` counts only entries whose state actually changed.
+
+`POST /api/entries/:id/engagement` (TID-066, ADR 0018) records one engagement signal for an entry in the caller's library: `open` (the user opened the article view, 1 point) or `click` (the user went through to the original website, 2 points). The body is exactly `{ kind }`; any other key or value is `400 validation_failed`. An entry that is not the caller's, does not exist, or is not a plain integer is `404 not_found`. It is idempotent per kind: one `INSERT … SELECT … ON CONFLICT DO UPDATE … WHERE <column> IS NULL` writes the `engagement` row (copying title, feed, url and url key from the entry) or fills the other kind's timestamp; a repeat changes and writes nothing and answers `recorded: false`. It never changes read state. It passes the per-user rate-limit backstop like every other write (§10.7). The SPA sends `open` once per user-initiated open of the article view (a tap from a list, or Previous / Next; not a direct link, reload or history Back/Forward) and `click` from the title link and the Open original button (including a middle click), with `fetch` `keepalive`, never waiting for the answer and never showing an error. Marking read by scroll, "Mark all as read" and the Mark as read button send nothing.
 
 `POST /api/entries/mark-all-read` (TID-020, FR-RD-9) takes exactly `{ view, id?, before }` (`id` required unless `view=all`; `before` an ISO timestamp, the list's `asOf`; anything else is `400 validation_failed`). A folder or subscription that is not the caller's is `404 not_found`, the same as one that does not exist. It runs one `UPDATE ... RETURNING entry_id` on `user_entries` scoped to `user_id`, the view, `is_read = 0` and `published_at <= before`, so only unread rows are written (at most about 3 rows written each, §9.4), entries published after the watermark stay unread, and a repeat changes and writes nothing. `updated` is the number changed. `entryIds` holds those IDs when `updated ≤ 1,000` and is `null` above that. Undo is `POST /api/entries/read-state` with those IDs and `isRead: false`. The route does not return a preview count: the SPA's confirm step (more than 20) uses the unread count it already holds for the view.
 
@@ -844,9 +867,12 @@ Ceiling: one dispatcher leasing a full batch every minute is 1,440 × (1 + 20) =
 | Individual mark read (row + 2 partial-index removals + `ue_read_old` insert) | 4 | 1,200 | 3,600 |
 | Bulk mark read (same, 4) | 4 | 4,000 | 12,000 |
 | Cleanup (user_entries delete ×6 incl. `ue_entry` and `ue_read_old`, entry purge ×3 incl. index move, tombstone delete ×5 incl. the two key indexes since TID-061) | – | 5,800 | 19,600 |
+| Engagement signals (TID-066, ADR 0018): one row per signal, no secondary index, 1 row written for a first open, 1 for a later click, 0 for a repeat. Assumed 60 opens and 15 clicks per user per day, and the same number of rows deleted 180 days later | 1 | 150 | 450 |
 | Sessions, settings, auth | – | 50 | 150 |
 | Email sign-in (TID-053): ≈ 10 rows per sign-in, ≤ 10 emails/day cap; abuse bounded at 100 requests/hour ≈ 7,200 rows/day worst case (ADR 0016) | ≈ 10 | 10 to 100 | 10 to 100 |
 | **Total** | | **≈ 29,600 (30%)** | **≈ 78,200 (78%)** |
+
+**TID-066 (ADR 0018) adds about 150 rows a day in A (0.15%) and 450 in B (0.45%)**, and the totals above are not restated (they are inside rounding). The 1 row per signal is measured in `apps/worker/test/engagement.test.ts` (`meta.rows_written`: 1, then 0 for a repeat). The 15 clicks a day are the same row as their open, so the real figure is lower. The 75 and 225 assumed signals are an estimate to be checked against real use in TID-047.
 
 **TID-061 (ADR 0017) adds +1,600 rows a day in A (5.7%) and +3,200 in B (4.3%)**: two key-index rows when an entry is inserted and two when it is deleted, at 400 and 800 new entries a day. That is under the 10% target. The rows a hidden duplicate does not write (6 per subscriber) are not subtracted. An OPML import adds 20 rows per feed (10 linked entries × 2), 5,000 for 250 feeds, one time.
 
@@ -863,6 +889,7 @@ Ceiling: one dispatcher leasing a full batch every minute is 1,440 × (1 + 20) =
 | Unread counts (200 calls × 1,000 unread rows per user) | 200,000 | 600,000 |
 | List pages (150 × ~150 rows) + folder pages (50 × ~3,000 rows) per user (folder ceiling and worst case 12,100 rows/page: ADR 0008) | 172,500 | 517,500 |
 | Session lookups, misc | 5,000 | 15,000 |
+| Engagement (TID-066): per signal one join of `user_entries` and `entries` (about 3 rows read) plus 1 for a repeat or a 404 check; the daily retention sweep scans the whole table (≤ 75 signals × 180 days ≈ 13,500 rows in A, ≈ 40,500 in B, a heavier reader proportionally more) | 14,000 | 42,000 |
 | Cleanup (TID-021: hourly window scan ≈ 1,000 × 24, dead-feed probe ≈ 250 × 24, ≈ 11 per released row) | 35,000 | 60,000 |
 | **Total** | **≈ 1,007,000 (20%)** | **≈ 2,050,000 (41%)** |
 
@@ -1131,6 +1158,7 @@ The user accepted every recommended default on 2026-11-16 and chose the hostname
 | Q10 | Inoreader lets a feed sit in several folders. OK to allow only one folder per feed in MVP? | **Yes, one folder**; on import the first folder wins. Multi-folder (tags) in M3. |
 | Q11 | First fetch of a new feed: OK to bring in the 10 newest items, with items older than 7 days pre-marked read? | **Yes.** |
 | Q12 | TID-039 deployed CPU gate before production? | **Deferred** (user, 2026-11-17). Production deploys without it; CPU and budgets are checked against real use in TID-047 (R2). TID-039 runs only if that check shows trouble (ADR 0014). |
+| Q16 | Reverse "Won't do: AI features" for a recommended sort built from my own engagement signals? | **Yes, for this one feature** (owner, 2026-11-19, ADR 0018). Stage 1 (TID-066) records signals; stage 2 (TID-067) adds the sort. Other AI features (summaries, translation, chat) stay Won't do. |
 | Q15 | Email sign-in for the work computer (no phone or password safe there)? | **Yes, as an extra method** (owner's request, 2026-11-17). Passkeys stay primary; recovery codes stay. Sent from `signin@tidings.mcn.am` through Resend's free tier (owner's decision 2026-11-17, replacing the `send_email` binding: Workers Free would have needed Email Routing on the apex, replacing Google Workspace MX). DNS records go on subdomains of `tidings.mcn.am` only. The recipient is the `MAGIC_LINK_EMAIL` secret and the key is the `RESEND_API_KEY` secret, both kept out of the repo. TID-053, ADR 0016. |
 
 ### 16.1 Open questions (pending the user)

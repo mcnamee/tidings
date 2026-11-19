@@ -118,6 +118,8 @@ describe('AC1, AC3, AC4: 20 or fewer entries', () => {
 
     expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
     expect(posts(MARK)).toEqual([{ view: 'all', before: AS_OF }]);
+    // TID-066: marking read is not an engagement signal.
+    expect(api.calls.filter((c) => c.path.includes('/engagement'))).toEqual([]);
     const toastCard = await screen.findByText('Marked 3 as read');
     expect(within(toastCard.closest('div')!.parentElement!).getByText('Undo')).toBeInTheDocument();
     await screen.findByText('All caught up');
