@@ -739,21 +739,19 @@ describe('TID-067: the Recommended sort control', () => {
     });
   });
 
-  it('starts on Recommended when the setting says so, and shows the cold-start note while it falls back to newest', async () => {
+  it('starts on Recommended when the setting says so, and shows no note while it falls back to newest', async () => {
     api.set(RECOMMENDED(), withSort([entry(1)], 'cold_start'));
     renderApp('/all', { listSort: 'recommended' });
     await screen.findByText('Title 1');
     pressed(true);
-    expect(screen.getByTestId('sort-note')).toHaveTextContent(
-      'Recommended gets better as you read. Showing newest first for now.',
-    );
+    expect(screen.queryByTestId('sort-note')).not.toBeInTheDocument();
   });
 
   it('says when Recommended is unavailable', async () => {
     api.set(RECOMMENDED(), withSort([entry(1)], 'unavailable'));
     renderApp('/all', { listSort: 'recommended' });
     await screen.findByText('Title 1');
-    expect(screen.getByTestId('sort-note')).toHaveTextContent("Recommended isn't available");
+    expect(screen.queryByTestId('sort-note')).not.toBeInTheDocument();
   });
 
   it('shows no note when Recommended is applied', async () => {

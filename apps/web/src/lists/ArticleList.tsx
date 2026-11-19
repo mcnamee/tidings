@@ -253,8 +253,6 @@ export function ArticleList({
     entries.error instanceof ApiRequestError && entries.error.status === 404 && !entries.data;
   const subscription = view === 'feed' ? subscriptions.data?.find((s) => s.id === id) : undefined;
   const now = Date.now();
-  // The server says when Recommended was asked for but could not be applied (spec 8.5).
-  const sortNote = sort === 'recommended' ? entries.data?.pages[0]?.sortNote : undefined;
 
   let body: ReactNode;
   if (notFound) {
@@ -288,13 +286,8 @@ export function ArticleList({
   } else {
     body = (
       <>
-        {sortNote && (
-          <p data-testid="sort-note" className="px-4 pb-1 pt-3 text-sm text-fg-muted lg:px-0">
-            {sortNote === 'cold_start'
-              ? 'Recommended gets better as you read. Showing newest first for now.'
-              : "Recommended isn't available right now. Showing newest first."}
-          </p>
-        )}
+        {/* No note when Recommended falls back to newest first (owner, 2026-11-19): the list just
+            shows newest first until there is enough to recommend. */}
         <ul ref={listRef} data-testid="article-grid" className={LIST_GRID}>
           {items.map((entry, i) => (
             <ArticleRow

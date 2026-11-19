@@ -23,7 +23,7 @@ test.beforeEach(() => {
 });
 test.afterAll(() => clearListData());
 
-test('Recommended falls back to newest first with a note when nothing can be recommended yet (no AI locally), and can be turned off', async ({
+test('Recommended falls back to newest first (no note) when nothing can be recommended yet (no AI locally), and can be turned off', async ({
   page,
 }) => {
   await page.goto('/all');
@@ -37,7 +37,8 @@ test('Recommended falls back to newest first with a note when nothing can be rec
 
   await toggle.click();
   await expect(toggle).toHaveAttribute('aria-pressed', 'true');
-  await expect(page.getByTestId('sort-note')).toContainText('Recommended gets better as you read');
+  // No note while it falls back to newest first (owner, 2026-11-19).
+  await expect(page.getByTestId('sort-note')).toHaveCount(0);
   // Newest first, whole list intact, and the header controls still fit the viewport.
   expect(await titles()).toEqual(['Sorted 1', 'Sorted 2', 'Sorted 3', 'Sorted 4']);
   const fits = await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth);
