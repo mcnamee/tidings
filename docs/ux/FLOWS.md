@@ -217,4 +217,4 @@ Decision recorded here for the list spec: in Unread-only mode a row that has jus
 
 ## Launch screen (TID-059, owner request 2026-11-18)
 
-- On a full load (browser open, reload, Home Screen launch) a full-screen splash shows the mark (accent, 72 px, gentle fade/scale in) with "Tidings" below on the surface colour, in the resolved theme and inside the safe areas. Minimum 2 s from navigation start and until the first screen is ready, then a 250 ms fade out. Reduced motion: no animation, it is simply removed. Not shown on in-app navigation. Hidden from assistive technology.
+- On a full load (browser open, reload, Home Screen launch) a full-screen splash shows the mark (accent, 72 px, gentle fade/scale in) with "Tidings" below on the surface colour, in the resolved theme and inside the safe areas. Minimum 1 s from navigation start (2 s until 2026-11-19; reduced once the native launch images, TID-065, covered the start) and until the first screen is ready, then a 250 ms fade out. Reduced motion: no animation, it is simply removed. Not shown on in-app navigation. Hidden from assistive technology.

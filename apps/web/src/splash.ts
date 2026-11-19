@@ -1,11 +1,11 @@
 /**
  * Launch screen timing (TID-059). The markup is #splash in index.html and paints before any JS.
- * It stays until BOTH: 2 s have passed since navigation start, and the app has rendered its first
+ * It stays until BOTH: 1 s has passed since navigation start, and the app has rendered its first
  * real screen (splashAppReady). Then it fades out (250 ms) and is removed; with reduced motion it
  * is just removed. Under automation (navigator.webdriver) the minimum is skipped unless
  * window.__TIDINGS_SPLASH_MIN__ is set, which lets one E2E prove the real timing.
  */
-export const SPLASH_MIN_MS = 2000;
+export const SPLASH_MIN_MS = 1000; // owner, 2026-11-19: 1 s now the native launch image covers the start
 export const SPLASH_FADE_MS = 250;
 
 export interface SplashDeps {

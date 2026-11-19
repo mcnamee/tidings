@@ -1,9 +1,9 @@
 import { expect, signedInTest } from '../support/test.ts';
 
-// TID-059 launch screen. Automation normally skips the 2 s minimum; this overrides that.
+// TID-059 launch screen. Automation normally skips the 1 s minimum; this overrides that.
 // Runs in every project, so both themes are covered by the light and dark projects.
 signedInTest(
-  'the launch screen shows on load for at least 2 s, then is removed',
+  'the launch screen shows on load for at least 1 s, then is removed',
   async ({ page }) => {
     await page.addInitScript(() => {
       (window as unknown as { __TIDINGS_SPLASH_MIN__: boolean }).__TIDINGS_SPLASH_MIN__ = true;
@@ -26,10 +26,10 @@ signedInTest(
     });
     expect(colours.splash).toBe(colours.surface);
 
-    await page.waitForTimeout(1000);
+    await page.waitForTimeout(500);
     await expect(splash).toBeAttached();
     await expect(splash).toHaveCount(0, { timeout: 5000 });
-    expect(Date.now() - started).toBeGreaterThanOrEqual(2000);
+    expect(Date.now() - started).toBeGreaterThanOrEqual(1000);
     await expect(page.getByRole('heading', { level: 1 }).first()).toBeVisible();
   },
 );

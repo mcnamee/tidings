@@ -23,7 +23,7 @@ describe('launch screen timing (TID-059)', () => {
       skipMin: over.skipMin ?? false,
     });
 
-  it('stays for 2 s even when the app is ready at once, then fades and is removed', () => {
+  it('stays for the minimum even when the app is ready at once, then fades and is removed', () => {
     const s = make();
     s.appReady();
     vi.advanceTimersByTime(SPLASH_MIN_MS - 1);
@@ -36,7 +36,7 @@ describe('launch screen timing (TID-059)', () => {
     expect(el.isConnected).toBe(false);
   });
 
-  it('waits for the app after 2 s have passed', () => {
+  it('waits for the app after the minimum has passed', () => {
     const s = make();
     vi.advanceTimersByTime(5000);
     expect(el.isConnected).toBe(true);
@@ -47,9 +47,9 @@ describe('launch screen timing (TID-059)', () => {
   });
 
   it('counts from navigation start, not from when the script ran', () => {
-    const s = make({ start: 1500 });
+    const s = make({ start: 700 });
     s.appReady();
-    vi.advanceTimersByTime(499);
+    vi.advanceTimersByTime(299);
     expect(el.classList.contains('splash-out')).toBe(false);
     vi.advanceTimersByTime(1);
     expect(el.classList.contains('splash-out')).toBe(true);
