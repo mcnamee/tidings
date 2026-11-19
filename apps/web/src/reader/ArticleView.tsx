@@ -1,9 +1,16 @@
 import { useEffect, useRef, useState } from 'react';
-import { useLocation, useNavigate, useParams, useSearchParams } from 'react-router';
+import {
+  useLocation,
+  useNavigate,
+  useNavigationType,
+  useParams,
+  useSearchParams,
+} from 'react-router';
 import { useQueryClient } from '@tanstack/react-query';
 import { ChevronLeft, ChevronRight, ExternalLink, Loader2 } from 'lucide-react';
 import type { Entry, EntryListState, EntrySummary } from '@tidings/shared';
 import { ApiRequestError } from '../api';
+import { clickThrough, sendEngagement } from '../lib/engagement';
 import { useEntries, useEntry } from '../lib/queries';
 import { setEntryRead } from '../lib/readState';
 import { useSession } from '../lib/session';
@@ -66,6 +73,9 @@ export function ArticleRoute() {
   const session = useSession();
   const navigate = useNavigate();
   const { view, id, base } = listContext(pathname, params);
+  // TID-066: a tap from a list (PUSH) or Previous / Next (REPLACE) is the user opening an article.
+  // A direct link, reload or history Back/Forward (POP) is not, so it earns no signal.
+  const userOpened = useNavigationType() !== 'POP';
 
   const asParam = search.get('state');
   const state: EntryListState =
@@ -113,6 +123,7 @@ export function ArticleRoute() {
       <ArticleScreen
         key={entryId}
         entryId={entryId}
+        userOpened={userOpened}
         items={items}
         hasPrev={hasPrev}
         hasNext={hasNext}
@@ -125,6 +136,7 @@ export function ArticleRoute() {
 
 function ArticleScreen({
   entryId,
+  userOpened,
   items,
   hasPrev,
   hasNext,
@@ -132,6 +144,7 @@ function ArticleScreen({
   onStep,
 }: {
   entryId: string;
+  userOpened: boolean;
   items: EntrySummary[];
   hasPrev: boolean;
   hasNext: boolean;
@@ -154,6 +167,15 @@ function ArticleScreen({
     attempted.current = true;
     if (autoMark && !entry.isRead) void setEntryRead(client, entry, true);
   }, [entry, loaded, autoMark, client]);
+
+  // ADR 0018: one `open` signal per user-initiated open, once the article has really loaded. Never
+  // blocks, never toasts. Not sent for the read-state change above, scroll, or Mark all as read.
+  const signalled = useRef(false);
+  useEffect(() => {
+    if (!loaded || signalled.current) return;
+    signalled.current = true;
+    if (userOpened) sendEngagement(entryId, 'open');
+  }, [loaded, userOpened, entryId]);
 
   if (detail.isError && !loaded) {
     const gone = detail.error instanceof ApiRequestError && detail.error.status === 404;
@@ -186,6 +208,7 @@ function ArticleScreen({
             target="_blank"
             rel="noopener noreferrer"
             aria-label="Open original"
+            {...clickThrough(entry.id)}
             className="inline-flex size-11 items-center justify-center rounded-md text-fg active:bg-sunken"
           >
             <ExternalLink aria-hidden="true" className="size-6" strokeWidth={1.75} />
@@ -233,6 +256,7 @@ function ArticleScreen({
             href={entry.url}
             target="_blank"
             rel="noopener noreferrer"
+            {...clickThrough(entry.id)}
             className="rounded-sm text-inherit no-underline hover:text-accent active:text-accent"
           >
             {title}

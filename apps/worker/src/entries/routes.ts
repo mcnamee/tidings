@@ -6,6 +6,7 @@ import { Hono, type Context } from 'hono';
 import type {
   ApiError,
   Counts,
+  EngagementResponse,
   EntriesResponse,
   Entry,
   EntrySummary,
@@ -13,6 +14,7 @@ import type {
   ReadStateResponse,
 } from '@tidings/shared';
 import {
+  engagementRequestSchema,
   entriesQuerySchema,
   markAllReadRequestSchema,
   patchEntryRequestSchema,
@@ -33,6 +35,7 @@ import {
   markAllRead,
   nowSeconds,
   parseEntryId,
+  recordEngagement,
   setRead,
   setReadMany,
   systemClock,
@@ -163,6 +166,25 @@ export function createEntryRoutes(deps?: Partial<EntryDeps>): Hono<AppEnv> {
     const found = await loadEntry(c, c.req.param('id'));
     if (!found) return fail(c, 404, 'not_found', 'Not found');
     return c.json<EntrySummary>(summaryOf(found.row, found.label));
+  });
+
+  // ADR 0018: at most one row written per signal, and nothing for a repeat. An entry that is not the
+  // caller's, or not an entry at all, is "not found" (8.1).
+  app.post('/:id/engagement', async (c) => {
+    const body = await parseBody(c, engagementRequestSchema);
+    if (body instanceof Response) return body;
+    const { user } = c.get('session');
+    const id = parseEntryId(c.req.param('id'));
+    if (id === null) return fail(c, 404, 'not_found', 'Not found');
+    const result = await recordEngagement(
+      new Db(c.env.DB),
+      user.id,
+      id,
+      body.kind,
+      nowSeconds(clock),
+    );
+    if (!result) return fail(c, 404, 'not_found', 'Not found');
+    return c.json<EngagementResponse>({ recorded: result.recorded });
   });
 
   app.post('/read-state', async (c) => {

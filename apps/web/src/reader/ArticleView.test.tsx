@@ -6,7 +6,9 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { Counts, Entry, EntrySummary, Subscription } from '@tidings/shared';
 import { App } from '../App';
 import { reportReachable } from '../lib/connectivity';
+import { resetEngagementForTests } from '../lib/engagement';
 import { SESSION_KEY } from '../lib/session';
+import { toast, toastStore } from '../lib/toast';
 import { installFakeApi, type FakeApi } from '../test-api';
 import { installMatchMedia } from '../test-utils';
 
@@ -383,5 +385,106 @@ describe('AC11: feed text is text', () => {
     expect(within(article).getByText('<i>Feed</i>')).toBeInTheDocument();
     expect(article.querySelector('script, img, b, i')).toBeNull();
     await within(article).findByText('Safe');
+  });
+});
+
+// TID-066 (ADR 0018): engagement signals. The server side is tested in
+// apps/worker/test/engagement.test.ts; lib/engagement.test.ts covers the sender itself.
+describe('TID-066: engagement signals', () => {
+  const engagement = () => api.calls.filter((c) => c.path.endsWith('/engagement'));
+  const kinds = () => engagement().map((c) => (c.body as { kind: string }).kind);
+  const sentKeepalive = () =>
+    vi
+      .mocked(fetch)
+      .mock.calls.filter(([url]) => String(url).endsWith('/engagement'))
+      .map(([, init]) => init?.keepalive);
+
+  beforeEach(() => {
+    resetEngagementForTests();
+    toast.dismiss(); // one left by an earlier test would hide a real one
+    for (const e of entries) {
+      api.set(`POST /api/entries/${e.id}/engagement`, { body: { recorded: true } });
+    }
+  });
+
+  it('opening from the list sends one open for that article, with keepalive', async () => {
+    const user = userEvent.setup();
+    renderApp('/all');
+    await user.click(await screen.findByRole('link', { name: /Title 2/ }));
+    await screen.findByRole('heading', { level: 2, name: 'Title 2' });
+    await waitFor(() => expect(engagement()).toHaveLength(1));
+    expect(engagement()[0]).toMatchObject({
+      method: 'POST',
+      path: '/api/entries/2/engagement',
+      body: { kind: 'open' },
+    });
+    expect(sentKeepalive()).toEqual([true]);
+  });
+
+  it('Next and Previous count as opening: one open per article, none repeated when stepping back', async () => {
+    const user = userEvent.setup();
+    renderApp('/all');
+    await user.click(await screen.findByRole('link', { name: /Title 1/ }));
+    await screen.findByRole('heading', { level: 2, name: 'Title 1' });
+    await user.click(screen.getByRole('button', { name: 'Next' }));
+    await screen.findByRole('heading', { level: 2, name: 'Title 2' });
+    await user.click(screen.getByRole('button', { name: 'Previous' }));
+    await screen.findByRole('heading', { level: 2, name: 'Title 1' });
+    await waitFor(() => expect(engagement()).toHaveLength(2));
+    expect(engagement().map((c) => c.path)).toEqual([
+      '/api/entries/1/engagement',
+      '/api/entries/2/engagement',
+    ]);
+    expect(kinds()).toEqual(['open', 'open']);
+  });
+
+  it('a direct link or reload sends nothing, and neither does marking it read', async () => {
+    const user = userEvent.setup();
+    renderApp('/all/a/2');
+    await screen.findByText('Body of 2');
+    await user.click(await screen.findByRole('button', { name: /Mark as (un)?read/ }));
+    expect(engagement()).toEqual([]);
+  });
+
+  it('the title link sends one click, however many times it is tapped', async () => {
+    const user = userEvent.setup();
+    renderApp('/all');
+    await user.click(await screen.findByRole('link', { name: /Title 3/ }));
+    const title = await screen.findByRole('link', { name: 'Title 3' });
+    await waitFor(() => expect(engagement()).toHaveLength(1)); // the open
+    await user.click(title);
+    await user.click(title);
+    await waitFor(() => expect(engagement()).toHaveLength(2));
+    expect(engagement()[1]).toMatchObject({
+      path: '/api/entries/3/engagement',
+      body: { kind: 'click' },
+    });
+    expect(sentKeepalive()).toEqual([true, true]);
+    // It is still a plain link: it opens the original in a new tab.
+    expect(title).toHaveAttribute('href', 'https://example.com/post/3');
+    expect(title).toHaveAttribute('target', '_blank');
+  });
+
+  it('Open original sends a click', async () => {
+    const user = userEvent.setup();
+    renderApp('/all');
+    await user.click(await screen.findByRole('link', { name: /Title 1/ }));
+    await user.click(await screen.findByRole('link', { name: 'Open original' }));
+    await waitFor(() => expect(engagement()).toHaveLength(2));
+    expect(kinds()).toEqual(['open', 'click']);
+  });
+
+  it('a failed send is silent: no toast, the article stays, and the next signal still goes', async () => {
+    api.set('POST /api/entries/1/engagement', { status: 500, body: {} });
+    const user = userEvent.setup();
+    renderApp('/all');
+    await user.click(await screen.findByRole('link', { name: /Title 1/ }));
+    await screen.findByRole('heading', { level: 2, name: 'Title 1' });
+    await waitFor(() => expect(engagement()).toHaveLength(1));
+    expect(toastStore.getSnapshot()).toBeNull();
+    api.set('POST /api/entries/1/engagement', { body: { recorded: true } });
+    await user.click(await screen.findByRole('link', { name: 'Open original' }));
+    await waitFor(() => expect(engagement()).toHaveLength(2));
+    expect(toastStore.getSnapshot()).toBeNull();
   });
 });

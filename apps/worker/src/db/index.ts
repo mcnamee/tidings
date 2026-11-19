@@ -11,6 +11,7 @@ export {
   type EntryView,
   type ListEntriesParams,
 } from './entries';
+export { POINTS, recordEngagement, type EngagementResult } from './engagement';
 export {
   getEntry,
   markAllRead,

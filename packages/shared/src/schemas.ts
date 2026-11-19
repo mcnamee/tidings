@@ -157,6 +157,9 @@ export const importOpmlRequestSchema = z
 /** `PATCH /api/entries/:id` (spec 8.5). Unknown keys, including `isStarred` until M2, are rejected. */
 export const patchEntryRequestSchema = z.object({ isRead: z.boolean() }).strict();
 
+/** `POST /api/entries/:id/engagement` (spec 8.5, ADR 0018): one signal, strict. */
+export const engagementRequestSchema = z.object({ kind: z.enum(['open', 'click']) }).strict();
+
 /** `POST /api/entries/read-state` (spec 8.5): 1 to 1,000 IDs. */
 export const readStateRequestSchema = z
   .object({

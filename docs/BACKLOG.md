@@ -52,6 +52,8 @@ Owner: product-manager. Last updated 2026-11-17 (TID-053 email sign-in added, AD
 | TID-060 | News-style list rows and sans-serif article text | R2 | Done (deployed 2026-11-18) | TID-018 |
 | TID-061 | Hide duplicate articles across feeds (same URL or headline) | R2 | Built (ADR 0017, awaiting verification) | TID-012, TID-021 |
 | TID-057 | Logo, app icons, and installable full-screen app (TID-023 AC4 and AC6) | R2 | Done (deployed 2026-11-18) | TID-006 |
+| TID-066 | Recommended sort, stage 1: record engagement signals (owner request 2026-11-19, ADR 0018) | R3 | Built (branch `tid-066-engagement`, awaiting verification; mark Done when built and accepted) | TID-019, TID-021 |
+| TID-067 | Recommended sort, stage 2: embeddings, interest profile and "Recommended" sort (ADR 0018) | R3 | Ready (after TID-066 has collected signals and a budget check) | TID-066 |
 | TID-023 | Persisted client cache and installable PWA shell | R3 | Ready | TID-018, 019 |
 | TID-036 | SSRF guard hardening (TID-010 follow-up) | R3 | Ready | TID-010 |
 | TID-037 | Design-token drift and contrast check in CI (TID-006 follow-up) | R3 | Ready | TID-006 |
@@ -1085,7 +1087,7 @@ Known risks: (a) a Worker fetching another workers.dev Worker on the same accoun
 
 ## Won't do
 
-Native apps; Inoreader API sync or starred-item migration (Q7); social features; readability/full-article extraction; AI features; image proxying (Q9).
+Native apps; Inoreader API sync or starred-item migration (Q7); social features; readability/full-article extraction; AI features other than the owner-approved recommended sort (TID-066, TID-067, ADR 0018); image proxying (Q9).
 
 
 ### Owner requests, 2026-11-18 (R2, built under the lighter workflow)
@@ -1137,4 +1139,55 @@ Native apps; Inoreader API sync or starred-item migration (Q7); social features;
 7. Given a duplicate is hidden, then nothing is lost: it is either not linked to me at all, or linked and marked as a duplicate so it's excluded from lists and counts. The choice is recorded in the ADR.
 
 **Out of scope:** fuzzy matching of near-identical headlines (edit distance), clustering "related coverage" from different publishers, and showing "also in: Business" on the row (could be a later nicety).
+
+### TID-066: Recommended sort, stage 1: record engagement signals (owner request 2026-11-19)
+
+- **Agents:** SE, QA
+- **Depends on:** TID-019 (article view), TID-021 (retention)
+- **Release:** R3
+- **Status:** Built (branch `tid-066-engagement`, ADR 0018; awaiting tester verification and PM acceptance). Mark Done when built and accepted.
+
+**User story:** As the owner, I want Tidings to remember which articles I open and click through, so that a later recommended sort can learn what I like.
+
+**Context:** The owner approved reversing "Won't do: AI features" for this feature (ADR 0018, spec §16 Q16). Stage 1 only records signals. It changes nothing the user sees.
+
+**Acceptance criteria**
+
+1. Opening an article in the article view by a tap from a list, or by Previous / Next, records 1 point for that entry. A direct link, a reload and history Back or Forward record nothing. (Decision: Next and Previous count; ADR 0018.)
+2. Going through to the original website by the title link or the Open original button records 2 points for that entry (a middle click counts too). An article opened and clicked through is 3 points.
+3. Marking read by scrolling past, "Mark all as read" and the Mark as read button record nothing and send no request.
+4. Storage is the `engagement` table (migration 0007), at most one row per user and entry, so repeats add no row and do not move the first timestamp. The row holds the entry's title, feed ID, URL and URL key copied at write time, and survives the entry's content purge and tombstone deletion.
+5. `POST /api/entries/:id/engagement` with the strict body `{ kind: 'open' | 'click' }` returns `200 { recorded }`, is idempotent per kind, returns `404` for another user's or an unknown entry (and writes nothing), `400` for any other body, `401` without a session, and `429` when rate limited. It is in the route table with an isolation case. Documented in spec §8.5.
+6. The client sends fire-and-forget (`fetch` with `keepalive`), never blocks navigation, shows no toast on failure and sends each signal once per entry per page life.
+7. The maintenance job deletes signals whose latest signal is over 180 days old, in a bounded batch (500) on the daily run, and a run is idempotent.
+8. Free-tier cost is justified in spec §9: at most 1 row written per signal (plus no index rows), nothing for a repeat, written only for genuine opens and click-throughs.
+9. Migration 0007 applies to a populated 0006 database without changing any existing row.
+
+**Out of scope:** any ranking, embeddings or UI (TID-067), counting scroll-past or bulk reads, a retry queue for failed sends, clicks on links inside the article body.
+
+### TID-067: Recommended sort, stage 2: embeddings, profile and "Recommended" sort (R3)
+
+- **Agents:** PM (refine and budget check), SE, UX, QA
+- **Depends on:** TID-066 (signals), TID-021 (hourly job)
+- **Release:** R3
+- **Status:** Ready, after TID-066 has been collecting for a while. Needs a Workers AI binding in `wrangler.jsonc` (a new Cloudflare product on the free plan: check spec §4.2 and §9 first, and record any deviation in ADR 0018 or a new ADR).
+
+**User story:** As the owner, I want a "Recommended" sort for my unread list that puts what I'm most likely to want first, so that I can get through a large backlog by interest rather than only by date.
+
+**Design (ADR 0018):** embed each new entry's title and summary with Workers AI `@cf/baai/bge-small-en-v1.5` (384 dimensions; measured price 1,841 neurons per million input tokens, so about 300 neurons a day at about 2,000 entries a day, against 10,000 free a day). Store a compact embedding (for example int8-quantised) in D1, not Vectorize: Vectorize Free holds only 5 million stored dimensions, about 13,000 vectors at 384 dimensions, too few for a 90-day unread window. Build a per-user interest profile as the points- and recency-weighted mean of the embeddings of engaged entries. Rank unread by cosine similarity to the profile with a freshness decay.
+
+**Acceptance criteria**
+
+1. Each new entry that is linked to a user gets an embedding computed once from its title and summary, in a bounded batch per run (a cap on entries per invocation and on subrequests), never in the user's request. If Workers AI fails or the daily allowance is spent, refresh and reading carry on unchanged and the entry is embedded later; nothing user-visible breaks.
+2. The embedding is stored compactly in D1 with the entry (or beside it), is removed with the entry by retention, and its size per entry is measured and recorded in spec §9.6.
+3. The profile is the mean of the embeddings of entries in `engagement`, weighted by points (open 1, click 2, both 3) and by recency (older signals weigh less). Signals whose entry has no embedding (purged) are embedded again from the stored title, or skipped, and the rule is recorded in the ADR.
+4. The list has a sort option "Recommended" next to the default newest-first, for the unread views (All, folder, feed), remembered as a setting. Cursor pagination works for it, and an entry never appears twice or is skipped across pages.
+5. With fewer than the minimum number of signals (default 20), "Recommended" falls back to newest-first and says so on screen (copy from UX).
+6. Ranking uses cosine similarity combined with a freshness decay; the formula and its constants are in the ADR, and a unit test fixes the order for a small fixture (an engaged topic ranks above an unrelated one; an equally similar newer entry ranks above an older one).
+7. The per-request CPU stays inside the Free plan's 10 ms. Scores are pre-computed in the hourly job, or the candidate set is capped; the choice is made after measuring the cost of scoring 1,000 candidates in workerd and recorded.
+8. Costs are measured, not estimated, and recorded in spec §9: neurons a day against 10,000, rows written and read a day, storage per entry, and the extra CPU. Any cost above 10% of a quota is raised with the owner before merging.
+9. The mobile (375 px) and dark-mode behaviour of the sort control is reviewed by UX; the sort is available by keyboard and with a screen reader.
+10. API changes (the `sort` query parameter or equivalent) are in spec §8.5, with isolation cases for any new ID input.
+
+**Out of scope:** summaries, translation or chat, any model other than the one named, Vectorize, sharing signals or embeddings outside the owner's Cloudflare account, and explaining why an article was recommended.
 

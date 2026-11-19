@@ -63,6 +63,7 @@ export const ROUTE_TABLE: readonly RouteRow[] = [
   session('GET', '/api/entries', 'query:id'),
   session('GET', '/api/entries/:id', 'path:id'),
   session('PATCH', '/api/entries/:id', 'path:id'),
+  session('POST', '/api/entries/:id/engagement', 'path:id'),
   session('POST', '/api/entries/read-state', 'body:entryIds'),
   session('POST', '/api/entries/mark-all-read', 'body:id'),
   session('GET', '/api/counts'),
