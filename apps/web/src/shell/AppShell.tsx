@@ -228,7 +228,7 @@ export function AppShell() {
                 <div className="sticky top-0 z-20 shrink-0">
                   <header className="border-b border-line bg-surface pl-[max(1rem,env(safe-area-inset-left))] pr-[max(1rem,env(safe-area-inset-right))] pt-[env(safe-area-inset-top)]">
                     <div
-                      className={`flex min-h-14 items-center gap-2 py-2 lg:mx-auto ${wide ? 'lg:max-w-6xl' : 'lg:max-w-2xl'}`}
+                      className={`flex min-h-14 items-center gap-2 py-2 lg:mx-auto ${wide ? 'lg:max-w-[100rem]' : 'lg:max-w-2xl'}`}
                     >
                       {showBack ? (
                         <button
@@ -290,7 +290,7 @@ export function AppShell() {
                   className="min-h-0 flex-1 overflow-y-auto overscroll-y-auto pl-[max(1rem,env(safe-area-inset-left))] pr-[max(1rem,env(safe-area-inset-right))] lg:overflow-visible"
                 >
                   <div
-                    className={`mx-auto max-w-2xl py-4 pb-[max(1rem,env(safe-area-inset-bottom))] ${wide ? 'lg:max-w-6xl' : ''}`}
+                    className={`mx-auto max-w-2xl py-4 pb-[max(1rem,env(safe-area-inset-bottom))] ${wide ? 'lg:max-w-[100rem]' : ''}`}
                   >
                     <PasskeyBanner />
                     <Outlet />

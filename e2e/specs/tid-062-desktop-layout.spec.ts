@@ -91,7 +91,7 @@ test('the Menu button hides and restores the sidebar, and the choice is remember
   await expect(sidebar).toBeVisible();
 });
 
-test('the list is a card grid: 3 columns at 1280, 2 at 1100 with the sidebar, 3 when hidden', async ({
+test('the list is a card grid: 2 columns at 1100, 3 at 1280, 4 at 1600 with the sidebar; one more when hidden', async ({
   page,
 }) => {
   await mockEntries(page);
@@ -102,6 +102,14 @@ test('the list is a card grid: 3 columns at 1280, 2 at 1100 with the sidebar, 3 
   expect(await columns(page)).toBe(2);
   await page.getByRole('button', { name: 'Hide sidebar' }).click();
   await expect.poll(() => columns(page)).toBe(3);
+  await page.setViewportSize({ width: 1280, height: 800 });
+  await expect.poll(() => columns(page)).toBe(4);
+  await page.getByRole('button', { name: 'Show sidebar' }).click();
+  await page.setViewportSize({ width: 1600, height: 900 });
+  await expect.poll(() => columns(page)).toBe(4);
+  // Cards are bordered surfaces on desktop, so each one's edges are visible.
+  const firstCard = page.getByTestId('article-grid').locator('li a').first();
+  expect(await firstCard.evaluate((el) => getComputedStyle(el).borderTopWidth)).not.toBe('0px');
 
   const cards = page.getByTestId('article-grid').locator('li');
   // Text-only cards have no image box; image cards are 16:9 on top of the title.

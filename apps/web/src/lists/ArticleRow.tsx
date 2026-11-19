@@ -10,7 +10,7 @@ import { rowLayout } from './rowLayout';
  * `lg` once the sidebar is hidden (the column is the full ~1024px). Below `lg` it stays one column.
  */
 export const LIST_GRID =
-  'lg:grid lg:grid-flow-dense lg:grid-cols-2 lg:gap-4 xl:grid-cols-3 group-data-[sidebar=hidden]/shell:lg:grid-cols-3';
+  'lg:grid lg:grid-flow-dense lg:grid-cols-2 lg:gap-5 xl:grid-cols-3 2xl:grid-cols-4 group-data-[sidebar=hidden]/shell:lg:grid-cols-3 group-data-[sidebar=hidden]/shell:xl:grid-cols-4';
 
 /**
  * One article in a list (FR-RD-5), in one of three layouts (TID-060): thumbnail on the left with
@@ -57,7 +57,7 @@ export function ArticleRow({
     >
       <Link
         to={to}
-        className={`-mx-4 min-h-11 px-4 py-4 hover:bg-sunken active:bg-sunken lg:mx-0 lg:h-full lg:rounded-xl lg:p-3 ${
+        className={`-mx-4 min-h-11 px-4 py-4 hover:bg-sunken active:bg-sunken lg:mx-0 lg:h-full lg:rounded-xl lg:border lg:border-line lg:bg-surface lg:p-3 lg:shadow-sm lg:hover:border-line-strong lg:hover:bg-sunken ${
           hero
             ? 'block lg:flex lg:items-start lg:gap-5'
             : 'flex items-start gap-3 lg:flex-col lg:gap-0'
