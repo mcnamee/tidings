@@ -80,26 +80,32 @@ export function AppShell() {
     closePending.current = false;
   }, [location.key, open]);
 
+  // In the installed app there is no browser Back button, but iOS's own edge swipe-back would step
+  // through any entry we push. So there the drawer replaces the current entry instead of pushing
+  // one, and its links replace too: choosing another list never leaves a list to swipe back to.
+  const historyless = useMemo(() => isStandalone(), []);
+  const here = { pathname: location.pathname, search: location.search, hash: location.hash };
+
   const openDrawer = useCallback(() => {
     if (open || openPending.current) return;
     openPending.current = true;
-    navigate(
-      { pathname: location.pathname, search: location.search, hash: location.hash },
-      { state: { drawer: true } },
-    );
-  }, [navigate, open, location.pathname, location.search, location.hash]);
+    navigate(here, { state: { drawer: true }, replace: historyless });
+  }, [navigate, open, historyless, location.pathname, location.search, location.hash]);
 
   const closeDrawer = useCallback(() => {
     if (closePending.current) return;
     closePending.current = true;
-    navigate(-1);
-  }, [navigate]);
+    if (historyless) navigate(here, { replace: true, state: null });
+    else navigate(-1);
+  }, [navigate, historyless, location.pathname, location.search, location.hash]);
 
   // The sidebar takes over when the viewport grows to 1024px; drop the drawer's history entry.
   const stale = isDesktop && drawerFlag(location.state) && location.key !== initialKey.current;
   useEffect(() => {
-    if (stale) navigate(-1);
-  }, [stale, navigate]);
+    if (!stale) return;
+    if (historyless) navigate(here, { replace: true, state: null });
+    else navigate(-1);
+  }, [stale, navigate, historyless]);
 
   useEffect(() => saveLastList(location.pathname), [location.pathname]);
 

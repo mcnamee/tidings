@@ -41,6 +41,7 @@ export function usePullToRefresh(
 
   useEffect(() => {
     if (!enabled) return;
+    let startX: number | null = null;
     let startY: number | null = null;
     let timer = 0;
     const set = (s: PullState) => {
@@ -65,10 +66,17 @@ export function usePullToRefresh(
     const onStart = (e: TouchEvent) => {
       if (mode.current === 'refreshing' || window.scrollY > 0 || e.touches.length !== 1) return;
       startY = e.touches[0]?.clientY ?? null;
+      startX = e.touches[0]?.clientX ?? null;
     };
     const onMove = (e: TouchEvent) => {
       if (startY === null || mode.current === 'refreshing') return;
       const travel = (e.touches[0]?.clientY ?? startY) - startY;
+      // A sideways swipe (menu, back) is not a pull: give it up for the rest of this touch.
+      const across = Math.abs((e.touches[0]?.clientX ?? startX ?? 0) - (startX ?? 0));
+      if (mode.current === 'idle' && across > Math.abs(travel)) {
+        startY = null;
+        return;
+      }
       if (travel <= 0 || window.scrollY > 0) {
         if (mode.current !== 'idle') {
           set('idle');
