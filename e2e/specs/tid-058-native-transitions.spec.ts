@@ -1,6 +1,7 @@
 import type { CDPSession, Page } from '@playwright/test';
 import { clearListData, seedListData } from '../support/list-data.ts';
 import { expect, signedInTest as test } from '../support/test.ts';
+import { scrollY } from '../support/scroll.ts';
 
 // TID-058: native-feel transitions on a phone. Pulling a list down at the top stretches the list
 // content and never moves the header; an article slides in from the right over the list (which
@@ -80,7 +81,7 @@ test.describe('TID-058: pull down keeps the header pinned', () => {
       expect(await top()).toBe(0);
     }
     expect(await top()).toBe(0);
-    expect(await page.evaluate(() => window.scrollY)).toBe(0);
+    expect(await scrollY(page)).toBe(0);
     expect(await rowTop()).toBeGreaterThan(before + 20);
     await expect(page.getByText('Release to refresh')).toBeVisible();
     await touch(cdp, 'touchEnd');

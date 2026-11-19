@@ -169,16 +169,15 @@ describe('article slide-in and out (TID-058)', () => {
 describe('pull to refresh stretches the content, not the header (TID-058)', () => {
   const header = () => screen.getByRole('banner').parentElement as HTMLElement;
   const content = () => screen.getByRole('list').closest('div.relative') as HTMLElement;
-  beforeEach(() => {
-    Object.defineProperty(window, 'scrollY', { value: 0, configurable: true });
-  });
+  // TID-064: touches land on the shell's scrolling main (not on the window).
+  const main = () => screen.getByTestId('main-scroll');
 
   it('moves the list content down with resistance and leaves the header alone, then springs back', async () => {
     renderApp('/all');
     await ready();
-    fireEvent.touchStart(window, { touches: [{ clientY: 100 }] });
+    fireEvent.touchStart(main(), { touches: [{ clientY: 100 }] });
     const move = (y: number) =>
-      fireEvent.touchMove(window, { touches: [{ clientY: y }], cancelable: true });
+      fireEvent.touchMove(main(), { touches: [{ clientY: y }], cancelable: true });
     move(140);
     expect(content().style.transform).toBe('translateY(20px)'); // half the finger travel
     expect(header().style.transform).toBe('');
@@ -189,7 +188,7 @@ describe('pull to refresh stretches the content, not the header (TID-058)', () =
     expect(px).toBeLessThan(104);
     expect(header().style.transform).toBe('');
     expect(screen.getByText('Release to refresh')).toBeInTheDocument();
-    fireEvent.touchEnd(window);
+    fireEvent.touchEnd(main());
     await waitFor(() => expect(content().style.transform).toBe(''), { timeout: 2000 });
     expect(header().style.transform).toBe('');
   });
@@ -197,33 +196,31 @@ describe('pull to refresh stretches the content, not the header (TID-058)', () =
   it('a pull does not block ordinary scrolling: only a downward pull from the top is cancelled', async () => {
     renderApp('/all');
     await ready();
-    // jsdom has no layout and counts as scrolled to the end, where pushing up is a (cancelled)
-    // bottom stretch. Make the page scrollable, as on a phone mid-list.
-    vi.spyOn(document.documentElement, 'scrollHeight', 'get').mockReturnValue(5000);
-    fireEvent.touchStart(window, { touches: [{ clientY: 300 }] });
+    fireEvent.touchStart(main(), { touches: [{ clientY: 300 }] });
+    // Scrolling up is never cancelled (and there is no JS stretch at the bottom any more).
     const up = new TouchEvent('touchmove', {
       touches: [{ clientY: 200 } as Touch],
       cancelable: true,
     });
-    act(() => void window.dispatchEvent(up));
+    act(() => void main().dispatchEvent(up));
     expect(up.defaultPrevented).toBe(false);
     const down = new TouchEvent('touchmove', {
       touches: [{ clientY: 380 } as Touch],
       cancelable: true,
     });
-    act(() => void window.dispatchEvent(down));
+    act(() => void main().dispatchEvent(down));
     expect(down.defaultPrevented).toBe(true);
-    fireEvent.touchEnd(window);
+    fireEvent.touchEnd(main());
   });
 
   it('with reduced motion nothing stretches, the indicator still shows', async () => {
     installMatchMedia({ 'prefers-reduced-motion': true });
     renderApp('/all');
     await ready();
-    fireEvent.touchStart(window, { touches: [{ clientY: 100 }] });
-    fireEvent.touchMove(window, { touches: [{ clientY: 300 }] });
+    fireEvent.touchStart(main(), { touches: [{ clientY: 100 }] });
+    fireEvent.touchMove(main(), { touches: [{ clientY: 300 }] });
     expect(await screen.findByText('Release to refresh')).toBeInTheDocument();
     expect(content().style.transform).toBe('');
-    fireEvent.touchEnd(window);
+    fireEvent.touchEnd(main());
   });
 });

@@ -20,6 +20,14 @@ export interface LayerSlots {
 }
 export const LayerContext = createContext<LayerSlots>({ root: null, underlay: null });
 
+/**
+ * The element the page scrolls in. Below `lg` the shell's `main` is its own native scroll container
+ * (TID-064), so scroll-aware code uses it as the IntersectionObserver root and reads its scrollTop.
+ * `null`: the document scrolls (desktop, or no shell); `undefined`: the container is not mounted yet.
+ */
+export const ScrollRootContext = createContext<HTMLElement | null | undefined>(null);
+export const useScrollRoot = () => useContext(ScrollRootContext);
+
 export const ShellSlotsContext = createContext<ShellSlots>({
   headerActions: null,
   bottomBar: null,

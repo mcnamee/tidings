@@ -1,5 +1,6 @@
 import { clearListData, seedListData } from '../support/list-data.ts';
 import { expect, signedInTest as test } from '../support/test.ts';
+import { scrollTo } from '../support/scroll.ts';
 
 // TID-063: a short list has room past its last row, so the last article can be scrolled up under
 // the header and is marked read by mark-read-on-scroll. Real Worker and seeded D1; mobile only.
@@ -32,18 +33,22 @@ test('at the end of a short list the last row scrolls above the header and is ma
   await expect(last).toBeVisible();
   await expect(page.getByTestId('list-end')).toHaveText('End of list');
 
-  await page.evaluate(async () => {
-    for (let i = 0; i < 6; i++) {
-      window.scrollTo(0, document.documentElement.scrollHeight);
-      await new Promise((r) => setTimeout(r, 60));
-    }
-  });
+  await scrollTo(page, 'end');
   const headerBottom = await page
     .getByRole('banner')
     .first()
     .evaluate((el) => el.parentElement!.getBoundingClientRect().bottom);
   const lastBottom = await last.evaluate((el) => el.closest('li')!.getBoundingClientRect().bottom);
   expect(lastBottom).toBeLessThanOrEqual(headerBottom);
+
+  // The message is centred in the end space, which is as tall as the scroll container.
+  const mid = await page.evaluate(() => {
+    const end = document.querySelector('[data-testid="list-end"]')!;
+    const text = end.querySelector('p')!.getBoundingClientRect();
+    const box = end.getBoundingClientRect();
+    return { text: text.top + text.height / 2, box: box.top + box.height / 2 };
+  });
+  expect(Math.abs(mid.text - mid.box)).toBeLessThan(40);
 
   await expect(last).toHaveClass(/text-fg-muted/);
   await expect(page.getByText("You're all caught up")).toBeVisible();

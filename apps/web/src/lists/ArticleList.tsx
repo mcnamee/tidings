@@ -24,7 +24,7 @@ import { useMarkReadOnScroll } from '../lib/readOnScroll';
 import { prefersReducedMotion } from '../lib/useSwipe';
 import { usePullToRefresh } from '../lib/usePullToRefresh';
 import { SHEET_BUTTON, Sheet } from '../manage/Sheet';
-import { BottomBar, HeaderActions } from '../shell/slots';
+import { BottomBar, HeaderActions, useScrollRoot } from '../shell/slots';
 import { ArticleRow, LIST_GRID } from './ArticleRow';
 
 const COUNT_FORMAT = new Intl.NumberFormat('en-US');
@@ -186,10 +186,13 @@ export function ArticleList({
     await Promise.all([entries.refetch(), client.refetchQueries({ queryKey: COUNTS_KEY })]);
   }
   const stretchRef = useRef<HTMLDivElement>(null);
-  const pull = usePullToRefresh(refresh, !covered, stretchRef);
-  // The indicator waits above the list content, under the header, and is uncovered as the content
-  // is pulled down. With reduced motion nothing stretches, so it shows in the flow instead.
-  const stretches = !prefersReducedMotion();
+  // TID-064: below lg the list scrolls in the shell's `main` (the root of every observer here).
+  const scrollRoot = useScrollRoot();
+  const { state: pull, native } = usePullToRefresh(refresh, !covered, scrollRoot, stretchRef);
+  // The indicator waits above the list content and is uncovered as the content is pulled down, by
+  // the browser's own bounce or by our transform. It shows in the flow instead with reduced motion
+  // (nothing stretches), and while a native pull refreshes (the bounce has settled back to the top).
+  const stretches = native ? pull !== 'refreshing' : !prefersReducedMotion();
 
   // FR-RD-9. The watermark is the first page's `asOf`; the number for the confirm step is the
   // unread count the sidebar already holds for this view (or the loaded unread rows, if more).
@@ -217,6 +220,7 @@ export function ArticleList({
     listRef,
     items,
     !covered && markReadOnScroll(session.data?.user?.settings),
+    scrollRoot,
   );
 
   const sentinel = useRef<HTMLDivElement>(null);
@@ -224,16 +228,16 @@ export function ArticleList({
   const canObserve = typeof IntersectionObserver !== 'undefined';
   useEffect(() => {
     const el = sentinel.current;
-    if (!el || !hasNextPage || !canObserve) return;
+    if (!el || !hasNextPage || !canObserve || scrollRoot === undefined) return;
     const observer = new IntersectionObserver(
       (hits) => {
         if (hits.some((h) => h.isIntersecting) && !isFetchingNextPage) void fetchNextPage();
       },
-      { rootMargin: '400px' },
+      { root: scrollRoot, rootMargin: '400px' },
     );
     observer.observe(el);
     return () => observer.disconnect();
-  }, [hasNextPage, isFetchingNextPage, fetchNextPage, canObserve, items.length]);
+  }, [hasNextPage, isFetchingNextPage, fetchNextPage, canObserve, items.length, scrollRoot]);
 
   function setState(next: EntryListState) {
     const p = new URLSearchParams(params);
@@ -292,7 +296,7 @@ export function ArticleList({
         {!hasNextPage && (
           <div
             data-testid="list-end"
-            className="flex min-h-[calc(100dvh-7rem-env(safe-area-inset-top)-env(safe-area-inset-bottom))] flex-col items-center gap-2 pt-10 text-sm text-fg-muted lg:min-h-40"
+            className="flex min-h-[var(--main-h,60dvh)] flex-col items-center justify-center gap-2 text-sm text-fg-muted lg:min-h-40"
           >
             {items.every((i) => i.isRead) ? (
               <>
