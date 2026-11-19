@@ -197,6 +197,9 @@ describe('pull to refresh stretches the content, not the header (TID-058)', () =
   it('a pull does not block ordinary scrolling: only a downward pull from the top is cancelled', async () => {
     renderApp('/all');
     await ready();
+    // jsdom has no layout and counts as scrolled to the end, where pushing up is a (cancelled)
+    // bottom stretch. Make the page scrollable, as on a phone mid-list.
+    vi.spyOn(document.documentElement, 'scrollHeight', 'get').mockReturnValue(5000);
     fireEvent.touchStart(window, { touches: [{ clientY: 300 }] });
     const up = new TouchEvent('touchmove', {
       touches: [{ clientY: 200 } as Touch],

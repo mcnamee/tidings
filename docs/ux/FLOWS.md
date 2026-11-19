@@ -212,6 +212,8 @@ Decision recorded here for the list spec: in Unread-only mode a row that has jus
 - **Pull to refresh:** the document never bounces (`overscroll-behavior-y: none`); the header and status-bar area stay pinned while only the list content stretches down with resistance, revealing "Pull to refresh" / "Release to refresh" under the header.
 - **Opening an article:** the article slides in from the right (300 ms, iOS ease) while the list shifts left by 30% and dims; the Back button plays the reverse; the edge swipe-back finishes the same slide. Next/Previous slide the body 32 px with a fade (180 ms). No animation on a direct link, a reload, reduced motion, or at desktop width.
 
+- **Bounce at both ends (TID-063, owner request 2026-11-19):** pushing up at the end of a list stretches the content up with the same resistance as the top pull (header and bottom bar stay put, no indicator) and springs back with the iOS ease (350 ms). Not for sideways swipes or reduced motion; no momentum bounce.
+- **End of list (TID-063):** once no more pages can load, about a viewport of space follows the last row (viewport minus header and bottom bar, `dvh` and safe-area aware; 10 rem on desktop) so the last articles can be scrolled under the header and marked read. A quiet centred note shows in it: check icon and "You're all caught up" when everything above is read, otherwise "End of list". None while more pages load or on empty states.
 
 ## Launch screen (TID-059, owner request 2026-11-18)
 

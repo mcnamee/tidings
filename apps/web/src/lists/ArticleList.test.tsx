@@ -502,6 +502,98 @@ describe('AC9: pull to refresh', () => {
   });
 });
 
+describe('TID-063: rubber band at the end and room past the last article', () => {
+  const stretched = () =>
+    (screen.getByTestId('article-grid').parentElement as HTMLElement).style.transform;
+
+  it('pushing up at the end of the page stretches the content up with resistance, then springs back', async () => {
+    api.set(ENTRIES('all', 'unread'), page([entry(1)]));
+    renderApp('/all');
+    await screen.findByText('Title 1');
+    // jsdom has no layout, so the page counts as scrolled to its end.
+    fireEvent.touchStart(window, { touches: [{ clientY: 400, clientX: 100 }] });
+    fireEvent.touchMove(window, { touches: [{ clientY: 380, clientX: 100 }] });
+    fireEvent.touchMove(window, { touches: [{ clientY: 300, clientX: 100 }] });
+    // The push began at 400: 100px of finger is 50px of content.
+    expect(stretched()).toBe('translateY(-50px)');
+    expect(screen.queryByText('Pull to refresh')).not.toBeInTheDocument();
+    fireEvent.touchEnd(window);
+    expect(screen.getByTestId('article-grid').parentElement?.style.transition).toContain(
+      'var(--ease-ios)',
+    );
+    await waitFor(() => expect(stretched()).toBe(''));
+  });
+
+  it('does not stretch for a sideways swipe', async () => {
+    api.set(ENTRIES('all', 'unread'), page([entry(1)]));
+    renderApp('/all');
+    await screen.findByText('Title 1');
+    fireEvent.touchStart(window, { touches: [{ clientY: 400, clientX: 300 }] });
+    fireEvent.touchMove(window, { touches: [{ clientY: 380, clientX: 100 }] });
+    fireEvent.touchMove(window, { touches: [{ clientY: 300, clientX: 100 }] });
+    expect(stretched()).toBe('');
+  });
+
+  it('does not stretch with reduced motion', async () => {
+    installMatchMedia({ 'prefers-reduced-motion': true });
+    api.set(ENTRIES('all', 'unread'), page([entry(1)]));
+    renderApp('/all');
+    await screen.findByText('Title 1');
+    fireEvent.touchStart(window, { touches: [{ clientY: 400, clientX: 100 }] });
+    fireEvent.touchMove(window, { touches: [{ clientY: 380, clientX: 100 }] });
+    fireEvent.touchMove(window, { touches: [{ clientY: 300, clientX: 100 }] });
+    expect(stretched()).toBe('');
+  });
+
+  it('does not stretch while the page can still scroll down', async () => {
+    api.set(ENTRIES('all', 'unread'), page([entry(1)]));
+    renderApp('/all');
+    await screen.findByText('Title 1');
+    vi.spyOn(document.documentElement, 'scrollHeight', 'get').mockReturnValue(5000);
+    fireEvent.touchStart(window, { touches: [{ clientY: 400, clientX: 100 }] });
+    fireEvent.touchMove(window, { touches: [{ clientY: 380, clientX: 100 }] });
+    fireEvent.touchMove(window, { touches: [{ clientY: 300, clientX: 100 }] });
+    expect(stretched()).toBe('');
+  });
+
+  it('adds end space once no more pages can load: "End of list" while unread rows remain', async () => {
+    api.set(ENTRIES('all', 'unread'), page([entry(1), entry(2, { isRead: true })]));
+    renderApp('/all');
+    await screen.findByText('Title 1');
+    const end = screen.getByTestId('list-end');
+    expect(end).toHaveTextContent('End of list');
+    expect(end.className).toContain('100dvh');
+  });
+
+  it('says "You\'re all caught up" when every row above is read', async () => {
+    api.set(ENTRIES('all', 'all'), page([entry(1, { isRead: true }), entry(2, { isRead: true })]));
+    renderApp('/all', { unreadOnly: false });
+    await screen.findByText('Title 1');
+    expect(screen.getByTestId('list-end')).toHaveTextContent("You're all caught up");
+  });
+
+  it('has no end space while another page can load, or on an empty list', async () => {
+    vi.stubGlobal(
+      'IntersectionObserver',
+      class {
+        observe() {}
+        disconnect() {}
+      },
+    );
+    api.set(ENTRIES('all', 'unread'), page([entry(1)], 'CUR1'));
+    renderApp('/all');
+    await screen.findByText('Title 1');
+    expect(screen.queryByTestId('list-end')).not.toBeInTheDocument();
+  });
+
+  it('has no end space on an empty list', async () => {
+    api.set(ENTRIES('all', 'unread'), page([]));
+    renderApp('/all');
+    await screen.findByText('All caught up');
+    expect(screen.queryByTestId('list-end')).not.toBeInTheDocument();
+  });
+});
+
 describe('AC12: the offline banner follows failed requests', () => {
   it('appears when a request gets no response while online, and goes when one succeeds', async () => {
     expect(navigator.onLine).toBe(true);

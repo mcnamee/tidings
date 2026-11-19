@@ -1,0 +1,51 @@
+import { clearListData, seedListData } from '../support/list-data.ts';
+import { expect, signedInTest as test } from '../support/test.ts';
+
+// TID-063: a short list has room past its last row, so the last article can be scrolled up under
+// the header and is marked read by mark-read-on-scroll. Real Worker and seeded D1; mobile only.
+
+const NOW = Math.floor(Date.now() / 1000);
+
+test.beforeEach(() => {
+  clearListData();
+  seedListData({
+    folders: [],
+    subs: [{ id: 's1', feedId: 9801, title: 'End Feed' }],
+    entries: Array.from({ length: 3 }, (_, i) => ({
+      id: 9900 + i,
+      feedId: 9801,
+      title: `Short ${i + 1}`,
+      url: `https://example.com/end/${i + 1}`,
+      contentHtml: `<p>Body ${i + 1}</p>`,
+      publishedAt: NOW - 60 * (i + 1),
+    })),
+  });
+});
+test.afterAll(() => clearListData());
+
+test('at the end of a short list the last row scrolls above the header and is marked read', async ({
+  page,
+}, testInfo) => {
+  test.skip(!testInfo.project.name.startsWith('mobile'), 'mobile only');
+  await page.goto('/all');
+  const last = page.getByRole('heading', { level: 2, name: 'Short 3', exact: true });
+  await expect(last).toBeVisible();
+  await expect(page.getByTestId('list-end')).toHaveText('End of list');
+
+  await page.evaluate(async () => {
+    for (let i = 0; i < 6; i++) {
+      window.scrollTo(0, document.documentElement.scrollHeight);
+      await new Promise((r) => setTimeout(r, 60));
+    }
+  });
+  const headerBottom = await page
+    .getByRole('banner')
+    .first()
+    .evaluate((el) => el.parentElement!.getBoundingClientRect().bottom);
+  const lastBottom = await last.evaluate((el) => el.closest('li')!.getBoundingClientRect().bottom);
+  expect(lastBottom).toBeLessThanOrEqual(headerBottom);
+
+  await expect(last).toHaveClass(/text-fg-muted/);
+  await expect(page.getByText("You're all caught up")).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Mark all as read' })).toBeVisible();
+});
