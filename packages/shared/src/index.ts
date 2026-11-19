@@ -264,6 +264,18 @@ export interface SubscribeResponse {
   fetch: SubscribeFetchOutcome;
 }
 
+/** `POST /api/subscriptions/:id/url` (TID-068). */
+export interface ChangeFeedUrlRequest {
+  url: string;
+}
+
+/** `changed` is false when the address resolves to the feed the subscription already follows. */
+export interface ChangeFeedUrlResponse {
+  subscription: Subscription;
+  fetch: SubscribeFetchOutcome;
+  changed: boolean;
+}
+
 /** One `<link rel="alternate">` found on a page. Only the URL and title come from the page. */
 export interface FeedCandidate {
   url: string;

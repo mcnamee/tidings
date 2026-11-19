@@ -58,8 +58,9 @@ Pending feeds (never fetched): **to build**, `Waiting for the first fetch.` in `
 |---|---|---|---|
 | New folder | New folder | Field "Folder name", helper "1 to 64 characters.", **Create folder**, **Cancel** | Focus in the field. Empty: "Enter a name to continue." Server duplicate: "You already have a folder with that name." Busy: button shows "Saving..." and the field is read-only |
 | Rename folder | Rename folder | Same, prefilled, **Save** | |
-| Feed options | The feed's title | **Rename**, **Move to folder**, **Unsubscribe**, **Cancel** | Focus on Rename |
+| Feed options | The feed's title | **Rename**, **Move to folder**, **Change feed address**, **Unsubscribe**, **Cancel** | Focus on Rename |
 | Rename feed | Rename feed | Field "Feed name", helper "Leave empty to use the feed's own title.", **Save**, **Cancel** | Empty saves `null` (reset) |
+| Change feed address (TID-068) | Change feed address | "Current address" and the feed's URL (wraps, `break-all`), field "New feed or website address" (helper "Your articles and read history stay. Paste a feed, or a website that has one."), **Save**, **Cancel** | Focus in the field. Same validation, discovery and fixed copy as Add feed: empty "Enter an address to continue."; `validation_failed` "Enter a web address, like https://example.com/feed.xml"; `blocked_address` "This address is not allowed."; `no_feed_found` "We couldn't find a feed at that address." (all under the field, field kept); several feeds on a page: the sheet becomes "We found N feeds on this site" with one button per candidate (JSON Feed disabled, "Not supported yet"), **Try a different address**, **Cancel**; already followed (409): info banner "You already follow this feed. Open it" (link to that feed, closes the sheet); rate limit, network and server errors: fixed banners as in Add feed. Waits for the server (up to 30 s; the button shows "Saving..." and the field is read-only); offline blocks Save with "You're offline". Success: closes with the toast "Feed address changed" (or "That is already this feed's address" when it resolves to the same feed). Saved but the first fetch failed: the sheet becomes "Feed address changed" with "The address is saved, but we couldn't load the feed just now ({fixed reason}). Tidings will keep trying in the background." and **Done**. Not optimistic |
 | Move to folder | Move to folder | One button per destination: "No folder", then each folder. The current one has a 2 px accent border, `aria-pressed`, and the word "Current". **Cancel** | Choosing applies at once and closes. At most about half the screen with 5 folders; scrolls beyond |
 | Delete folder | Delete {name}? | "Its 12 feeds move out of the folder. Nothing is unsubscribed." (or "It has no feeds." / "Its 1 feed moves out ...") , **Delete folder** (danger), **Cancel** | **Focus starts on Cancel** (`data-autofocus`) |
 | Unsubscribe | Unsubscribe from {title}? | "Your read history for this feed will be removed.", **Unsubscribe** (danger), **Cancel** | Focus starts on Cancel |
@@ -83,7 +84,7 @@ At 1024 px and up the sidebar is permanent and the content is a centred column o
 
 ## 5. Copy (final)
 
-Buttons: Add feed, Import from OPML, New folder, Create folder, Save, Cancel, Rename, Move to folder, Unsubscribe, Delete folder, Try again. Headings: Manage feeds, Folders, Feeds. The rest is in section 2 and in the copy table of `reviews/mvp-review.md`.
+Buttons: Add feed, Import from OPML, New folder, Create folder, Save, Cancel, Rename, Move to folder, Change feed address, Unsubscribe, Delete folder, Try again. Headings: Manage feeds, Folders, Feeds. The rest is in section 2 and in the copy table of `reviews/mvp-review.md`.
 
 ## 6. Accessibility
 

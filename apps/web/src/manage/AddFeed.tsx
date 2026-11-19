@@ -4,9 +4,7 @@ import { useQueryClient } from '@tanstack/react-query';
 import { CircleAlert } from 'lucide-react';
 import {
   feedErrorMessage,
-  type AlreadySubscribedDetails,
   type FeedCandidate,
-  type FeedChoiceDetails,
   type SubscribeRequest,
   type SubscribeResponse,
   type Subscription,
@@ -17,6 +15,13 @@ import { BannerSlot, PrimaryButton, Spinner, TextField, type BannerContent } fro
 import { useOnline } from '../lib/hooks';
 import { toast } from '../lib/toast';
 import { BottomBar } from '../shell/slots';
+import {
+  ADDRESS_COPY,
+  TYPE_LABEL,
+  alreadyFollowBanner,
+  existingId,
+  isCandidates,
+} from './feedAddress';
 
 /**
  * Add a feed (docs/ux/FLOWS.md 2.3). One address field (a feed or a website), an optional folder
@@ -31,16 +36,10 @@ import { BottomBar } from '../shell/slots';
 const SUBSCRIBE_TIMEOUT_MS = 30_000;
 
 const COPY = {
-  empty: 'Enter an address to continue.',
-  invalid: 'Enter a web address, like https://example.com/feed.xml',
-  noFeed: "We couldn't find a feed at that address.",
-  blocked: 'This address is not allowed.',
+  ...ADDRESS_COPY,
   limit: "You've reached the limit of 1,000 feeds.",
   folderGone: 'That folder no longer exists. Choose another folder.',
   offline: "You're offline",
-  network: "Couldn't reach Tidings. Check your connection and try again.",
-  rateLimited: 'Too many requests. Try again in a minute.',
-  server: 'Something went wrong on our side. Try again.',
 } as const;
 
 const FIELD =
@@ -50,21 +49,6 @@ type Screen =
   | { kind: 'form' }
   | { kind: 'choice'; candidates: FeedCandidate[] }
   | { kind: 'added'; subscription: Subscription; message: string };
-
-function isCandidates(value: unknown): value is FeedChoiceDetails {
-  return (
-    typeof value === 'object' &&
-    value !== null &&
-    Array.isArray((value as FeedChoiceDetails).candidates)
-  );
-}
-
-function existingId(value: unknown): string | null {
-  const id = (value as Partial<AlreadySubscribedDetails> | null | undefined)?.subscriptionId;
-  return typeof id === 'string' ? id : null;
-}
-
-const TYPE_LABEL = { rss: 'RSS', atom: 'Atom', json: 'JSON Feed' } as const;
 
 export function AddFeed() {
   const online = useOnline();
@@ -127,26 +111,7 @@ export function AddFeed() {
           addressError(COPY.invalid);
           return stop(screen.kind !== 'choice');
         case 'already_subscribed': {
-          const id = existingId(err.details);
-          setBanner({
-            tone: 'info',
-            live: 'status',
-            icon: 'info',
-            text: 'You already follow this feed.',
-            content: (
-              <>
-                You already follow this feed.{' '}
-                {id && (
-                  <Link
-                    to={`/feeds/${id}`}
-                    className="inline-block -my-3 py-3 text-accent underline underline-offset-2"
-                  >
-                    Open it
-                  </Link>
-                )}
-              </>
-            ),
-          });
+          setBanner(alreadyFollowBanner(existingId(err.details)));
           return stop(false);
         }
         case 'limit_reached':

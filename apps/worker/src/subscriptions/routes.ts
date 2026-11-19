@@ -13,6 +13,7 @@ import {
   feedErrorMessage,
   type Folder,
   type AlreadySubscribedDetails,
+  type ChangeFeedUrlResponse,
   type FeedChoiceDetails,
   type FoldersResponse,
   type SubscribeFetchOutcome,
@@ -21,6 +22,7 @@ import {
   type SubscriptionsResponse,
 } from '@tidings/shared';
 import {
+  changeFeedUrlRequestSchema,
   folderRequestSchema,
   subscribeRequestSchema,
   updateSubscriptionRequestSchema,
@@ -31,6 +33,7 @@ import { parseBody } from '../auth/routes';
 import {
   Db,
   canonicalizeUrl,
+  changeSubscriptionFeed,
   countSubscriptions,
   countUserEntriesForFeed,
   createFolder,
@@ -132,6 +135,92 @@ export function createSubscriptionRoutes(deps?: Partial<SubscriptionDeps>): Hono
   const timeoutMs = deps?.firstFetchTimeoutMs ?? FIRST_FETCH_TIMEOUT_MS;
   const app = new Hono<AppEnv>();
 
+  type Policy = ReturnType<typeof resolveFetchPolicy>;
+
+  const vetAddress = (
+    c: Context<AppEnv>,
+    raw: string,
+  ): { feedUrl: string; policy: Policy } | Response => {
+    let feedUrl: string;
+    try {
+      feedUrl = canonicalizeUrl(raw);
+    } catch (err) {
+      if (!(err instanceof ValidationError)) throw err;
+      return fail(c, 400, 'validation_failed', err.message, { field: 'url' });
+    }
+    let policy: Policy;
+    try {
+      policy = resolveFetchPolicy(c.env);
+    } catch (err) {
+      if (!(err instanceof FetchConfigError)) throw err;
+      return fail(c, 500, 'config_error', 'Server configuration error');
+    }
+    // The address rules run before anything is looked up or created (AC6).
+    const check = checkUrl(feedUrl, policy.appOrigin, policy.allowHosts);
+    if (!check.ok) {
+      return check.code === 'blocked_address'
+        ? fail(c, 422, 'blocked_address', fixedMessage('blocked_address'))
+        : fail(c, 400, 'validation_failed', fixedMessage('invalid_url'), { field: 'url' });
+    }
+    return { feedUrl, policy };
+  };
+
+  /** Looks at what the address serves: the feed URL, or a failure response with fixed copy. */
+  const discoverFeed = async (
+    c: Context<AppEnv>,
+    feedUrl: string,
+    policy: Policy,
+  ): Promise<string | Response> => {
+    const resolution = await resolveFeedUrl(feedUrl, {
+      fetch: deps?.fetch ?? ((input, init) => fetch(input, init)),
+      appOrigin: policy.appOrigin,
+      allowHosts: policy.allowHosts,
+      ...(deps?.discover ? { discover: deps.discover } : {}),
+    });
+    switch (resolution.kind) {
+      case 'blocked':
+        return fail(c, 422, 'blocked_address', fixedMessage('blocked_address'));
+      case 'none':
+        return fail(c, 422, 'no_feed_found', "We couldn't find a feed at that address.");
+      case 'choice':
+        return fail(c, 422, 'feed_choice_required', 'This site has more than one feed', {
+          candidates: resolution.candidates,
+        } satisfies FeedChoiceDetails);
+      case 'feed':
+        return resolution.url;
+    }
+  };
+
+  /**
+   * FR-SU-2: a feed fetched in the last 30 minutes is not fetched again; the newest entries were
+   * linked with the subscription. Anything else is fetched now, by the refresher.
+   */
+  const firstFetchFor = async (
+    c: Context<AppEnv>,
+    db: Db,
+    userId: string,
+    feed: FeedRow,
+    before: FeedRow | null,
+    now: number,
+  ): Promise<SubscribeFetchOutcome> => {
+    const fresh =
+      before !== null &&
+      before.last_success_at !== null &&
+      now - before.last_success_at < FRESH_FEED_SECONDS;
+    let outcome: SubscribeFetchOutcome = { ok: true, newEntries: 0 };
+    if (!fresh) {
+      const refresh =
+        deps?.refresh ??
+        ((job: RefreshJob) => {
+          const exported = c.executionCtx.exports as unknown as { FeedRefresher: FeedRefresher };
+          return exported.FeedRefresher.refresh(job);
+        });
+      outcome = await firstFetch(() => refresh(jobFor(feed)), timeoutMs);
+    }
+    outcome.newEntries = await countUserEntriesForFeed(db, userId, feed.id);
+    return outcome;
+  };
+
   app.get('/', async (c) => {
     const items = await listSubscriptions(new Db(c.env.DB), c.get('session').user.id);
     return c.json<SubscriptionsResponse>({ items });
@@ -144,31 +233,10 @@ export function createSubscriptionRoutes(deps?: Partial<SubscriptionDeps>): Hono
     const body = await parseBody(c, subscribeRequestSchema);
     if (body instanceof Response) return body;
 
-    let feedUrl: string;
-    try {
-      feedUrl = canonicalizeUrl(body.url);
-    } catch (err) {
-      if (!(err instanceof ValidationError)) throw err;
-      return fail(c, 400, 'validation_failed', err.message, { field: 'url' });
-    }
-
-    let policy;
-    try {
-      policy = resolveFetchPolicy(c.env);
-    } catch (err) {
-      if (!(err instanceof FetchConfigError)) throw err;
-      return fail(c, 500, 'config_error', 'Server configuration error');
-    }
-
-    // The address rules run before anything is looked up or created (AC6).
-    const check = checkUrl(feedUrl, policy.appOrigin, policy.allowHosts);
-    if (!check.ok) {
-      return check.code === 'blocked_address'
-        ? fail(c, 422, 'blocked_address', fixedMessage('blocked_address'))
-        : fail(c, 400, 'validation_failed', fixedMessage('invalid_url'), {
-            field: 'url',
-          });
-    }
+    const vetted = vetAddress(c, body.url);
+    if (vetted instanceof Response) return vetted;
+    let feedUrl = vetted.feedUrl;
+    const policy = vetted.policy;
 
     // Another user's folder is "not found", exactly like one that does not exist (spec §10.8).
     const folderId = body.folderId ?? null;
@@ -188,24 +256,9 @@ export function createSubscriptionRoutes(deps?: Partial<SubscriptionDeps>): Hono
 
     // A feed we already know is a feed: no discovery fetch. Otherwise look at what the URL serves.
     if ((await findFeedByUrl(db, feedUrl)) === null) {
-      const resolution = await resolveFeedUrl(feedUrl, {
-        fetch: deps?.fetch ?? ((input, init) => fetch(input, init)),
-        appOrigin: policy.appOrigin,
-        allowHosts: policy.allowHosts,
-        ...(deps?.discover ? { discover: deps.discover } : {}),
-      });
-      switch (resolution.kind) {
-        case 'blocked':
-          return fail(c, 422, 'blocked_address', fixedMessage('blocked_address'));
-        case 'none':
-          return fail(c, 422, 'no_feed_found', "We couldn't find a feed at that address.");
-        case 'choice':
-          return fail(c, 422, 'feed_choice_required', 'This site has more than one feed', {
-            candidates: resolution.candidates,
-          } satisfies FeedChoiceDetails);
-        case 'feed':
-          feedUrl = resolution.url;
-      }
+      const found = await discoverFeed(c, feedUrl, policy);
+      if (found instanceof Response) return found;
+      feedUrl = found;
       // Discovery can lead to a feed the person already follows.
       const viaPage = await findSubscriptionIdByFeedUrl(db, userId, feedUrl);
       if (viaPage) return alreadyHave(viaPage);
@@ -233,23 +286,7 @@ export function createSubscriptionRoutes(deps?: Partial<SubscriptionDeps>): Hono
     const feed = await findFeedByUrl(db, feedUrl);
     if (!feed) throw new Error('feed missing after subscribe');
 
-    // FR-SU-2: a feed fetched in the last 30 minutes is not fetched again; the newest entries
-    // were linked above. Anything else is fetched now, by the refresher.
-    const fresh =
-      before !== null &&
-      before.last_success_at !== null &&
-      now - before.last_success_at < FRESH_FEED_SECONDS;
-    let outcome: SubscribeFetchOutcome = { ok: true, newEntries: 0 };
-    if (!fresh) {
-      const refresh =
-        deps?.refresh ??
-        ((job: RefreshJob) => {
-          const exported = c.executionCtx.exports as unknown as { FeedRefresher: FeedRefresher };
-          return exported.FeedRefresher.refresh(job);
-        });
-      outcome = await firstFetch(() => refresh(jobFor(feed)), timeoutMs);
-    }
-    outcome.newEntries = await countUserEntriesForFeed(db, userId, feed.id);
+    const outcome = await firstFetchFor(c, db, userId, feed, before, now);
 
     const row = await getSubscription(db, userId, subscriptionId);
     if (!row) throw new Error('subscription missing after subscribe');
@@ -274,6 +311,90 @@ export function createSubscriptionRoutes(deps?: Partial<SubscriptionDeps>): Hono
     if (!row) return fail(c, 404, 'not_found', 'Not found');
     return c.json<Subscription>(row.subscription);
   });
+
+  /**
+   * TID-068: change the feed address of a subscription. Same address rules, discovery and fixed
+   * errors as subscribe. The subscription keeps its id, title, folder and created date; the old
+   * shared feed row is untouched (other users may follow it).
+   */
+  app.post('/:id/url', async (c) => {
+    const userId = c.get('session').user.id;
+    const db = new Db(c.env.DB);
+    const id = c.req.param('id');
+
+    const body = await parseBody(c, changeFeedUrlRequestSchema);
+    if (body instanceof Response) return body;
+    // Another user's subscription is "not found", before any address is looked at (spec 10.8).
+    const current = await getSubscription(db, userId, id);
+    if (!current) return fail(c, 404, 'not_found', 'Not found');
+
+    const vetted = vetAddress(c, body.url);
+    if (vetted instanceof Response) return vetted;
+    let feedUrl = vetted.feedUrl;
+
+    const alreadyHave = (other: string) =>
+      fail(c, 409, 'already_subscribed', 'You already follow this feed', {
+        subscriptionId: other,
+      } satisfies AlreadySubscribedDetails);
+    /** The same feed (no-op success), another subscription of theirs (409), or null. */
+    const sameOrOther = async (url: string): Promise<Response | null> => {
+      if (url === current.subscription.feedUrl) return unchanged(c, db, userId, current);
+      const other = await findSubscriptionIdByFeedUrl(db, userId, url);
+      return other && other !== id ? alreadyHave(other) : null;
+    };
+
+    const early = await sameOrOther(feedUrl);
+    if (early) return early;
+
+    if ((await findFeedByUrl(db, feedUrl)) === null) {
+      const found = await discoverFeed(c, feedUrl, vetted.policy);
+      if (found instanceof Response) return found;
+      feedUrl = found;
+      const viaPage = await sameOrOther(feedUrl);
+      if (viaPage) return viaPage;
+    }
+
+    const now = nowSeconds(clock);
+    const before = await findFeedByUrl(db, feedUrl);
+    const moved = await changeSubscriptionFeed(db, {
+      userId,
+      subscriptionId: id,
+      feedUrl,
+      fromFeedId: current.feedId,
+      now,
+      jitterS: Math.floor(random() * 60),
+    });
+    if (!moved) {
+      // Lost a race: the subscription changed or went, or the new feed was followed meanwhile.
+      const raced = await findSubscriptionIdByFeedUrl(db, userId, feedUrl);
+      return raced && raced !== id ? alreadyHave(raced) : fail(c, 404, 'not_found', 'Not found');
+    }
+
+    const feed = await findFeedByUrl(db, feedUrl);
+    if (!feed) throw new Error('feed missing after change');
+    const outcome = await firstFetchFor(c, db, userId, feed, before, now);
+    const row = await getSubscription(db, userId, id);
+    if (!row) throw new Error('subscription missing after change');
+    return c.json<ChangeFeedUrlResponse>({
+      subscription: row.subscription,
+      fetch: outcome,
+      changed: true,
+    });
+  });
+
+  async function unchanged(
+    c: Context<AppEnv>,
+    db: Db,
+    userId: string,
+    current: { subscription: Subscription; feedId: number },
+  ): Promise<Response> {
+    const newEntries = await countUserEntriesForFeed(db, userId, current.feedId);
+    return c.json<ChangeFeedUrlResponse>({
+      subscription: current.subscription,
+      fetch: { ok: true, newEntries },
+      changed: false,
+    });
+  }
 
   app.delete('/:id', async (c) => {
     const deleted = await deleteSubscription(

@@ -37,6 +37,7 @@ export {
   countSubscriptions,
   countUserEntriesForFeed,
   createFolder,
+  changeSubscriptionFeed,
   createSubscription,
   deleteFolder,
   deleteSubscription,
