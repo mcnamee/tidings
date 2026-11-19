@@ -8,7 +8,7 @@ import { saveLastList } from '../lib/lastList';
 import { useSidebarHidden } from '../lib/sidebar';
 import { useCounts } from '../lib/queries';
 import { findRoute } from '../routes/table';
-import { SWIPE_EDGE_PX, isStandalone, useSwipe } from '../lib/useSwipe';
+import { IOS_EDGE_PX, isStandalone, useSwipe } from '../lib/useSwipe';
 import { Drawer, drawerWidth, type DrawerControl } from './Drawer';
 import { Lockup } from './Logo';
 import { FeedNav } from './FeedNav';
@@ -149,7 +149,7 @@ export function AppShell() {
   useSwipe({
     enabled: standalone && !isDesktop && !open && !showBack && !covered && route.kind !== 'auth',
     direction: 'right',
-    edgePx: SWIPE_EDGE_PX,
+    avoidEdgePx: IOS_EDGE_PX,
     extent: drawerWidth,
     commitAt: 0.4,
     onStart: () => flushSync(() => setPeeking(true)),

@@ -61,7 +61,8 @@ const fire = (type: string, x: number, target: EventTarget = document, y = 300) 
   act(() => {
     target.dispatchEvent(
       new PointerEvent(type, {
-        clientX: x,
+        // Swipes start beyond the strip iOS keeps for its own swipe-back (IOS_EDGE_PX).
+        clientX: x + 40,
         clientY: y,
         pointerId: 1,
         pointerType: 'touch',

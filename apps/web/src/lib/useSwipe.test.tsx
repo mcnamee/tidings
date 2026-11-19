@@ -273,55 +273,30 @@ describe('touch events (iOS)', () => {
   });
 });
 
-// iOS installed apps also run a system edge "swipe back"; an edge touch is claimed so it doesn't.
-describe('edge touch claims the touch from iOS', () => {
-  const start = (x: number, target: EventTarget = document) => {
-    const e = new Event('touchstart', { bubbles: true, cancelable: true });
-    const t = { identifier: 3, clientX: x, clientY: 300 };
-    Object.defineProperty(e, 'changedTouches', { value: [t] });
-    Object.defineProperty(e, 'touches', { value: [t] });
-    act(() => {
-      target.dispatchEvent(e);
-    });
-    return e;
-  };
-
-  it('prevents the default for a touch that starts in the edge zone', () => {
-    setup();
-    expect(start(5).defaultPrevented).toBe(true);
+// iOS keeps the left edge for its own swipe-back, which can't be blocked, so the app's swipes
+// start beyond that strip; wide tables and code blocks keep their own sideways scrolling.
+describe('avoidEdgePx and ignoreWithin', () => {
+  it('ignores a start inside the edge strip and accepts one beyond it', () => {
+    const s = setup({ edgePx: undefined, avoidEdgePx: 32 });
+    drag(10, [40, 150, 300]);
+    fire('pointerup', 300);
+    expect(s.onCommit).not.toHaveBeenCalled();
+    drag(60, [90, 200, 360]);
+    fire('pointerup', 360);
+    expect(s.onCommit).toHaveBeenCalledTimes(1);
   });
 
-  it('leaves touches away from the edge alone', () => {
-    setup();
-    expect(start(200).defaultPrevented).toBe(false);
-  });
-
-  it('leaves a tap on a button at the edge alone, so it still clicks', () => {
-    setup();
-    const button = document.createElement('button');
-    document.body.append(button);
-    expect(start(5, button).defaultPrevented).toBe(false);
-    button.remove();
-  });
-
-  it('a tap on a link at the edge is claimed, then replayed as a click', () => {
-    setup();
-    const link = document.createElement('a');
-    link.href = '#tapped';
-    const span = document.createElement('span');
-    link.append(span);
-    document.body.append(link);
-    const clicked = vi.fn((e: Event) => e.preventDefault());
-    link.addEventListener('click', clicked);
-    expect(start(5, span).defaultPrevented).toBe(true);
-    const end = new Event('touchend', { bubbles: true, cancelable: true });
-    const t = { identifier: 3, clientX: 6, clientY: 301 };
-    Object.defineProperty(end, 'changedTouches', { value: [t] });
-    Object.defineProperty(end, 'touches', { value: [] });
-    act(() => {
-      span.dispatchEvent(end);
-    });
-    expect(clicked).toHaveBeenCalledTimes(1);
-    link.remove();
+  it('leaves touches that start inside an ignored element alone', () => {
+    const s = setup({ edgePx: undefined, ignoreWithin: 'pre' });
+    const pre = document.createElement('pre');
+    document.body.append(pre);
+    fire('pointerdown', 60, 300, { target: pre });
+    for (const x of [90, 200, 360]) {
+      vi.advanceTimersByTime(100);
+      fire('pointermove', x);
+    }
+    fire('pointerup', 360);
+    expect(s.onCommit).not.toHaveBeenCalled();
+    pre.remove();
   });
 });

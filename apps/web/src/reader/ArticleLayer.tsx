@@ -12,7 +12,7 @@ import { useLocation, useNavigate, useNavigationType } from 'react-router';
 import { ArrowLeft } from 'lucide-react';
 import { DESKTOP_QUERY, useMediaQuery } from '../lib/hooks';
 import {
-  SWIPE_EDGE_PX,
+  IOS_EDGE_PX,
   isStandalone,
   prefersReducedMotion,
   settleTo,
@@ -213,7 +213,9 @@ export function ArticleLayer({
   useSwipe({
     enabled: standalone && !isDesktop && !!root,
     direction: 'right',
-    edgePx: SWIPE_EDGE_PX,
+    avoidEdgePx: IOS_EDGE_PX,
+    // Wide code blocks and tables scroll sideways; a swipe there is theirs.
+    ignoreWithin: 'pre, table',
     extent: width,
     commitAt: 0.35,
     onDrag: place,

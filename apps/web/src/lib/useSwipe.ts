@@ -4,12 +4,12 @@ import { useEffect, useRef, type RefObject } from 'react';
 export const SWIPE_LOCK_PX = 10;
 /** Edge swipes must start this close to the left edge of the screen. */
 export const SWIPE_EDGE_PX = 24;
+/** The strip at the left edge that iOS reserves for its own swipe-back. */
+export const IOS_EDGE_PX = 32;
 /** px per ms. A release at or above this speed commits, if it also moved a little. */
 export const FLICK_SPEED = 0.5;
 const FLICK_MIN_PX = 20;
 const SAMPLE_WINDOW_MS = 100;
-/** Touches that start on these keep their default action (a tap must still click). */
-const INTERACTIVE = 'button, input, select, textarea, label, [role="button"], [contenteditable]';
 
 /** True when the app runs as an installed app (home-screen icon), where the browser has no edge gestures of its own. */
 export function isStandalone(): boolean {
@@ -35,6 +35,14 @@ export interface SwipeOptions {
   direction: 'right' | 'left';
   /** When set, the touch must start within this many px of the left edge. */
   edgePx?: number;
+  /**
+   * When set, the touch must start further than this many px from the left edge. iOS keeps the
+   * left edge for its own swipe-back (Safari and installed web apps), which can't be blocked, so
+   * gestures that would clash with it start beyond `IOS_EDGE_PX` instead.
+   */
+  avoidEdgePx?: number;
+  /** Touches that start inside an element matching this selector are left alone (e.g. wide tables that scroll sideways). */
+  ignoreWithin?: string;
   /** Where to listen. The document when omitted. */
   target?: RefObject<HTMLElement | null>;
   /** The distance in px that counts as 100%. */
@@ -61,8 +69,6 @@ interface Track {
   baseX: number;
   samples: { t: number; x: number }[];
   progress: number;
-  /** An edge touch whose default was prevented: a tap on it is replayed as a click. */
-  claimed?: Element;
 }
 
 /**
@@ -97,9 +103,16 @@ export function useSwipe(options: SwipeOptions): void {
       track = null;
     };
 
+    const ignored = (target: EventTarget | null) => {
+      const sel = opts.current.ignoreWithin;
+      return !!sel && target instanceof Element && !!target.closest(sel);
+    };
+
     function begin(id: number, via: Track['via'], x: number, y: number) {
       const edge = opts.current.edgePx;
       if (edge !== undefined && x > edge) return;
+      const avoid = opts.current.avoidEdgePx;
+      if (avoid !== undefined && x <= avoid) return;
       track = { id, via, x0: x, y0: y, locked: false, baseX: x, samples: [], progress: 0 };
     }
 
@@ -158,6 +171,7 @@ export function useSwipe(options: SwipeOptions): void {
         return;
       }
       if (e.isPrimary === false) return;
+      if (ignored(e.target)) return;
       begin(e.pointerId, 'pointer', e.clientX, e.clientY);
     }
     function pMove(e: PointerEvent) {
@@ -180,24 +194,10 @@ export function useSwipe(options: SwipeOptions): void {
       if (track) {
         track.via = 'touch';
         track.id = t.identifier;
-      } else {
-        begin(t.identifier, 'touch', t.clientX, t.clientY);
+        return;
       }
-      // iOS runs its own edge "swipe back" in installed web apps too, which fires alongside ours
-      // and navigates the page back (sometimes reloading it). For an edge gesture, claim the
-      // touch so iOS doesn't start it, except on controls near the edge (Menu, Back), whose
-      // taps need the default click.
-      const edge = opts.current.edgePx;
-      if (
-        edge !== undefined &&
-        track &&
-        t.clientX <= edge &&
-        e.cancelable &&
-        !(e.target instanceof Element && e.target.closest(INTERACTIVE))
-      ) {
-        e.preventDefault();
-        if (e.target instanceof Element) track.claimed = e.target;
-      }
+      if (ignored(e.target)) return;
+      begin(t.identifier, 'touch', t.clientX, t.clientY);
     }
     function tMove(ev: Event) {
       const e = ev as TouchEvent;
@@ -209,15 +209,7 @@ export function useSwipe(options: SwipeOptions): void {
     function tEnd(ev: Event) {
       const e = ev as TouchEvent;
       if (track?.via !== 'touch') return;
-      const t = [...e.changedTouches].find((c) => c.identifier === track?.id);
-      if (!t) return;
-      const { claimed, locked, x0, y0 } = track;
-      finish();
-      // Preventing the default on touchstart also cancels the click; give a plain tap it back.
-      if (claimed && !locked && Math.hypot(t.clientX - x0, t.clientY - y0) < SWIPE_LOCK_PX) {
-        const link = claimed.closest('a');
-        if (link instanceof HTMLElement) link.click();
-      }
+      if ([...e.changedTouches].some((c) => c.identifier === track?.id)) finish();
     }
     function tCancel() {
       if (track?.via === 'touch') abort();
@@ -227,7 +219,7 @@ export function useSwipe(options: SwipeOptions): void {
     window.addEventListener('pointermove', pMove);
     window.addEventListener('pointerup', pUp);
     window.addEventListener('pointercancel', pCancel);
-    root.addEventListener('touchstart', tStart, { passive: false });
+    root.addEventListener('touchstart', tStart, { passive: true });
     window.addEventListener('touchmove', tMove, { passive: false });
     window.addEventListener('touchend', tEnd);
     window.addEventListener('touchcancel', tCancel);

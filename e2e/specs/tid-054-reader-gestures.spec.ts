@@ -35,6 +35,7 @@ async function installed(page: Page) {
   });
 }
 
+// Swipes start beyond the left-edge strip iOS keeps for its own swipe-back (IOS_EDGE_PX = 32).
 /** One finger from (x0, y) to (x1, y), in steps 16 ms apart so it is a drag, not a flick. */
 async function swipe(cdp: CDPSession, x0: number, x1: number, y = 400, steps = 12) {
   const pt = (x: number) => [{ x, y }];
@@ -142,7 +143,7 @@ test.describe('TID-055: swipe gestures in the installed app', () => {
     await expect(page.getByRole('heading', { level: 2, name: 'Row 1', exact: true })).toBeVisible();
     const cdp = await page.context().newCDPSession(page);
 
-    await swipe(cdp, 6, 220);
+    await swipe(cdp, 46, 260);
     const drawer = page.getByRole('dialog', { name: 'Navigation' });
     await expect(drawer).toBeVisible();
     await expect(drawer).toHaveCSS('transform', 'none');
@@ -151,11 +152,11 @@ test.describe('TID-055: swipe gestures in the installed app', () => {
     await expect(drawer).toHaveCount(0);
 
     // Short and slow: snaps back, no drawer.
-    await swipe(cdp, 6, 50, 400, 20);
+    await swipe(cdp, 46, 90, 400, 20);
     await expect(drawer).toHaveCount(0);
     // Vertical scroll from the edge is left alone.
     const before = await page.evaluate(() => window.scrollY);
-    await swipe(cdp, 8, 8, 600);
+    await swipe(cdp, 48, 48, 600);
     expect(await page.evaluate(() => window.scrollY)).toBe(before);
   });
 
@@ -164,7 +165,7 @@ test.describe('TID-055: swipe gestures in the installed app', () => {
     await page.goto('/all');
     await expect(page.getByRole('heading', { level: 2, name: 'Row 1', exact: true })).toBeVisible();
     const cdp = await page.context().newCDPSession(page);
-    await swipe(cdp, 6, 260);
+    await swipe(cdp, 46, 300);
     await expect(page.getByRole('dialog', { name: 'Navigation' })).toHaveCount(0);
   });
 
@@ -178,11 +179,11 @@ test.describe('TID-055: swipe gestures in the installed app', () => {
     await expect(page.getByRole('article')).toBeVisible();
     const cdp = await page.context().newCDPSession(page);
 
-    await swipe(cdp, 6, 80, 400, 20); // 20%: snaps back
+    await swipe(cdp, 46, 120, 400, 20); // 20%: snaps back
     await expect(page).toHaveURL(/\/all\/a\/9502/);
     await expect(page.getByRole('article')).toBeVisible();
 
-    await swipe(cdp, 6, 200); // 52%
+    await swipe(cdp, 46, 240); // 52%
     await expect(page).toHaveURL(/\/all(\?|$)/);
     await expect(page.getByRole('heading', { level: 2, name: 'Row 3', exact: true })).toBeVisible();
     // The page is back in place, not left off to the side.
@@ -198,7 +199,7 @@ test.describe('TID-055: swipe gestures in the installed app', () => {
     await page.goto('/all');
     await expect(page.getByRole('heading', { level: 2, name: 'Row 1', exact: true })).toBeVisible();
     const cdp = await page.context().newCDPSession(page);
-    await swipe(cdp, 6, 220);
+    await swipe(cdp, 46, 260);
     await expect(page.getByRole('dialog', { name: 'Navigation' })).toBeVisible();
   });
 
@@ -211,7 +212,7 @@ test.describe('TID-055: swipe gestures in the installed app', () => {
     await expect(page.getByRole('heading', { level: 2, name: 'Row 1', exact: true })).toBeVisible();
     const cdp = await page.context().newCDPSession(page);
 
-    const release = await hold(cdp, 6, 200);
+    const release = await hold(cdp, 46, 240);
     // Mid-drag: a peeking panel, partly out, with no entrance animation of its own.
     await page.evaluate(() => {
       const el = document.getElementById('nav-drawer');
@@ -287,7 +288,7 @@ test.describe('TID-055: swipe gestures in the installed app', () => {
     const cdp = await page.context().newCDPSession(page);
 
     // Cancel: the article slides back, the list returns underneath.
-    const cancel = await hold(cdp, 6, 60, 400, 20);
+    const cancel = await hold(cdp, 46, 100, 400, 20);
     await expect(under).toBeInViewport();
     expect(await under.evaluate((e) => (e as HTMLElement).style.transform)).toMatch(
       /translateX\(-/,
@@ -298,7 +299,7 @@ test.describe('TID-055: swipe gestures in the installed app', () => {
     await expect(under).toHaveCSS('transform', 'none');
 
     // Mid-drag: the list is visible beneath, shifted left, and the scrim is lighter than at rest.
-    const end = await hold(cdp, 6, 200);
+    const end = await hold(cdp, 46, 240);
     const layerX = await page
       .getByTestId('article-layer')
       .evaluate((e) => new DOMMatrix(getComputedStyle(e).transform).m41);

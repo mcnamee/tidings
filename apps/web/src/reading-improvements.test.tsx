@@ -251,7 +251,8 @@ describe('TID-055: swipe gestures in the installed app', () => {
     act(() => {
       target.dispatchEvent(
         new PointerEvent(type, {
-          clientX: x,
+          // Swipes start beyond the strip iOS keeps for its own swipe-back (IOS_EDGE_PX).
+          clientX: x + 40,
           clientY: y,
           pointerId: 1,
           pointerType: 'touch',
@@ -301,7 +302,7 @@ describe('TID-055: swipe gestures in the installed app', () => {
     await waitFor(() => expect(drawer()).toBeNull());
   });
 
-  it('does nothing in a browser tab, on a start away from the edge, or on desktop', async () => {
+  it('does nothing in a browser tab, or on a start inside the iOS edge strip', async () => {
     renderApp('/all');
     await screen.findByText('Title 1');
     swipe(10, [30, 100, 200, 300]);
@@ -309,7 +310,8 @@ describe('TID-055: swipe gestures in the installed app', () => {
     expect(document.documentElement).not.toHaveClass('swipe-nav');
 
     standalone();
-    swipe(100, [130, 200, 300, 400]);
+    // Starts at x = 5: iOS's own swipe-back owns that strip, so the app leaves it alone.
+    swipe(-35, [-15, 60, 160, 260]);
     expect(drawer()).toBeNull();
   });
 
