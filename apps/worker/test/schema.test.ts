@@ -18,6 +18,9 @@ const SPEC_TABLES = [
   'entries',
   'user_entries',
   'engagement',
+  'entry_embeddings',
+  'embed_queue',
+  'user_profiles',
 ];
 const SPEC_INDEXES = [
   'passkeys_user',
@@ -26,6 +29,7 @@ const SPEC_INDEXES = [
   'magic_links_user',
   'subscriptions_feed',
   'subscriptions_user_folder',
+  'engagement_user_last',
   'entries_headline_key',
   'entries_published',
   'entries_tombstones',

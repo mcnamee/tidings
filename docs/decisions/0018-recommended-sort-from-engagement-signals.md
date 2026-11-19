@@ -3,7 +3,7 @@
 - Status: Accepted (owner request and approval 2026-11-19; the PM confirms at acceptance)
 - Date: 2026-11-19
 - Deciders: owner (reversal of "Won't do: AI features", scope), software-engineer (design of stage 1), product-manager (acceptance)
-- Stories: TID-066 (stage 1, built here), TID-067 (stage 2, planned). Builds on ADR 0003 (data store), ADR 0012 (isolation), ADR 0017 (url keys) and spec §7.6 (retention).
+- Stories: TID-066 (stage 1, built here), TID-067 (stage 2, built: see the amendment at the end). Builds on ADR 0003 (data store), ADR 0012 (isolation), ADR 0017 (url keys) and spec §7.6 (retention).
 
 ## Context
 
@@ -57,7 +57,7 @@ The signals are the owner's own reading behaviour. They stay in the owner's Clou
 - **Requests:** one extra Worker request per open or click, roughly 75 a day against the 100,000 limit. Workers CPU is a single indexed statement.
 - **No new Cloudflare product, no new dependency.**
 
-## Stage 2 (TID-067): recommended sort, planned, not built
+## Stage 2 (TID-067): recommended sort, as planned (built: see the amendment at the end)
 
 - **Embeddings.** Embed each new entry's title plus summary with Workers AI `@cf/baai/bge-small-en-v1.5` (384 dimensions). Measured price: 1,841 neurons per million input tokens, so about 300 neurons a day at roughly 2,000 entries a day, against the 10,000 neurons a day free allowance.
 - **Storage in D1, not Vectorize.** Each embedding is stored compactly (for example int8-quantised, about 384 bytes) in D1. Vectorize's Free plan holds 5 million stored dimensions, about 13,000 vectors at 384 dimensions, too few for a 90-day unread window.
@@ -84,3 +84,47 @@ The signals are the owner's own reading behaviour. They stay in the owner's Clou
 ## Owner confirmation (2026-11-19)
 
 The owner confirmed the combined scoring: an article opened and then clicked through scores 3 (1 + 2). To be revisited once the recommended sort (TID-067) is in use.
+
+## Amendment 2026-11-19: stage 2 as built (TID-067)
+
+Stage 2 follows the plan above. What was decided while building it, and where it differs, is below. The spec has the normative detail (§6.1, §7.7, §8.5, §8.6, §9).
+
+### Decisions
+
+1. **Embeddings are base64 text in D1, not BLOBs.** Migration `0008_recommended_sort.sql` creates `entry_embeddings(entry_id, vec)`, `embed_queue`, `user_profiles`, adds `engagement.embedding` and the index `engagement_user_last(user_id, last_at)`. The vector is normalised, quantised to int8 with a float32 scale (388 bytes, 520 characters). Measured in workerd: D1 returns a BLOB as an array of 388 integers, and parsing 1,000 of them costs 4 ms against under 1 ms for the text form. The 33% larger row is the cheaper trade. Cosine from the quantised form is within about 0.5% of the exact value (tested).
+2. **Where embedding happens.** Not in the refresh. The refresh batch gains one statement that queues the new entries that are now linked as unread (one `embed_queue` row each). A `Recommender` entrypoint (`ctx.exports`, like `FeedRefresher`, so its own CPU budget) runs the embed step after the dispatcher on a minute cron, only when the queue has a row: up to 25 entries, one `AI.run` call, one D1 batch. A failed call counts a try on the rows (three parks them) and nothing else changes. A new subscription queues its linked entries too. Entries linked only as already read (older than 7 days on a first fetch) are not queued, because they never appear in an unread list.
+3. **Budget in code.** At most 3,000 neurons and 3,000 entries a UTC day, counted in two `rate_limits` rows (`ai:tokens`, `ai:entries`). Tokens are estimated at 3 characters each (an over-estimate) and priced at the owner's 1,841 neurons per million. The entry cap bounds D1 writes, which are the scarcer resource, not neurons.
+4. **Profile.** The hourly cron's second step (`Recommender.buildProfiles`) reads each user's latest 500 signals through `engagement_user_last` and stores the weighted mean: `points × 0.5^(age/14 days)` with points 1 (open), 2 (click), 3 (both), as unit vector, plus the number of signals. A signal's embedding comes from its own copy (taken when the signal is recorded), else the entry's embedding while the entry exists (then copied onto the signal, so the profile survives the purge), else **the stored title is embedded again** (within the same budget; this is what makes the signals recorded by stage 1 usable, because those entries were never embedded). A signal with none is skipped. The minimum is 20 signals.
+5. **Ranking.** `score = cosine(profile, entry) + 0.5 × 0.5^(age / 3 days)`; an entry without an embedding uses a cosine of 0.3. The freshness bonus is as large as the gap between a strong match (about 0.7) and an average one (about 0.3), so a strong match a week old only ties an average article from today and a two-week-old one loses; the constants are in `src/recommend/score.ts` and a unit test fixes the order for the cases in the backlog. Ranking is done in the request, not precomputed: a precomputed score would cost a row written per unread entry per user per refresh of the profile, and writes are the scarce quota.
+6. **Candidate cap 500, not 1,000.** The plan said to measure first. Measured in workerd (timer resolution 1 ms): scoring and sorting 1,000 candidates takes a median 2 ms and up to 4 to 8 ms in the worst of 15; 500 takes about 1 ms. With the rest of the request on top and a limit of 10 ms, 500 leaves the margin. The newest 500 unread entries of the view are ranked; the rest are served newest first after them, so nothing is unreachable. Ranking reads 501 candidate rows and their embeddings (1,202 rows for a 50-item page, measured).
+7. **Cursor.** Phase 1 carries the frozen clock, the last item's `(score, id)` and the boundary of the ranked set; phase 2 is an ordinary newest-first cursor. Entries marked read while scrolling (mark-read-on-scroll) only drop out; nothing repeats or is skipped except if the hourly profile rebuild lands mid-scroll (documented, spec §8.6).
+8. **The sort is a setting, not a per-view choice.** `listSort` (`'newest'` default, `'recommended'`) lives in the user's settings and is saved on the server like the other settings, so it is the same on every device and every view. The header button and a Settings switch change the same value. It applies to unread lists only. The API default stays newest first (`sort` is an explicit parameter).
+9. **Fallbacks.** The response says which order it used (`sort`) and, when `recommended` was asked for but not applied, why (`sortNote`: `cold_start` for no profile or under 20 signals, `unavailable` when there is no profile and no `AI` binding). The SPA shows one muted line for each. With no binding the embed and profile steps do nothing. Locally the binding is a stub that fails when called (see "Tooling" below), which the steps treat as a failed call, so the dev and E2E Workers show the cold-start line.
+
+### Tooling consequences
+
+- Workers AI bindings are remote-only: `wrangler dev` and the Vitest pool try to open a remote proxy session and fail without credentials. Local development, the E2E Worker and the tests now run with `wrangler dev --local` (`npm run dev`, `e2e/playwright.config.ts`, README) and `remoteBindings: false` (`apps/worker/vitest.config.ts`). Nothing calls Workers AI in any test: every embedder is a fake that is passed in.
+- `AI` is optional in `Env` (`apps/worker/env.d.ts`).
+
+### Costs (details in spec §9; measured where a test exists)
+
+| | A (1 user, 400 entries a day) | B (3 users, 800 a day) |
+|---|---|---|
+| Neurons a day (10,000 free) | about 75 to 100 (≤ 1%) | about 150 to 200 (≤ 2%); an OPML import of 250 feeds, one time, about 460 |
+| Rows written a day (100,000) | about 1,850 (1.8%); import one time 7,500 | about 3,850 (3.9%) |
+| Rows read a day (5,000,000) | +200,000 (+3.9%) | **+590,000 (+11.8%)** |
+| Storage | about 14 MB (2.8%) | about 35 MB (7%) |
+| Requests a day (100,000) | +125 typical, ≤ +1,464 | same |
+| CPU | 500 candidates scored in about 1 ms; page about 4 ms locally | profile 3 ms, embed encode under 1 ms, each in its own invocation |
+
+**Above the 10% line:** reads in the three-user worst case where every list page is a recommended page (+11.8%). Almost all of it is the recommended page itself (1,202 rows against about 150). The owner is one user (A, +3.9%). It is raised for the PM; if it matters, `CANDIDATE_LIMIT` is one constant and halving it halves the biggest item.
+
+### Not verified
+
+- The deployed Workers AI call and its response shape (`{ shape, data: number[][] }`, as documented) have not run; the code validates the shape and treats anything else as a failed call. The model's default pooling is used (the docs offer `pooling: "cls"`, recommended for this model family; not set because it could not be tried).
+- D1's billing of the moved `engagement_user_last` entry on a click (the simulator reports 2 rows; spec §9.4 budgets up to 3).
+- Deployed CPU of the recommended page. The gate is TID-047 (post-launch budget and CPU check), which should read `Recommender` and list-request CPU.
+
+### At deploy
+
+The `"ai": { "binding": "AI" }` binding is in `wrangler.jsonc`; `npm run deploy` applies migration 0008 first and then deploys. The API token that deploys needs the Workers Scripts edit permission it already has; Workers AI needs no extra token for a Worker's own binding. No new secret. After the first deploy, the first embeddings appear within a minute of the next refresh that finds new entries, and the first profile at the next :17 once there are 20 signals with embeddings or titles.

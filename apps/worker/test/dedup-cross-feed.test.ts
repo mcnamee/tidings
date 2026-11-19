@@ -325,13 +325,14 @@ describe('AC6: bounded, indexed lookup and measured cost', () => {
     const first = await fetchFeed(a, FEED_A, [story({ guid: 'a1' })]);
     // entries: row + unique + entries_published + url key + headline key = 5; user_entries 6;
     // feed update 1. Before TID-061: 3 + 6 + 1 = 10.
-    expect(first.usage.rowsWritten).toBe(5 + 6 + 1);
-    // parked check, dedup lookup, entries insert, link, feed update.
-    expect(first.usage.statements).toBe(5);
+    // + 1 embed_queue row (TID-067).
+    expect(first.usage.rowsWritten).toBe(5 + 6 + 1 + 1);
+    // parked check, dedup lookup, entries insert, link, embed_queue insert (TID-067), feed update.
+    expect(first.usage.statements).toBe(6);
 
     const dup = await fetchFeed(b, FEED_B, [story({ guid: 'b1' })]);
     expect(dup.usage.rowsWritten).toBe(5 + 0 + 1); // no user_entries rows
-    expect(dup.usage.statements).toBe(5);
+    expect(dup.usage.statements).toBe(6);
     // probe reads: a handful of index rows, not a scan (measured; see spec 9.5).
     expect(dup.usage.rowsRead).toBeLessThanOrEqual(1 + 1 + 1 + 1 + 12);
   });
@@ -402,6 +403,7 @@ describe('AC6: bounded, indexed lookup and measured cost', () => {
     );
     expect(await count('entries', 'url_key IS NOT NULL AND headline_key IS NOT NULL')).toBe(10);
     await db.run(sql('DELETE FROM user_entries')); // measure the entries rows alone
+    await db.run(sql('DELETE FROM embed_queue')); // (TID-067) a cascade would be counted in `changes`
     const meta = await db.run(sql('DELETE FROM entries WHERE feed_id = ?', a));
     expect(meta.changes).toBe(10);
     // D1 bills each removed index row as a row written: 5 per entry (row, unique, entries_published,
@@ -429,7 +431,8 @@ describe('AC6: bounded, indexed lookup and measured cost', () => {
     expect(await count('entries')).toBe(30);
     expect(await count('user_entries')).toBe(10);
     expect(await count('entries', 'url_key IS NOT NULL')).toBe(10);
-    expect(out.usage.rowsWritten).toBe(30 * 3 + 10 * 2 + 10 * 6 + 1);
+    // + 10 embed_queue rows for the linked entries (TID-067).
+    expect(out.usage.rowsWritten).toBe(30 * 3 + 10 * 2 + 10 * 6 + 1 + 10);
   });
 });
 

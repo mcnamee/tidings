@@ -639,7 +639,7 @@ describe('AC13: a row read in unread-only mode stays until the list is left and 
     // What the article screen's optimistic update does (TID-019): mark the cached row read.
     act(() => {
       client.setQueryData<{ pages: Array<{ items: EntrySummary[] }>; pageParams: unknown[] }>(
-        ['entries', 'all', null, 'unread'],
+        ['entries', 'all', null, 'unread', 'newest'],
         (d) =>
           d && {
             ...d,
@@ -690,5 +690,96 @@ describe('AC14: feed text is text', () => {
     expect(item.querySelector('script, img')).toBeNull();
     expect(document.querySelector('main img')).toBeNull();
     expect(alertSpy).not.toHaveBeenCalled();
+  });
+});
+
+describe('TID-067: the Recommended sort control', () => {
+  const RECOMMENDED = (extra = '') =>
+    `GET /api/entries?view=all&state=unread&limit=50&sort=recommended${extra}`;
+  const withSort = (items: EntrySummary[], note?: 'cold_start' | 'unavailable') => ({
+    body: {
+      items,
+      nextCursor: null,
+      asOf: new Date(NOW).toISOString(),
+      sort: note ? 'newest' : 'recommended',
+      ...(note ? { sortNote: note } : {}),
+    },
+  });
+  const pressed = (on: boolean) =>
+    expect(screen.getByRole('button', { name: 'Recommended' })).toHaveAttribute(
+      'aria-pressed',
+      String(on),
+    );
+
+  it('is off by default, asks for the default order, and is a pressed-state button in the header', async () => {
+    api.set(ENTRIES('all', 'unread'), page([entry(1)]));
+    renderApp('/all');
+    await screen.findByText('Title 1');
+    pressed(false);
+    expect(entryCalls().every((c) => !c.path.includes('sort='))).toBe(true);
+    expect(screen.queryByTestId('sort-note')).not.toBeInTheDocument();
+  });
+
+  it('turning it on saves the setting (PATCH /api/me) and loads the list with sort=recommended', async () => {
+    api.set(ENTRIES('all', 'unread'), page([entry(1), entry(2)]));
+    api.set(RECOMMENDED(), withSort([entry(2), entry(1)]));
+    api.set('PATCH /api/me', (body) => ({ body: { id: 'u1', ...(body as object) } }));
+    renderApp('/all');
+    await screen.findByText('Title 1');
+    await userEvent.click(screen.getByRole('button', { name: 'Recommended' }));
+    await waitFor(() => pressed(true));
+    await waitFor(() =>
+      expect(entryCalls().some((c) => c.path.includes('sort=recommended'))).toBe(true),
+    );
+    const patch = api.calls.find((c) => c.path === '/api/me');
+    expect(patch?.body).toEqual({ settings: { listSort: 'recommended' } });
+    await waitFor(() => {
+      const titles = screen.getAllByRole('heading', { level: 2 }).map((h) => h.textContent);
+      expect(titles.slice(0, 2)).toEqual(['Title 2', 'Title 1']);
+    });
+  });
+
+  it('starts on Recommended when the setting says so, and shows the cold-start note while it falls back to newest', async () => {
+    api.set(RECOMMENDED(), withSort([entry(1)], 'cold_start'));
+    renderApp('/all', { listSort: 'recommended' });
+    await screen.findByText('Title 1');
+    pressed(true);
+    expect(screen.getByTestId('sort-note')).toHaveTextContent(
+      'Recommended gets better as you read. Showing newest first for now.',
+    );
+  });
+
+  it('says when Recommended is unavailable', async () => {
+    api.set(RECOMMENDED(), withSort([entry(1)], 'unavailable'));
+    renderApp('/all', { listSort: 'recommended' });
+    await screen.findByText('Title 1');
+    expect(screen.getByTestId('sort-note')).toHaveTextContent("Recommended isn't available");
+  });
+
+  it('shows no note when Recommended is applied', async () => {
+    api.set(RECOMMENDED(), withSort([entry(1)]));
+    renderApp('/all', { listSort: 'recommended' });
+    await screen.findByText('Title 1');
+    expect(screen.queryByTestId('sort-note')).not.toBeInTheDocument();
+  });
+
+  it('is not offered on the All articles list, which is always newest first', async () => {
+    api.set(ENTRIES('all', 'all'), page([entry(2, { isRead: true })]));
+    renderApp('/all', { unreadOnly: false, listSort: 'recommended' });
+    await screen.findByText('Title 2');
+    expect(screen.queryByRole('button', { name: 'Recommended' })).not.toBeInTheDocument();
+    expect(entryCalls().every((c) => !c.path.includes('sort='))).toBe(true);
+  });
+
+  it('turns off again and saves newest', async () => {
+    api.set(RECOMMENDED(), withSort([entry(2), entry(1)]));
+    api.set(ENTRIES('all', 'unread'), page([entry(1), entry(2)]));
+    api.set('PATCH /api/me', (body) => ({ body: { id: 'u1', ...(body as object) } }));
+    renderApp('/all', { listSort: 'recommended' });
+    await screen.findByText('Title 1');
+    await userEvent.click(screen.getByRole('button', { name: 'Recommended' }));
+    await waitFor(() => pressed(false));
+    const patch = api.calls.filter((c) => c.path === '/api/me').at(-1);
+    expect(patch?.body).toEqual({ settings: { listSort: 'newest' } });
   });
 });

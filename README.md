@@ -56,7 +56,7 @@ npx wrangler d1 execute tidings --local --command "
   INSERT INTO feeds (id, url, next_fetch_at, state, created_at)
     VALUES (1, 'http://127.0.0.1:8790/feeds/rss2-basic.xml', 0, 'pending', 0);
   INSERT INTO subscriptions (id, user_id, feed_id, created_at) VALUES ('s1', 'u1', 1, 0);"
-npx wrangler dev --port 8787 --var APP_ORIGIN:http://localhost:8787 \
+npx wrangler dev --local --port 8787 --var APP_ORIGIN:http://localhost:8787 \
   --var ALLOW_FETCH_HOSTS:127.0.0.1:8790 &
 curl "http://localhost:8787/cdn-cgi/local/scheduled?cron=*+*+*+*+*"
 ```

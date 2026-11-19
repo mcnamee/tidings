@@ -54,6 +54,8 @@ export interface UserSettings {
   markReadOnScroll?: boolean;
   textSize?: 's' | 'm' | 'l';
   hideReadFeeds?: boolean;
+  /** TID-067: the list order, default newest first. Remembered across devices. */
+  listSort?: EntrySort;
 }
 
 export const THEMES = ['system', 'light', 'dark'] as const;
@@ -333,6 +335,12 @@ export interface SubscriptionsResponse {
 export type EntryListView = 'all' | 'folder' | 'feed';
 export type EntryListState = 'unread' | 'all';
 
+/** TID-067: `recommended` orders unread entries by the interest profile (spec 8.5). */
+export type EntrySort = 'newest' | 'recommended';
+export const ENTRY_SORTS = ['newest', 'recommended'] as const;
+/** Why a recommended list came back newest first: too few signals so far, or no Workers AI. */
+export type SortNote = 'cold_start' | 'unavailable';
+
 /** Spec 8.1: `limit` is 1 to 100, default 50. */
 export const ENTRIES_PAGE_SIZE = 50;
 
@@ -403,6 +411,10 @@ export interface EntriesResponse {
   nextCursor: string | null;
   /** Server time of this response; the SPA keeps the first page's value as the mark-all-read watermark. */
   asOf: string;
+  /** The order actually used. `newest` when `recommended` was asked for but could not be applied. */
+  sort: EntrySort;
+  /** Set with `sort: 'newest'` when `recommended` was requested but not applied (spec 8.5). */
+  sortNote?: SortNote;
 }
 
 /** Unread only. A subscription or folder with nothing unread is 0 or absent. */

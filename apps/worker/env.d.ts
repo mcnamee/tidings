@@ -2,6 +2,11 @@ export interface Env {
   DB: D1Database;
   /** Workers Rate Limiting binding: 600 requests per minute per user, a backstop (spec 10.7). */
   API_RL: RateLimit;
+  /**
+   * Workers AI (TID-067, ADR 0018). Optional on purpose: without it (local dev, E2E, tests) nothing is
+   * embedded, no profile is built and "Recommended" falls back to newest first.
+   */
+  AI?: AiBinding;
   APP_ORIGIN: string;
   RP_ID: string;
   RP_NAME: string;
@@ -16,4 +21,9 @@ export interface Env {
   MAGIC_LINK_EMAIL?: string;
   /** Test-only: "1" records the message in D1 instead of sending. Ignored unless APP_ORIGIN is http://localhost:*. */
   E2E_CAPTURE_EMAIL?: string;
+}
+
+/** The one Workers AI method used: `run(model, input)`. Typed here so tests can supply a fake. */
+export interface AiBinding {
+  run(model: string, input: unknown): Promise<unknown>;
 }

@@ -7,6 +7,7 @@ import { useSession } from '../lib/session';
 import {
   hideReadFeeds,
   markReadOnOpen,
+  listSortPref,
   markReadOnScroll,
   textSizePref,
   themePref,
@@ -323,6 +324,12 @@ export function Settings() {
             hint="Lists open with read articles hidden."
             checked={unreadOnlyDefault(s)}
             onChange={(unreadOnly) => void update({ unreadOnly })}
+          />
+          <Toggle
+            label="Sort unread lists by recommended"
+            hint="Puts what you are most likely to want first, learned from the articles you open. Newest first until you have read enough."
+            checked={listSortPref(s) === 'recommended'}
+            onChange={(on) => void update({ listSort: on ? 'recommended' : 'newest' })}
           />
           <Toggle
             label="Mark as read when opened"

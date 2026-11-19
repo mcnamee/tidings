@@ -9,8 +9,10 @@ import type {
   EngagementResponse,
   EntriesResponse,
   Entry,
+  EntrySort,
   EntrySummary,
   MarkAllReadResponse,
+  SortNote,
   ReadStateResponse,
 } from '@tidings/shared';
 import {
@@ -22,6 +24,9 @@ import {
 } from '@tidings/shared/schemas';
 import { MARK_ALL_UNDO_MAX } from '@tidings/shared';
 import { parseBody } from '../auth/routes';
+import { listRecommended, loadProfile } from '../recommend/rank';
+import { profileReady } from '../recommend/score';
+import { decodeProfile } from '../recommend/vector';
 import { fail } from '../api/respond';
 import type { AppEnv } from '../api/security';
 import {
@@ -105,15 +110,32 @@ export function createEntryRoutes(deps?: Partial<EntryDeps>): Hono<AppEnv> {
     }
 
     const asOf = toIso(nowSeconds(clock));
+    // TID-067: `recommended` applies to unread lists with a ready profile, else newest first.
+    let sort: EntrySort = 'newest';
+    let sortNote: SortNote | undefined;
+    let profile: { vec: string; signals: number } | null = null;
+    if (q.sort === 'recommended' && unreadOnly) {
+      profile = await loadProfile(db, user.id);
+      if (profile && profileReady(profile.signals) && decodeProfile(profile.vec))
+        sort = 'recommended';
+      else sortNote = c.env.AI ? 'cold_start' : 'unavailable';
+    }
     let page;
     try {
-      page = await listEntries(db, user.id, {
+      const base = {
         view: q.view,
         ...(id === undefined ? {} : { id }),
-        unreadOnly,
         limit: q.limit,
         cursor: q.cursor ?? null,
-      });
+      };
+      page =
+        sort === 'recommended' && profile
+          ? await listRecommended(db, user.id, {
+              ...base,
+              profile: profile.vec,
+              now: nowSeconds(clock),
+            })
+          : await listEntries(db, user.id, { ...base, unreadOnly });
     } catch (err) {
       if (!(err instanceof ValidationError)) throw err;
       return fail(c, 400, 'validation_failed', err.message, err.details);
@@ -131,7 +153,13 @@ export function createEntryRoutes(deps?: Partial<EntryDeps>): Hono<AppEnv> {
       if (!label) continue;
       items.push(summaryOf(r, label));
     }
-    return c.json<EntriesResponse>({ items, nextCursor: page.nextCursor, asOf });
+    return c.json<EntriesResponse>({
+      items,
+      nextCursor: page.nextCursor,
+      asOf,
+      sort,
+      ...(sortNote ? { sortNote } : {}),
+    });
   });
 
   // An ID that is not the caller's, or not an ID at all, is "not found" (8.1, 10.8).

@@ -14,7 +14,7 @@ import { clickThrough, sendEngagement } from '../lib/engagement';
 import { useEntries, useEntry } from '../lib/queries';
 import { setEntryRead } from '../lib/readState';
 import { useSession } from '../lib/session';
-import { markReadOnOpen, unreadOnlyDefault } from '../lib/settings';
+import { effectiveSort, markReadOnOpen, unreadOnlyDefault } from '../lib/settings';
 import { toast } from '../lib/toast';
 import { BottomBar, HeaderActions } from '../shell/slots';
 import { ArticleContent } from './ArticleContent';
@@ -85,7 +85,13 @@ export function ArticleRoute() {
         ? 'unread'
         : 'all';
   // The list is only read here, never refetched on mount: Back must show the list as it was.
-  const list = useEntries(view, id, state, false);
+  const list = useEntries(
+    view,
+    id,
+    state,
+    false,
+    effectiveSort(session.data?.user?.settings, state),
+  );
   const items = list.data?.pages.flatMap((p) => p.items) ?? [];
   const index = items.findIndex((i) => i.id === entryId);
   const [loadingMore, setLoadingMore] = useState(false);
