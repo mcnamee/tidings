@@ -9,6 +9,7 @@ import {
   type Counts,
   type EntriesResponse,
   type EntryListState,
+  type EntrySort,
   type Entry,
   type EntryListView,
   type FoldersResponse,
@@ -21,8 +22,12 @@ export const FOLDERS_KEY = ['folders'] as const;
 export const SUBSCRIPTIONS_KEY = ['subscriptions'] as const;
 export const COUNTS_KEY = ['counts'] as const;
 export const entryKey = (id: string) => ['entry', id] as const;
-export const entriesKey = (view: EntryListView, id: string | null, state: EntryListState) =>
-  ['entries', view, id, state] as const;
+export const entriesKey = (
+  view: EntryListView,
+  id: string | null,
+  state: EntryListState,
+  sort: EntrySort = 'newest',
+) => ['entries', view, id, state, sort] as const;
 
 const SECOND = 1000;
 const MINUTE = 60 * SECOND;
@@ -83,12 +88,14 @@ export function useEntries(
   id: string | null,
   state: EntryListState,
   refetchOnMount: boolean | 'always',
+  sort: EntrySort = 'newest',
 ) {
   return useInfiniteQuery({
-    queryKey: entriesKey(view, id, state),
+    queryKey: entriesKey(view, id, state, sort),
     initialPageParam: null as string | null,
     queryFn: ({ pageParam, signal }) => {
       const q = new URLSearchParams({ view, state, limit: String(ENTRIES_PAGE_SIZE) });
+      if (sort !== 'newest') q.set('sort', sort);
       if (id !== null) q.set('id', id);
       if (pageParam !== null) q.set('cursor', pageParam);
       return apiGet<EntriesResponse>(`/api/entries?${q.toString()}`, { signal });

@@ -169,11 +169,14 @@ describe('POST /api/entries/:id/engagement', () => {
     await clear();
     const w = async (id: number, kind: 'open' | 'click') =>
       (await recordEngagement(db, A, id, kind, NOW))?.meta.rows_written;
-    expect(await w(8, 'open')).toBe(1);
+    // TID-067: the row plus its `engagement_user_last` index row = 2 for an insert and for the click
+    // that updates `last_at` (measured locally; D1 may bill the moved index entry as one more, so
+    // spec 9.4 budgets 3 for a click).
+    expect(await w(8, 'open')).toBe(2);
     expect(await w(8, 'open')).toBe(0);
-    expect(await w(8, 'click')).toBe(1);
+    expect(await w(8, 'click')).toBe(2);
     expect(await w(8, 'click')).toBe(0);
-    expect(await w(9, 'click')).toBe(1);
+    expect(await w(9, 'click')).toBe(2);
   });
 
   it('B signalling A’s entry gets 404 not_found, and nothing is written', async () => {
@@ -384,6 +387,9 @@ describe('migration 0007 on a populated 0006 database', () => {
       'last_at',
     ]);
     expect(await rows()).toHaveLength(0);
+    // Re-running 0007 recreated the table as it was then: bring it to the 0008 shape again (TID-067).
+    await env.DB.exec('ALTER TABLE engagement ADD COLUMN embedding TEXT');
+    await env.DB.exec('CREATE INDEX engagement_user_last ON engagement(user_id, last_at)');
     // Works straight away on the migrated database.
     expect((await signal(A, 91_001, 'open')).res.status).toBe(200);
     expect(await rows()).toHaveLength(1);

@@ -260,6 +260,16 @@ export async function refreshFeed(job: RefreshJob, deps: RefreshDeps): Promise<R
         ...toLink.map((h) => h.hash),
         ...notDup.params,
       ),
+      // TID-067: entries that were linked to someone wait for an embedding, outside this refresh
+      // (the embed step drains the queue). Entries nobody linked (duplicates) or only linked as already read are not queued.
+      sql(
+        `INSERT OR IGNORE INTO embed_queue (entry_id)
+         SELECT e.id FROM entries e
+          WHERE e.feed_id = ? AND e.guid_hash IN (${placeholders(toLink.length)})
+            AND EXISTS (SELECT 1 FROM user_entries ue WHERE ue.entry_id = e.id AND ue.is_read = 0)`,
+        job.feedId,
+        ...toLink.map((h) => h.hash),
+      ),
     );
   }
 

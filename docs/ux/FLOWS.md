@@ -52,6 +52,7 @@ The right-hand and bottom slots are provided by the shell and filled by each scr
 | Add feed | Drawer footer (primary button) and Manage header | |
 | Manage, Settings | Drawer footer | |
 | Unread-only / All toggle | List header right slot | FR-RD-4 |
+| Recommended sort toggle (TID-067) | List header right slot, beside Unread only, unread lists only. A pressed-state button with a sparkles icon: icon only below 640 px (44 px target, name "Recommended" for assistive tech, so the title keeps its room at 375 px), icon and label from 640 px. Pressed = Recommended, saved as the setting `listSort` and mirrored by a switch in Settings. When it cannot apply yet, a muted line above the list: "Recommended gets better as you read. Showing newest first for now." (under 20 signals) or "Recommended isn't available right now. Showing newest first." | FR-RD-3 |
 | Mark all as read | List bottom bar | FR-RD-9. Bottom, because it is a frequent one-handed action. |
 | Refresh | Pull to refresh on lists. Also in the bottom bar for non-touch users. | Refetches cached server data only (FR-RD-11) |
 | Offline state | A banner directly under the header, on every screen | |

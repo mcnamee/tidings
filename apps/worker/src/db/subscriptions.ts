@@ -176,6 +176,18 @@ export async function createSubscription(db: Db, p: CreateSubscription): Promise
       ...notDup.params,
       NEW_SUBSCRIBER_LINK_LIMIT,
     ),
+    // TID-067: linked entries that have no embedding yet join the embed queue (bounded by the link
+    // limit above; entries already embedded, e.g. by another subscriber, are skipped).
+    sql(
+      `INSERT OR IGNORE INTO embed_queue (entry_id)
+       SELECT ue.entry_id FROM user_entries ue
+        WHERE ue.user_id = ? AND ue.is_read = 0
+          AND ue.feed_id = (SELECT feed_id FROM subscriptions WHERE ${mine})
+          AND NOT EXISTS (SELECT 1 FROM entry_embeddings ee WHERE ee.entry_id = ue.entry_id)`,
+      p.userId,
+      p.subscriptionId,
+      p.userId,
+    ),
   ];
   const results = await db.batch(statements);
   return Number(results[1]?.meta.changes ?? 0) > 0;

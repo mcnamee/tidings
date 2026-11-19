@@ -4,6 +4,8 @@ import { handleScheduled } from './refresh/scheduled';
 
 // TID-012: the per-feed RPC entrypoint must be a named export of the main module (ctx.exports).
 export { FeedRefresher } from './refresh/entrypoint';
+// TID-067: the Workers AI steps of the recommended sort (embedding and profiles), same mechanism.
+export { Recommender } from './recommend/entrypoint';
 
 const app = createApp();
 

@@ -53,7 +53,7 @@ Owner: product-manager. Last updated 2026-11-17 (TID-053 email sign-in added, AD
 | TID-061 | Hide duplicate articles across feeds (same URL or headline) | R2 | Built (ADR 0017, awaiting verification) | TID-012, TID-021 |
 | TID-057 | Logo, app icons, and installable full-screen app (TID-023 AC4 and AC6) | R2 | Done (deployed 2026-11-18) | TID-006 |
 | TID-066 | Recommended sort, stage 1: record engagement signals (owner request 2026-11-19, ADR 0018) | R3 | Done (deployed 2026-11-19; owner confirmed combined scoring) | TID-019, TID-021 |
-| TID-067 | Recommended sort, stage 2: embeddings, interest profile and "Recommended" sort (ADR 0018) | R3 | Ready (after TID-066 has collected signals and a budget check) | TID-066 |
+| TID-067 | Recommended sort, stage 2: embeddings, interest profile and "Recommended" sort (ADR 0018) | R3 | Built (branch `tid-067-recommended`; awaiting tester verification, UX review and PM acceptance) | TID-066 |
 | TID-023 | Persisted client cache and installable PWA shell | R3 | Ready | TID-018, 019 |
 | TID-036 | SSRF guard hardening (TID-010 follow-up) | R3 | Ready | TID-010 |
 | TID-037 | Design-token drift and contrast check in CI (TID-006 follow-up) | R3 | Ready | TID-006 |
@@ -1170,7 +1170,7 @@ Native apps; Inoreader API sync or starred-item migration (Q7); social features;
 - **Agents:** PM (refine and budget check), SE, UX, QA
 - **Depends on:** TID-066 (signals), TID-021 (hourly job)
 - **Release:** R3
-- **Status:** Ready, after TID-066 has been collecting for a while. Needs a Workers AI binding in `wrangler.jsonc` (a new Cloudflare product on the free plan: check spec §4.2 and §9 first, and record any deviation in ADR 0018 or a new ADR).
+- **Status:** Built on branch `tid-067-recommended` (ADR 0018 amendment 2026-11-19, spec §7.7, §8.5, §8.6, §9). Awaiting tester verification, UX review at 375 px in both themes, and PM acceptance. Needs the Workers AI binding (`"ai": { "binding": "AI" }`, in `wrangler.jsonc`) at deploy; the deployed AI call has not been exercised (Workers AI is not available locally). Deviations and the one cost above 10% (read rows in the three-user worst case) are in the ADR amendment.
 
 **User story:** As the owner, I want a "Recommended" sort for my unread list that puts what I'm most likely to want first, so that I can get through a large backlog by interest rather than only by date.
 

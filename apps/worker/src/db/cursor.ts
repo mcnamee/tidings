@@ -48,3 +48,22 @@ export function decodeCursor(value: string): Cursor {
   }
   return { p: p as number, i: i as number };
 }
+
+/** Opaque cursor of another shape (the recommended sort, TID-067): base64url of a JSON object. */
+export function encodeJsonCursor(value: Record<string, number | string>): string {
+  return toBase64Url(JSON.stringify(value));
+}
+
+/** The JSON object inside a cursor, unvalidated. Any malformation throws {@link ValidationError}. */
+export function decodeJsonCursor(value: string): Record<string, unknown> {
+  const fail = () => new ValidationError('Malformed cursor', { field: 'cursor' });
+  if (value.length === 0 || value.length > 200) throw fail();
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(fromBase64Url(value));
+  } catch {
+    throw fail();
+  }
+  if (typeof parsed !== 'object' || parsed === null || Array.isArray(parsed)) throw fail();
+  return parsed as Record<string, unknown>;
+}

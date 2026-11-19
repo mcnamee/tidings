@@ -36,6 +36,7 @@ export interface MaintenanceSummary {
   rateLimitsDeleted: number;
   magicLinksDeleted: number;
   engagementDeleted: number;
+  embeddingsDeleted: number;
   statements: number;
   rowsRead: number;
   rowsWritten: number;
@@ -73,6 +74,7 @@ export async function runMaintenance(deps: MaintenanceDeps): Promise<Maintenance
     rateLimitsDeleted: 0,
     magicLinksDeleted: 0,
     engagementDeleted: 0,
+    embeddingsDeleted: 0,
     statements: 0,
     rowsRead: 0,
     rowsWritten: 0,
@@ -153,6 +155,18 @@ export async function runMaintenance(deps: MaintenanceDeps): Promise<Maintenance
           `DELETE FROM engagement WHERE (user_id, entry_id) IN (
              SELECT user_id, entry_id FROM engagement WHERE last_at < ? LIMIT ${CHUNK})`,
           now - ENGAGEMENT_RETENTION_S,
+        ),
+      );
+    });
+    // TID-067: embeddings of entries purged in the last 3 days (a purged entry cannot be ranked, and
+    // its signals keep their own copy). Probes the purged-at index, so it reads about 3 days of purges.
+    await step(async () => {
+      s.embeddingsDeleted = await once(
+        sql(
+          `DELETE FROM entry_embeddings WHERE entry_id IN (
+             SELECT id FROM entries INDEXED BY entries_tombstones
+              WHERE purged_at IS NOT NULL AND purged_at >= ? LIMIT ${CHUNK})`,
+          now - 3 * DAY,
         ),
       );
     });

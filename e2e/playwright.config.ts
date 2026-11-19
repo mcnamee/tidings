@@ -49,7 +49,7 @@ export default defineConfig({
       'cd ../apps/worker && ' +
       // Resting state: an owner exists, so only the setup specs see a fresh instance (auth-state.ts).
       `wrangler d1 execute tidings --local --persist-to ../../e2e/.wrangler-state --file ${SEED_OWNER_FILE} && ` +
-      `wrangler dev --port ${APP_PORT} --infer-origin-from-routes=false --persist-to ../../e2e/.wrangler-state ` +
+      `wrangler dev --local --port ${APP_PORT} --infer-origin-from-routes=false --persist-to ../../e2e/.wrangler-state ` +
       `--var APP_ORIGIN:${baseURL} --var RP_ID:localhost --var RP_NAME:Tidings-E2E ` +
       // Passed here, not read from apps/worker/.dev.vars, so a developer's real token is never used.
       `--var SETUP_TOKEN:${E2E_SETUP_TOKEN} ` +

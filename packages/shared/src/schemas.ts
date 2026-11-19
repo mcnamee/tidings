@@ -7,6 +7,7 @@ import {
   READ_STATE_MAX_IDS,
   SUBSCRIPTION_TITLE_MAX,
   TEXT_SIZES,
+  ENTRY_SORTS,
   THEMES,
 } from './index';
 import { cleanName, tidyText } from './text';
@@ -117,6 +118,7 @@ export const entriesQuerySchema = z
     view: z.enum(['all', 'folder', 'feed']),
     id: z.string().min(1).max(64).optional(),
     state: z.enum(['unread', 'all']).optional(),
+    sort: z.enum(ENTRY_SORTS).optional(),
     limit: z.coerce.number().int().min(1).max(100).default(50),
     cursor: z.string().min(1).max(200).optional(),
   })
@@ -202,6 +204,7 @@ export const userSettingsPatchSchema = z.strictObject({
   markReadOnScroll: z.boolean().optional(),
   textSize: z.enum(TEXT_SIZES).optional(),
   hideReadFeeds: z.boolean().optional(),
+  listSort: z.enum(ENTRY_SORTS).optional(),
 });
 
 export const updateMeRequestSchema = z

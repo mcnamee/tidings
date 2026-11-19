@@ -141,6 +141,20 @@ describe('AC2: reading options and text size', () => {
     });
   });
 
+  it('TID-067: the recommended-sort switch is off by default and stores listSort', async () => {
+    const user = userEvent.setup();
+    renderSettings();
+    const sw = screen.getByRole('switch', { name: 'Sort unread lists by recommended' });
+    expect(sw).not.toBeChecked();
+    await user.click(sw);
+    await waitFor(() =>
+      expect(patches()[0]?.body).toEqual({ settings: { listSort: 'recommended' } }),
+    );
+    expect(sw).toBeChecked();
+    await user.click(sw);
+    await waitFor(() => expect(patches()[1]?.body).toEqual({ settings: { listSort: 'newest' } }));
+  });
+
   it('text size stores, mirrors to localStorage and sets data-text-size', async () => {
     const user = userEvent.setup();
     renderSettings();

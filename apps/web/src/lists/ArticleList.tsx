@@ -1,7 +1,7 @@
 import { useEffect, useLayoutEffect, useRef, useState, type ReactNode } from 'react';
 import { Link, useSearchParams } from 'react-router';
 import { useQueryClient } from '@tanstack/react-query';
-import { Check, CheckCheck, Filter, Loader2, RefreshCw } from 'lucide-react';
+import { Check, CheckCheck, Filter, Loader2, RefreshCw, Sparkles } from 'lucide-react';
 import {
   MARK_ALL_CONFIRM_OVER,
   type EntryListState,
@@ -19,7 +19,8 @@ import {
 } from '../lib/queries';
 import { markAllRead } from '../lib/markAllRead';
 import { useSession } from '../lib/session';
-import { markReadOnScroll, unreadOnlyDefault } from '../lib/settings';
+import { effectiveSort, markReadOnScroll, unreadOnlyDefault } from '../lib/settings';
+import { useUpdateSettings } from '../settings/useUpdateSettings';
 import { useMarkReadOnScroll } from '../lib/readOnScroll';
 import { prefersReducedMotion } from '../lib/useSwipe';
 import { usePullToRefresh } from '../lib/usePullToRefresh';
@@ -166,7 +167,10 @@ export function ArticleList({
       : unreadOnlyDefault(session.data?.user?.settings)
         ? 'unread'
         : 'all';
-  const key = entriesKey(view, id, state);
+  // TID-067: the order is a setting kept across devices; Recommended applies to unread lists only.
+  const sort = effectiveSort(session.data?.user?.settings, state);
+  const updateSettings = useUpdateSettings();
+  const key = entriesKey(view, id, state, sort);
 
   // An article opens as a layer above this list, which stays mounted: Back finds the loaded
   // pages, the rows read meanwhile (shown as read, FR-RD-4) and the scroll position as they were.
@@ -176,7 +180,7 @@ export function ArticleList({
     if ('scrollRestoration' in window.history) window.history.scrollRestoration = 'manual';
   }, []);
 
-  const entries = useEntries(view, id, state, 'always');
+  const entries = useEntries(view, id, state, 'always', sort);
   const subscriptions = useSubscriptions();
   const items = entries.data?.pages.flatMap((p) => p.items) ?? [];
 
@@ -249,6 +253,8 @@ export function ArticleList({
     entries.error instanceof ApiRequestError && entries.error.status === 404 && !entries.data;
   const subscription = view === 'feed' ? subscriptions.data?.find((s) => s.id === id) : undefined;
   const now = Date.now();
+  // The server says when Recommended was asked for but could not be applied (spec 8.5).
+  const sortNote = sort === 'recommended' ? entries.data?.pages[0]?.sortNote : undefined;
 
   let body: ReactNode;
   if (notFound) {
@@ -282,6 +288,13 @@ export function ArticleList({
   } else {
     body = (
       <>
+        {sortNote && (
+          <p data-testid="sort-note" className="px-4 pb-1 pt-3 text-sm text-fg-muted lg:px-0">
+            {sortNote === 'cold_start'
+              ? 'Recommended gets better as you read. Showing newest first for now.'
+              : "Recommended isn't available right now. Showing newest first."}
+          </p>
+        )}
         <ul ref={listRef} data-testid="article-grid" className={LIST_GRID}>
           {items.map((entry, i) => (
             <ArticleRow
@@ -343,6 +356,21 @@ export function ArticleList({
           )}
           Unread only
         </button>
+        {state === 'unread' && (
+          <button
+            type="button"
+            aria-pressed={sort === 'recommended'}
+            onClick={() =>
+              void updateSettings({ listSort: sort === 'recommended' ? 'newest' : 'recommended' })
+            }
+            title="Recommended order"
+            className="inline-flex min-h-11 min-w-11 items-center justify-center gap-2 rounded-md px-2 text-base font-medium text-fg active:bg-sunken aria-pressed:bg-accent-subtle aria-pressed:text-accent-subtle-fg sm:px-3"
+          >
+            <Sparkles aria-hidden="true" className="size-5" strokeWidth={1.75} />
+            {/* Icon only at 375 px, where the title needs the room; the name is always there for assistive tech. */}
+            <span className="sr-only sm:not-sr-only">Recommended</span>
+          </button>
+        )}
       </HeaderActions>
       <BottomBar>
         <button

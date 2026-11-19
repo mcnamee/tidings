@@ -1,10 +1,22 @@
-import type { SessionResponse } from '@tidings/shared';
+import type { EntryListState, EntrySort, SessionResponse } from '@tidings/shared';
 
 // Spec 6.2 defaults. The stored document may be missing keys or hold junk, so each read is checked.
 type Settings = NonNullable<SessionResponse['user']>['settings'];
 
 export function unreadOnlyDefault(settings: Settings | undefined): boolean {
   return settings?.unreadOnly !== false;
+}
+
+/**
+ * TID-067: the list order the person chose (`listSort`, default newest first), kept across devices.
+ * Recommended orders unread lists only, so any other list asks for newest.
+ */
+export function listSortPref(settings: Settings | undefined): EntrySort {
+  return settings?.listSort === 'recommended' ? 'recommended' : 'newest';
+}
+
+export function effectiveSort(settings: Settings | undefined, state: EntryListState): EntrySort {
+  return state === 'unread' ? listSortPref(settings) : 'newest';
 }
 
 export function hideReadFeeds(settings: Settings | undefined): boolean {

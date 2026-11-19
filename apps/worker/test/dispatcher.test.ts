@@ -227,7 +227,10 @@ describe('real fan-out through ctx.exports (ADR 0004, AC12 logic)', () => {
     expect(await count('entries', 'feed_id = 1')).toBe(2);
     expect(await count('entries', 'feed_id = 3')).toBe(4);
     for (let n = 1; n <= 3; n++) expect((await feedRow(n)).state).toBe('ok');
-    expect(String(log.mock.calls.at(-1)?.[0])).toContain('"leased":3,"fulfilled":3,"rejected":0');
+    // (TID-067: the embed step may log after it, so look through the lines.)
+    expect(
+      log.mock.calls.some((c) => String(c[0]).includes('"leased":3,"fulfilled":3,"rejected":0')),
+    ).toBe(true);
   });
 
   it('a real RPC rejection from the callee is recorded as internal by the dispatcher', async () => {
