@@ -363,6 +363,12 @@ body {
     transform: scale(0.92);
   }
 }
+/* Installed app: the native launch image (TID-065) already shows the finished mark, so do not fade it in again. */
+@media (display-mode: standalone) {
+  .splash-mark {
+    animation: none;
+  }
+}
 @media (prefers-reduced-motion: reduce) {
   .splash {
     transition: none;
