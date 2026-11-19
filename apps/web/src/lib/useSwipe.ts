@@ -8,6 +8,8 @@ export const SWIPE_EDGE_PX = 24;
 export const FLICK_SPEED = 0.5;
 const FLICK_MIN_PX = 20;
 const SAMPLE_WINDOW_MS = 100;
+/** Touches that start on these keep their default action (a tap must still click). */
+const INTERACTIVE = 'button, input, select, textarea, label, [role="button"], [contenteditable]';
 
 /** True when the app runs as an installed app (home-screen icon), where the browser has no edge gestures of its own. */
 export function isStandalone(): boolean {
@@ -59,6 +61,8 @@ interface Track {
   baseX: number;
   samples: { t: number; x: number }[];
   progress: number;
+  /** An edge touch whose default was prevented: a tap on it is replayed as a click. */
+  claimed?: Element;
 }
 
 /**
@@ -176,9 +180,24 @@ export function useSwipe(options: SwipeOptions): void {
       if (track) {
         track.via = 'touch';
         track.id = t.identifier;
-        return;
+      } else {
+        begin(t.identifier, 'touch', t.clientX, t.clientY);
       }
-      begin(t.identifier, 'touch', t.clientX, t.clientY);
+      // iOS runs its own edge "swipe back" in installed web apps too, which fires alongside ours
+      // and navigates the page back (sometimes reloading it). For an edge gesture, claim the
+      // touch so iOS doesn't start it, except on controls near the edge (Menu, Back), whose
+      // taps need the default click.
+      const edge = opts.current.edgePx;
+      if (
+        edge !== undefined &&
+        track &&
+        t.clientX <= edge &&
+        e.cancelable &&
+        !(e.target instanceof Element && e.target.closest(INTERACTIVE))
+      ) {
+        e.preventDefault();
+        if (e.target instanceof Element) track.claimed = e.target;
+      }
     }
     function tMove(ev: Event) {
       const e = ev as TouchEvent;
@@ -190,7 +209,15 @@ export function useSwipe(options: SwipeOptions): void {
     function tEnd(ev: Event) {
       const e = ev as TouchEvent;
       if (track?.via !== 'touch') return;
-      if ([...e.changedTouches].some((c) => c.identifier === track?.id)) finish();
+      const t = [...e.changedTouches].find((c) => c.identifier === track?.id);
+      if (!t) return;
+      const { claimed, locked, x0, y0 } = track;
+      finish();
+      // Preventing the default on touchstart also cancels the click; give a plain tap it back.
+      if (claimed && !locked && Math.hypot(t.clientX - x0, t.clientY - y0) < SWIPE_LOCK_PX) {
+        const link = claimed.closest('a');
+        if (link instanceof HTMLElement) link.click();
+      }
     }
     function tCancel() {
       if (track?.via === 'touch') abort();
@@ -200,7 +227,7 @@ export function useSwipe(options: SwipeOptions): void {
     window.addEventListener('pointermove', pMove);
     window.addEventListener('pointerup', pUp);
     window.addEventListener('pointercancel', pCancel);
-    root.addEventListener('touchstart', tStart, { passive: true });
+    root.addEventListener('touchstart', tStart, { passive: false });
     window.addEventListener('touchmove', tMove, { passive: false });
     window.addEventListener('touchend', tEnd);
     window.addEventListener('touchcancel', tCancel);
