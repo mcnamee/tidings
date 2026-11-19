@@ -52,7 +52,7 @@ Owner: product-manager. Last updated 2026-11-17 (TID-053 email sign-in added, AD
 | TID-060 | News-style list rows and sans-serif article text | R2 | Done (deployed 2026-11-18) | TID-018 |
 | TID-061 | Hide duplicate articles across feeds (same URL or headline) | R2 | Built (ADR 0017, awaiting verification) | TID-012, TID-021 |
 | TID-057 | Logo, app icons, and installable full-screen app (TID-023 AC4 and AC6) | R2 | Done (deployed 2026-11-18) | TID-006 |
-| TID-066 | Recommended sort, stage 1: record engagement signals (owner request 2026-11-19, ADR 0018) | R3 | Built (branch `tid-066-engagement`, awaiting verification; mark Done when built and accepted) | TID-019, TID-021 |
+| TID-066 | Recommended sort, stage 1: record engagement signals (owner request 2026-11-19, ADR 0018) | R3 | Done (deployed 2026-11-19; owner confirmed combined scoring) | TID-019, TID-021 |
 | TID-067 | Recommended sort, stage 2: embeddings, interest profile and "Recommended" sort (ADR 0018) | R3 | Ready (after TID-066 has collected signals and a budget check) | TID-066 |
 | TID-023 | Persisted client cache and installable PWA shell | R3 | Ready | TID-018, 019 |
 | TID-036 | SSRF guard hardening (TID-010 follow-up) | R3 | Ready | TID-010 |

@@ -80,3 +80,7 @@ The signals are the owner's own reading behaviour. They stay in the owner's Clou
 - **An index on `last_at`.** Rejected: one extra row written per signal, for a sweep that scans a few thousand rows once a day.
 - **A foreign key to `entries` with cascade.** Rejected: it would delete the signal exactly when the tombstone goes, which is what must not happen.
 - **Counting list scroll-past or bulk reads as weak signals.** Rejected by the owner (0 points).
+
+## Owner confirmation (2026-11-19)
+
+The owner confirmed the combined scoring: an article opened and then clicked through scores 3 (1 + 2). To be revisited once the recommended sort (TID-067) is in use.
