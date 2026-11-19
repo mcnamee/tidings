@@ -55,3 +55,21 @@ Regenerate the PNGs and the preview: `CHROME_PATH=/usr/bin/google-chrome node sc
 ## 6. Needs a real iPhone
 
 Add to Home Screen shows the 180 px icon and the name "Tidings"; launches without Safari chrome; stays signed in (AC6); status bar text is legible in light and dark system themes with `default`; nothing sits under the notch or home indicator in portrait and landscape; the toast and bottom bar clear the home indicator.
+
+## 7. iPhone launch images (TID-065)
+
+iOS shows a native launch image the instant the installed app opens, but only if `index.html` has an `apple-touch-startup-image` link whose `media` matches the device's exact width, height, pixel ratio, orientation and colour scheme. Ten portrait iPhone sizes (SE 2/3 to 16/17 Pro Max) are covered, each in light and dark, in `apps/web/public/splash/<w>x<h>-<light|dark>.png` (about 0.5 MB in all).
+
+- Each image is the in-page `#splash` drawn at device pixels: `--c-surface` background, 72 px accent mark, 16 px gap, 24 px semibold `Tidings` in `--c-text`, centred in the standalone page box (below the status bar, above the home-indicator inset).
+- In the installed app the splash mark does not fade in (`display-mode: standalone` rule in `index.css`), so the page splash looks identical to the image.
+- Wordmark font: the images use Inter (the closest to San Francisco available to the generator); iOS draws the live splash in San Francisco, so letter shapes differ very slightly.
+- Not covered: landscape, iPad, and the in-app theme override (the image follows the system theme).
+
+Regenerate after changing the logo, tokens or splash layout:
+
+1. Edit `scripts/splash-config.mjs` (theme colours, device list with status-bar and home-indicator insets).
+2. `CHROME_PATH=/usr/bin/google-chrome node scripts/render-splash.mjs` rewrites the PNGs.
+3. `node scripts/render-splash.mjs --links` prints the `<link>` tags; paste them into `apps/web/index.html` if the device list changed.
+4. `npm test -w @tidings/web` checks every link points at a file of the stated pixel size and that the colours equal the CSS tokens.
+
+Needs a real iPhone: the launch image appears at once (delete and re-add the app to the Home Screen after an update; iOS caches launch images), the hand-off to the page splash shows no jump in the mark or word, and the vertical position matches (the status-bar insets in the config are best-known values).
