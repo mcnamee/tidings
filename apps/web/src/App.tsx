@@ -1,4 +1,5 @@
 import { useEffect } from 'react';
+import { isStandalone } from './lib/useSwipe';
 import {
   Link,
   Navigate,
@@ -42,7 +43,11 @@ function NotFound() {
   return (
     <div>
       <p className="text-base text-fg">We couldn&apos;t find that page.</p>
-      <Link to="/all" className="mt-2 inline-flex min-h-11 items-center text-accent underline">
+      <Link
+        to="/all"
+        replace={isStandalone()}
+        className="mt-2 inline-flex min-h-11 items-center text-accent underline"
+      >
         Go to All articles
       </Link>
     </div>

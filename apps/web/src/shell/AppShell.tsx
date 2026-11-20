@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { flushSync } from 'react-dom';
 import { Outlet, useLocation, useNavigate, useNavigationType } from 'react-router';
 import { ArrowLeft, Menu } from 'lucide-react';
@@ -8,11 +8,11 @@ import { saveLastList } from '../lib/lastList';
 import { useSidebarHidden } from '../lib/sidebar';
 import { useCounts } from '../lib/queries';
 import { findRoute } from '../routes/table';
-import { IOS_EDGE_PX, isStandalone, useSwipe } from '../lib/useSwipe';
+import { isStandalone, useSwipe } from '../lib/useSwipe';
 import { Drawer, drawerWidth, type DrawerControl } from './Drawer';
 import { Lockup } from './Logo';
 import { FeedNav } from './FeedNav';
-import { LayerContext, ScrollRootContext, ShellSlotsContext } from './slots';
+import { LayerContext, ShellSlotsContext, useChromeInsets } from './slots';
 import { OfflineBanner } from './OfflineBanner';
 import { PasskeyBanner } from './PasskeyBanner';
 import { useDocumentTitle } from './useDocumentTitle';
@@ -60,27 +60,59 @@ export function AppShell() {
     [headerActionsEl, bottomBarEl, covered],
   );
   const [layerEl, setLayerEl] = useState<HTMLElement | null>(null);
-  // TID-064: below lg the page is a fixed-height column and `main` scrolls on its own (native
-  // momentum and rubber band, header and bottom bar stay put). Its height is published as --main-h
-  // (CSSOM) for the end-of-list space.
-  const [mainEl, setMainEl] = useState<HTMLElement | null>(null);
-  const scrollRoot = isDesktop ? null : (mainEl ?? undefined);
-  useEffect(() => {
-    if (!mainEl || isDesktop) return;
-    const publish = () => mainEl.style.setProperty('--main-h', `${mainEl.clientHeight}px`);
-    publish();
-    const observer = typeof ResizeObserver === 'undefined' ? null : new ResizeObserver(publish);
-    observer?.observe(mainEl);
-    return () => {
-      observer?.disconnect();
-      mainEl.style.removeProperty('--main-h');
-    };
-  }, [mainEl, isDesktop]);
+  // TID-069: below lg the document is the scroller (status-bar tap, native bounce at both ends)
+  // and the header and bottom bar are `position: fixed`, with their heights published as
+  // --header-h / --bar-h for the content's padding and the end-of-list space.
+  const [headerEl, setHeaderEl] = useState<HTMLElement | null>(null);
   const pageRef = useRef<HTMLDivElement>(null);
+  const mainRef = useRef<HTMLElement>(null);
+  useChromeInsets(pageRef, headerEl, bottomBarEl, !isDesktop);
   const layer = useMemo(
     () => ({ root: layerEl, underlay: pageRef, sidebarHidden }),
     [layerEl, sidebarHidden],
   );
+  // While an article is open the document scrolls the article, so the list underneath is frozen:
+  // taken out of the flow (fixed) and its content shifted up by the scroll it had. Back puts it
+  // back and restores that scroll exactly. `lastY` follows the list's scroll while it is shown.
+  const lastY = useRef(0);
+  const frozenAt = useRef<number | null>(null);
+  useEffect(() => {
+    if (covered) return;
+    const track = () => {
+      lastY.current = Math.max(0, window.scrollY);
+    };
+    track();
+    window.addEventListener('scroll', track, { passive: true });
+    return () => window.removeEventListener('scroll', track);
+  }, [covered]);
+  // A different list (menu, sidebar, Manage) starts at the top; an article of the same list does not.
+  const listKey = location.pathname.replace(/\/a\/[^/]+$/, '');
+  const shownList = useRef(listKey);
+  useLayoutEffect(() => {
+    const main = mainRef.current;
+    const freeze = covered && !isDesktop;
+    if (freeze && frozenAt.current === null && main) {
+      frozenAt.current = lastY.current;
+      main.style.top = `-${frozenAt.current}px`;
+      window.scrollTo(0, 0);
+    } else if (!freeze && frozenAt.current !== null) {
+      const y = frozenAt.current;
+      frozenAt.current = null;
+      if (main) main.style.top = '';
+      // A swipe or slide leaves a transform on the page, which would make its fixed header scroll
+      // away with it for a frame; the layer clears it too, but only after paint.
+      const page = pageRef.current;
+      if (page) {
+        page.style.transition = '';
+        page.style.transform = '';
+      }
+      window.scrollTo(0, y);
+    }
+    if (shownList.current !== listKey) {
+      shownList.current = listKey;
+      if (!freeze) window.scrollTo(0, 0);
+    }
+  }, [covered, isDesktop, listKey]);
   // Lists get a wider column on desktop for the card grid (TID-062); the rest keeps reading width.
   const wide = route.kind === 'list';
 
@@ -171,7 +203,6 @@ export function AppShell() {
   useSwipe({
     enabled: standalone && !isDesktop && !open && !showBack && !covered && route.kind !== 'auth',
     direction: 'right',
-    avoidEdgePx: IOS_EDGE_PX,
     extent: drawerWidth,
     commitAt: 0.4,
     onStart: () => flushSync(() => setPeeking(true)),
@@ -191,124 +222,126 @@ export function AppShell() {
   return (
     <ShellSlotsContext.Provider value={slots}>
       <LayerContext.Provider value={layer}>
-        <ScrollRootContext.Provider value={scrollRoot}>
-          <div inert={open}>
-            <a
-              href="#main"
-              className="absolute left-4 top-2 z-50 -translate-y-24 rounded-md bg-accent px-4 py-3 font-medium text-accent-fg focus:translate-y-0"
-            >
-              Skip to content
-            </a>
-            <div className="group/shell lg:flex" data-sidebar={sidebarHidden ? 'hidden' : 'shown'}>
-              {isDesktop && (
-                // Hidden: width 0 and inert (out of the tab order and the accessibility tree). The
-                // inner box keeps its width so the tree does not reflow while the column animates.
-                <aside
-                  id="sidebar"
-                  inert={sidebarHidden}
-                  className={`sticky top-0 h-dvh shrink-0 overflow-hidden bg-surface transition-[width] duration-200 ease-out motion-reduce:transition-none ${
-                    sidebarHidden ? 'w-0' : 'w-72 border-r border-line'
-                  }`}
-                >
-                  <div className="flex h-full w-72 flex-col">
-                    <div className="flex min-h-14 items-center px-4">
-                      <Lockup />
-                    </div>
-                    <FeedNav />
-                  </div>
-                </aside>
-              )}
-              <div
-                ref={pageRef}
-                inert={covered}
-                aria-hidden={covered || undefined}
-                data-testid="list-underlay"
-                className="flex h-dvh min-w-0 flex-1 flex-col lg:h-auto lg:min-h-dvh"
+        <div inert={open}>
+          <a
+            href="#main"
+            className="absolute left-4 top-2 z-50 -translate-y-24 rounded-md bg-accent px-4 py-3 font-medium text-accent-fg focus:translate-y-0"
+          >
+            Skip to content
+          </a>
+          <div className="group/shell lg:flex" data-sidebar={sidebarHidden ? 'hidden' : 'shown'}>
+            {isDesktop && (
+              // Hidden: width 0 and inert (out of the tab order and the accessibility tree). The
+              // inner box keeps its width so the tree does not reflow while the column animates.
+              <aside
+                id="sidebar"
+                inert={sidebarHidden}
+                className={`sticky top-0 h-dvh shrink-0 overflow-hidden bg-surface transition-[width] duration-200 ease-out motion-reduce:transition-none ${
+                  sidebarHidden ? 'w-0' : 'w-72 border-r border-line'
+                }`}
               >
-                <div className="sticky top-0 z-20 shrink-0">
-                  <header className="border-b border-line bg-surface pl-[max(1rem,env(safe-area-inset-left))] pr-[max(1rem,env(safe-area-inset-right))] pt-[env(safe-area-inset-top)]">
-                    <div
-                      className={`flex min-h-14 items-center gap-2 py-2 lg:mx-auto ${wide ? 'lg:max-w-[100rem]' : 'lg:max-w-2xl'}`}
-                    >
-                      {showBack ? (
-                        <button
-                          type="button"
-                          aria-label="Back"
-                          onClick={goBack}
-                          className={`${ICON_BUTTON} -ml-2`}
-                        >
-                          <ArrowLeft aria-hidden="true" className="size-6" />
-                        </button>
-                      ) : (
-                        <button
-                          ref={menuButton}
-                          type="button"
-                          {...(isDesktop
-                            ? {
-                                'aria-label': sidebarHidden ? 'Show sidebar' : 'Hide sidebar',
-                                'aria-expanded': !sidebarHidden,
-                                'aria-controls': 'sidebar',
-                                onClick: toggleSidebar,
-                              }
-                            : {
-                                'aria-label': 'Open navigation',
-                                'aria-haspopup': 'dialog' as const,
-                                'aria-expanded': open,
-                                'aria-controls': 'nav-drawer',
-                                onClick: openDrawer,
-                              })}
-                          className={`${ICON_BUTTON} -ml-2`}
-                        >
-                          <Menu aria-hidden="true" className="size-6" />
-                        </button>
-                      )}
-                      <h1
-                        ref={heading}
-                        tabIndex={-1}
-                        {...(title.heading === null
-                          ? { 'aria-busy': true, 'aria-label': 'Loading' }
-                          : {})}
-                        className="min-w-0 flex-1 line-clamp-2 break-words text-lg font-semibold text-fg"
-                      >
-                        {title.heading ?? (
-                          <span
-                            aria-hidden="true"
-                            className="block h-6 w-32 animate-skeleton rounded-md bg-sunken"
-                          />
-                        )}
-                      </h1>
-                      <div ref={setHeaderActionsEl} className="flex items-center gap-2" />
-                    </div>
-                  </header>
-                  <OfflineBanner />
-                </div>
-                <main
-                  ref={setMainEl}
-                  id={covered ? undefined : 'main'}
-                  tabIndex={-1}
-                  data-testid="main-scroll"
-                  className="min-h-0 flex-1 overflow-y-auto overscroll-y-auto pl-[max(1rem,env(safe-area-inset-left))] pr-[max(1rem,env(safe-area-inset-right))] lg:overflow-visible"
-                >
-                  <div
-                    className={`mx-auto max-w-2xl py-4 pb-[max(1rem,env(safe-area-inset-bottom))] ${wide ? 'lg:max-w-[100rem]' : ''}`}
-                  >
-                    <PasskeyBanner />
-                    <Outlet />
+                <div className="flex h-full w-72 flex-col">
+                  <div className="flex min-h-14 items-center px-4">
+                    <Lockup />
                   </div>
-                </main>
-                <div
-                  id={covered ? undefined : 'bottom-bar'}
-                  ref={setBottomBarEl}
-                  className="shrink-0 lg:sticky lg:bottom-0 z-20 border-t border-line bg-surface pb-[env(safe-area-inset-bottom)] pl-[max(1rem,env(safe-area-inset-left))] pr-[max(1rem,env(safe-area-inset-right))] empty:hidden"
-                />
+                  <FeedNav />
+                </div>
+              </aside>
+            )}
+            <div
+              ref={pageRef}
+              inert={covered}
+              aria-hidden={covered || undefined}
+              data-testid="list-underlay"
+              className={`flex min-h-dvh min-w-0 flex-1 flex-col max-lg:pb-[var(--bar-h,0px)] max-lg:pt-[var(--header-h,4rem)] ${
+                covered
+                  ? 'max-lg:fixed max-lg:inset-x-0 max-lg:top-0 max-lg:h-dvh max-lg:overflow-hidden'
+                  : ''
+              }`}
+            >
+              <div ref={setHeaderEl} className="fixed inset-x-0 top-0 z-20 shrink-0 lg:sticky">
+                <header className="border-b border-line bg-surface pl-[max(1rem,env(safe-area-inset-left))] pr-[max(1rem,env(safe-area-inset-right))] pt-[env(safe-area-inset-top)]">
+                  <div
+                    className={`flex min-h-14 items-center gap-2 py-2 lg:mx-auto ${wide ? 'lg:max-w-[100rem]' : 'lg:max-w-2xl'}`}
+                  >
+                    {showBack ? (
+                      <button
+                        type="button"
+                        aria-label="Back"
+                        onClick={goBack}
+                        className={`${ICON_BUTTON} -ml-2`}
+                      >
+                        <ArrowLeft aria-hidden="true" className="size-6" />
+                      </button>
+                    ) : (
+                      <button
+                        ref={menuButton}
+                        type="button"
+                        {...(isDesktop
+                          ? {
+                              'aria-label': sidebarHidden ? 'Show sidebar' : 'Hide sidebar',
+                              'aria-expanded': !sidebarHidden,
+                              'aria-controls': 'sidebar',
+                              onClick: toggleSidebar,
+                            }
+                          : {
+                              'aria-label': 'Open navigation',
+                              'aria-haspopup': 'dialog' as const,
+                              'aria-expanded': open,
+                              'aria-controls': 'nav-drawer',
+                              onClick: openDrawer,
+                            })}
+                        className={`${ICON_BUTTON} -ml-2`}
+                      >
+                        <Menu aria-hidden="true" className="size-6" />
+                      </button>
+                    )}
+                    <h1
+                      ref={heading}
+                      tabIndex={-1}
+                      {...(title.heading === null
+                        ? { 'aria-busy': true, 'aria-label': 'Loading' }
+                        : {})}
+                      className="min-w-0 flex-1 line-clamp-2 break-words text-lg font-semibold text-fg"
+                    >
+                      {title.heading ?? (
+                        <span
+                          aria-hidden="true"
+                          className="block h-6 w-32 animate-skeleton rounded-md bg-sunken"
+                        />
+                      )}
+                    </h1>
+                    <div ref={setHeaderActionsEl} className="flex items-center gap-2" />
+                  </div>
+                </header>
+                <OfflineBanner />
               </div>
+              <main
+                ref={mainRef}
+                id={covered ? undefined : 'main'}
+                tabIndex={-1}
+                data-testid="main-scroll"
+                className="relative min-h-0 flex-1 pl-[max(1rem,env(safe-area-inset-left))] pr-[max(1rem,env(safe-area-inset-right))]"
+              >
+                <div
+                  className={`mx-auto max-w-2xl py-4 pb-[max(1rem,env(safe-area-inset-bottom))] ${wide ? 'lg:max-w-[100rem]' : ''}`}
+                >
+                  <PasskeyBanner />
+                  <Outlet />
+                </div>
+              </main>
+              <div
+                id={covered ? undefined : 'bottom-bar'}
+                ref={setBottomBarEl}
+                className="fixed inset-x-0 bottom-0 shrink-0 lg:sticky lg:bottom-0 z-20 border-t border-line bg-surface pb-[env(safe-area-inset-bottom)] pl-[max(1rem,env(safe-area-inset-left))] pr-[max(1rem,env(safe-area-inset-right))] empty:hidden"
+              />
             </div>
           </div>
-          <div ref={setLayerEl} />
-          {(open || peeking) && (
-            <Drawer onClose={closeDrawer} peeking={peeking && !open} control={drawerControl} />
-          )}
-        </ScrollRootContext.Provider>
+        </div>
+        <div ref={setLayerEl} className="max-lg:overflow-x-clip" />
+        {(open || peeking) && (
+          <Drawer onClose={closeDrawer} peeking={peeking && !open} control={drawerControl} />
+        )}
       </LayerContext.Provider>
     </ShellSlotsContext.Provider>
   );

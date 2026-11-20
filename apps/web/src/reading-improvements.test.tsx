@@ -168,8 +168,8 @@ describe('TID-026: mark as read on scroll', () => {
   it('marks a row read once it has been seen and then scrolls above the viewport, in one batched call', async () => {
     renderApp('/all');
     await screen.findByText('Title 3');
-    // TID-064: the shell's main is the scroll container, so it is the observer root.
-    expect(options?.root).toBe(screen.getByTestId('main-scroll'));
+    // TID-069: the window is the scroller, so the observer's root is the viewport.
+    expect(options?.root ?? null).toBeNull();
     vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] });
 
     fire([onScreen(1), onScreen(2), onScreen(3)]);

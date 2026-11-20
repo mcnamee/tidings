@@ -35,16 +35,16 @@ export interface PullToRefresh {
 /**
  * Pull to refresh (FR-RD-11). `onRefresh` should refetch cached server data only.
  *
- * `scroller` is the element the list scrolls in (the shell's `main` below `lg`, TID-064); `null`
- * means the window scrolls (desktop layout); `undefined` waits for it to mount.
+ * The window is the scroller (TID-069: below `lg` the document scrolls under a fixed header and
+ * bottom bar, so a status-bar tap works).
  *
- * Native mode (iOS, or as soon as a scroll event reports a negative scrollTop): the scroller's own
- * rubber band does the stretching, with real momentum, and the header never moves. The pull
- * distance is `-scrollTop`; past `PULL_THRESHOLD`, while a finger is still down, the state is
+ * Native mode (iOS, or as soon as a scroll event reports a negative scrollY): the document's own
+ * rubber band does the stretching, with real momentum, and the fixed header never moves. The pull
+ * distance is `-scrollY`; past `PULL_THRESHOLD`, while a finger is still down, the state is
  * `ready`, and lifting the finger refreshes. A fling that bounces with no finger down never does.
  *
- * Touch fallback (Chromium, Android, anywhere scrollTop cannot go negative): a downward drag that
- * starts with the scroller at the top moves `content` with a CSSOM transform, with resistance
+ * Touch fallback (Chromium, Android, anywhere scrollY cannot go negative): a downward drag that
+ * starts with the page at the top moves `content` with a CSSOM transform, with resistance
  * (`dampen`), springs back with the iOS ease on release, or rests at `REFRESH_HOLD` while
  * refreshing. The `touchmove` listener is non-passive but calls `preventDefault()` only while a
  * pull is under way, so ordinary scrolling is never blocked. Sideways-dominant touches are ignored.
@@ -53,7 +53,6 @@ export interface PullToRefresh {
 export function usePullToRefresh(
   onRefresh: () => Promise<unknown>,
   enabled: boolean,
-  scroller: HTMLElement | null | undefined,
   content?: RefObject<HTMLElement | null>,
 ): PullToRefresh {
   const [state, setState] = useState<PullState>('idle');
@@ -64,11 +63,9 @@ export function usePullToRefresh(
   const isNative = useRef(native);
 
   useEffect(() => {
-    if (!enabled || scroller === undefined) return;
-    const target: HTMLElement | Window = scroller ?? window;
-    // Native bounce needs an element that scrolls; the window path is touch-only.
-    const top = () => (scroller ? scroller.scrollTop : window.scrollY);
-    const canBounce = scroller !== null;
+    if (!enabled) return;
+    const target: Window = window;
+    const top = () => window.scrollY;
     let startX = 0;
     let startY: number | null = null;
     let touching = false;
@@ -78,7 +75,7 @@ export function usePullToRefresh(
       mode.current = s;
       setState(s);
     };
-    const useNative = () => canBounce && isNative.current;
+    const useNative = () => isNative.current;
     /** Moves the content by `px` (positive down); `ms` > 0 animates (release), 0 follows the finger. */
     const stretch = (px: number, ms = 0) => {
       const el = content?.current;
@@ -148,7 +145,6 @@ export function usePullToRefresh(
     };
     /** Native: the scroller is overscrolled (scrollTop < 0) while the finger is down. */
     const onScroll = () => {
-      if (!canBounce) return;
       const t = top();
       if (t < 0 && !isNative.current) {
         isNative.current = true;
@@ -194,7 +190,7 @@ export function usePullToRefresh(
         el.style.transform = '';
       }
     };
-  }, [enabled, scroller, content]);
+  }, [enabled, content]);
 
   return { state, native };
 }

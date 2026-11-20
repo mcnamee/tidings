@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState, type ChangeEvent } from 'react';
 import { Link } from 'react-router';
+import { isStandalone } from '../lib/useSwipe';
 import { useQueryClient } from '@tanstack/react-query';
 import { CircleAlert } from 'lucide-react';
 import type { ImportOpmlRequest, ImportOpmlResponse } from '@tidings/shared';
@@ -399,7 +400,7 @@ function Progress({
       </ul>
       <div className="mt-6 flex flex-col gap-3">
         {anyArticles ? (
-          <Link to="/all" className={LINK_BUTTON}>
+          <Link to="/all" replace={isStandalone()} className={LINK_BUTTON}>
             Start reading
           </Link>
         ) : (

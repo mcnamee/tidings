@@ -1,5 +1,5 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { render, screen, waitFor, within } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter, useLocation, useNavigate } from 'react-router';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
@@ -361,7 +361,27 @@ describe('AC7: Next and Previous', () => {
     await user.click(screen.getByRole('button', { name: 'system back' }));
     await screen.findByRole('link', { name: /Title 1/ });
     expect(screen.getByTestId('list-underlay').querySelector('ul')).toBe(list);
-    expect(scrollTo).not.toHaveBeenCalled();
+    // TID-069: the list's scroll (0 here) is put back exactly by AppShell's unfreeze.
+    expect(scrollTo).toHaveBeenLastCalledWith(0, 0);
+  });
+
+  it('freezes the list at its scroll while the article is open and restores it on Back', async () => {
+    const scrollTo = vi.fn();
+    window.scrollTo = scrollTo as unknown as typeof window.scrollTo;
+    Object.defineProperty(window, 'scrollY', { value: 340, configurable: true });
+    const user = userEvent.setup();
+    renderApp('/all');
+    await screen.findByRole('link', { name: /Title 1/ });
+    fireEvent.scroll(window);
+    await user.click(screen.getByRole('link', { name: /Title 1/ }));
+    await screen.findByTestId('article-layer');
+    expect(screen.getByTestId('main-scroll').style.top).toBe('-340px');
+    expect(scrollTo).toHaveBeenLastCalledWith(0, 0); // the article starts at the top
+    Object.defineProperty(window, 'scrollY', { value: 0, configurable: true });
+    await user.click(screen.getByRole('button', { name: 'system back' }));
+    await screen.findByRole('link', { name: /Title 1/ });
+    expect(screen.getByTestId('main-scroll').style.top).toBe('');
+    expect(scrollTo).toHaveBeenLastCalledWith(0, 340);
   });
 });
 

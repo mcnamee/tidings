@@ -502,11 +502,14 @@ describe('AC9: pull to refresh', () => {
     expect(api.calls.some((c) => c.method === 'POST')).toBe(false);
   });
 
-  describe('native bounce (iOS: scrollTop goes negative while overscrolled)', () => {
+  describe('native bounce (iOS: window.scrollY goes negative while overscrolled)', () => {
     const overscroll = (px: number) => {
-      Object.defineProperty(main(), 'scrollTop', { value: -px, configurable: true });
-      fireEvent.scroll(main());
+      Object.defineProperty(window, 'scrollY', { value: -px, configurable: true });
+      fireEvent.scroll(window);
     };
+    afterEach(() => {
+      Object.defineProperty(window, 'scrollY', { value: 0, configurable: true });
+    });
 
     it('refreshes when released past the threshold, with nothing transformed', async () => {
       api.set(ENTRIES('all', 'unread'), page([entry(1)]));
@@ -548,8 +551,9 @@ describe('TID-063/064: room past the last article', () => {
     await screen.findByText('Title 1');
     const end = screen.getByTestId('list-end');
     expect(end).toHaveTextContent('End of list');
-    // Sized to the scroll container (--main-h), with the message centred in that space.
-    expect(end.className).toContain('--main-h');
+    // Sized to the viewport minus the fixed header and bottom bar, with the message centred in it.
+    expect(end.className).toContain('--header-h');
+    expect(end.className).toContain('--bar-h');
     expect(end.className).toContain('justify-center');
   });
 
