@@ -242,10 +242,99 @@ export function siteOf(host: string): string {
 const SCAN_CHARS = 16 * 1024;
 const MAX_ANCHORS = 60;
 
+/** Sites that only ever offer share, login or follow links: never an article source. */
+const SOCIAL_SITES = new Set([
+  'twitter.com',
+  'x.com',
+  't.co',
+  'facebook.com',
+  'fb.com',
+  'fb.me',
+  'linkedin.com',
+  'pinterest.com',
+  'tumblr.com',
+  'whatsapp.com',
+  'wa.me',
+  't.me',
+  'telegram.me',
+  'bsky.app',
+  'threads.net',
+  'instagram.com',
+  'flipboard.com',
+  'addtoany.com',
+  'sharethis.com',
+  'buffer.com',
+  'getpocket.com',
+  'feedburner.com',
+  'feedproxy.google.com',
+  'doubleclick.net',
+  'googleadservices.com',
+]);
+const SHARE_PATH =
+  /\/(?:share|sharer|sharearticle|intent|submit|submitlink|login|signin|add)(?:[/.?#]|$)/i;
+const SHARE_QUERY = /[?&](?:share|shareurl|sharer)=|[?&]u=https?%3A|[?&]status=/i;
+
+/**
+ * True for share, social, login and tracking links, which are never the story's source. reddit.com
+ * is a real source for some stories, so only its share, submit and login URLs count as noise.
+ */
+export function isNoiseLink(url: string): boolean {
+  let u: URL;
+  try {
+    u = new URL(url);
+  } catch {
+    return true;
+  }
+  if (SOCIAL_SITES.has(siteOf(u.hostname))) return true;
+  return SHARE_PATH.test(u.pathname) || SHARE_QUERY.test(u.search);
+}
+
+/**
+ * The first usable outbound anchor in `html`: a canonical public http(s) URL on a site outside
+ * `skipSites`, not a share/social/tracking link. With `preferImg`, an anchor that wraps an `<img>`
+ * wins (Techmeme wraps its thumbnail in a link to the source story). At most 60 anchors.
+ */
+function scanAnchors(
+  html: string,
+  base: string,
+  skipSites: ReadonlySet<string>,
+  appOrigin: string,
+  allowHosts: readonly string[],
+  preferImg: boolean,
+): string | null {
+  const re = /<a\b[^>]*?\bhref\s*=\s*(?:"([^"]*)"|'([^']*)'|([^\s>]+))[^>]*>/gi;
+  let first: string | null = null;
+  let m: RegExpExecArray | null;
+  let n = 0;
+  while (n < MAX_ANCHORS && (m = re.exec(html)) !== null) {
+    n++;
+    const raw = m[1] ?? m[2] ?? m[3];
+    if (raw === undefined) continue;
+    const url = cleanLinkUrl(raw, base, appOrigin, allowHosts);
+    if (!url || skipSites.has(siteOf(new URL(url).hostname)) || isNoiseLink(url)) continue;
+    if (preferImg && /^\s*<img\b/i.test(html.slice(re.lastIndex, re.lastIndex + 200))) return url;
+    first ??= url;
+  }
+  return first;
+}
+
+const siteSet = (urls: readonly string[]): Set<string> | null => {
+  const out = new Set<string>();
+  for (const u of urls) {
+    try {
+      out.add(siteOf(new URL(u).hostname));
+    } catch {
+      return null;
+    }
+  }
+  return out;
+};
+
 /**
  * The entry's primary outbound link (TID-072): the first `<a href>` in the feed's content or
  * description that points to a different site than the entry link, preferring one that wraps an
- * `<img>` (Techmeme wraps its thumbnail in a link to the source story). Bounded: it reads at most
+ * `<img>` (Techmeme wraps its thumbnail in a link to the source story). Share, social and tracking
+ * links and the entry's own site (with its subdomains) are ignored. Bounded: it reads at most
  * 16 KB and 60 anchors. The result is a canonical public http(s) URL or null; the fetch re-checks it.
  */
 export function primaryOutboundLink(
@@ -255,28 +344,52 @@ export function primaryOutboundLink(
   allowHosts: readonly string[] = [],
 ): string | null {
   if (!contentHtml) return null;
-  let entrySite: string;
-  try {
-    entrySite = siteOf(new URL(entryUrl).hostname);
-  } catch {
-    return null;
-  }
+  const skip = siteSet([entryUrl]);
+  if (!skip) return null;
   const html = contentHtml.length > SCAN_CHARS ? contentHtml.slice(0, SCAN_CHARS) : contentHtml;
-  const re = /<a\b[^>]*?\bhref\s*=\s*(?:"([^"]*)"|'([^']*)'|([^\s>]+))[^>]*>/gi;
-  let first: string | null = null;
-  let m: RegExpExecArray | null;
-  let n = 0;
-  while (n < MAX_ANCHORS && (m = re.exec(html)) !== null) {
-    n++;
-    const raw = m[1] ?? m[2] ?? m[3];
-    if (raw === undefined) continue;
-    const url = cleanLinkUrl(raw, entryUrl, appOrigin, allowHosts);
-    if (!url || siteOf(new URL(url).hostname) === entrySite) continue;
-    const wrapsImg = /^\s*<img\b/i.test(html.slice(re.lastIndex, re.lastIndex + 200));
-    if (wrapsImg) return url;
-    first ??= url;
+  return scanAnchors(html, entryUrl, skip, appOrigin, allowHosts, true);
+}
+
+/** Characters of the article page scanned for its source link, from the start of the story text. */
+const PAGE_SCAN_CHARS = 48 * 1024;
+/** Where the story text starts, most specific first. */
+const BODY_START: readonly RegExp[] = [
+  /<[a-z][a-z0-9]*\b[^>]*\bitemprop\s*=\s*["']?articleBody/i,
+  /<article\b/i,
+  /<[a-z][a-z0-9]*\b[^>]*\b(?:class|id)\s*=\s*["'][^"']*\b(?:article[-_]body|entry[-_]content|post[-_]content|post[-_]body|story[-_]body|story[-_]text|body[-_]text|body)(?![-\w])/i,
+  /<h1\b/i,
+];
+/** Page furniture after the story: links beyond here are navigation, not source. */
+const BODY_END = /<(?:footer|aside|nav)\b|<\/article\b/i;
+
+/**
+ * The primary outbound link of an article page (TID-072b), for entries whose feed content links
+ * nowhere useful (Slashdot: the description has only share links, the source sits in the story text).
+ * Scans from the start of the story text (`itemprop=articleBody`, `<article>`, a common body class,
+ * else the first `<h1>`) for the first external, non-social link, up to the end of the article or the
+ * first footer/aside/nav, and at most 48 KB and 60 anchors: a linear scan of bytes already read.
+ * `pageUrl` is the final URL after redirects; its site and `entryUrl`'s are both "internal".
+ */
+export function pageOutboundLink(
+  html: string,
+  pageUrl: string,
+  entryUrl: string,
+  appOrigin: string,
+  allowHosts: readonly string[] = [],
+): string | null {
+  const skip = siteSet([entryUrl, pageUrl]);
+  if (!skip) return null;
+  const head = html.length > MAX_PAGE_BYTES ? html.slice(0, MAX_PAGE_BYTES) : html;
+  for (const re of BODY_START) {
+    const at = re.exec(head);
+    if (!at) continue;
+    let region = head.slice(at.index, at.index + PAGE_SCAN_CHARS);
+    const end = BODY_END.exec(region.slice(1));
+    if (end) region = region.slice(0, end.index + 1);
+    const link = scanAnchors(region, pageUrl, skip, appOrigin, allowHosts, false);
+    if (link) return link;
   }
-  return first;
+  return null;
 }
 
 function cleanLinkUrl(

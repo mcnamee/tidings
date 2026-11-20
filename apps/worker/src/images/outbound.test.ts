@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { extractPreview, primaryOutboundLink } from './extract';
+import { extractPreview, isNoiseLink, pageOutboundLink, primaryOutboundLink } from './extract';
 
 const APP = 'https://tidings.mcn.am';
 const PAGE = 'https://www.example.com/en/latest/article.1';
@@ -53,5 +53,82 @@ describe('extractPreview (TID-072)', () => {
       width: 640,
       height: 360,
     });
+  });
+});
+
+describe('share and social links (TID-072b)', () => {
+  it.each([
+    'http://twitter.com/home?status=x',
+    'https://x.com/intent/post?text=x',
+    'https://twitter.com/someone/status/1',
+    'http://www.facebook.com/sharer.php?u=https%3A%2F%2Fa.example.com',
+    'https://www.linkedin.com/in/someone/',
+    'https://www.reddit.com/submit?url=x',
+    'https://news.ycombinator.com/submitlink?u=x',
+    'https://www.example.org/share?url=x',
+    'https://www.example.org/a?share=twitter',
+    'https://feeds.feedburner.com/~r/x',
+  ])('treats %s as noise', (u) => expect(isNoiseLink(u)).toBe(true));
+
+  it.each([
+    'https://www.reddit.com/r/news/comments/1/title/',
+    'https://www.nbcnews.com/business/markets/a-rcna1',
+    'https://www.example.org/shared-memories-2026',
+  ])('keeps %s', (u) => expect(isNoiseLink(u)).toBe(false));
+
+  it('primaryOutboundLink skips share links and the entry site, and finds nothing in a share-only description', () => {
+    const entry = 'https://news.slashdot.org/story/1';
+    const shareOnly =
+      '<a href="http://twitter.com/home?status=x"><img src="i.png"></a><a href="http://www.facebook.com/sharer.php?u=x">f</a><a href="https://slashdot.org/x">self</a>';
+    expect(primaryOutboundLink(shareOnly, entry, APP)).toBeNull();
+    expect(
+      primaryOutboundLink(shareOnly + '<a href="https://www.nbcnews.com/a">src</a>', entry, APP),
+    ).toBe('https://www.nbcnews.com/a');
+  });
+});
+
+describe('pageOutboundLink (TID-072b)', () => {
+  const ENTRY = 'https://news.slashdot.org/story/1';
+  const find = (html: string) => pageOutboundLink(html, ENTRY, ENTRY, APP);
+
+  it('takes the first external, non-social link inside the article, ignoring nav, byline and own site', () => {
+    const html =
+      '<nav><a href="https://nav.example.com/">n</a></nav><article><a href="https://www.linkedin.com/in/x">by</a><a href="https://tech.slashdot.org/a">s</a><p>text <a href="https://www.reuters.com/a">src</a> <a href="https://b.example.org/">b</a></p></article><footer><a href="https://foot.example.com/">f</a></footer>';
+    expect(find(html)).toBe('https://www.reuters.com/a');
+  });
+
+  it('prefers itemprop=articleBody over a wider article', () => {
+    const html =
+      '<article><a href="https://author.example.com/">a</a><div itemprop="articleBody"><a href="https://src.example.org/s">s</a></div></article>';
+    expect(find(html)).toBe('https://src.example.org/s');
+  });
+
+  it('does not run on into the footer or aside, and falls back to after the h1', () => {
+    expect(
+      find('<article><p>none</p></article><a href="https://after.example.com/">x</a>'),
+    ).toBeNull();
+    expect(
+      find(
+        '<nav><a href="https://nav.example.com/">n</a></nav><h1>T</h1><p><a href="https://src.example.org/">s</a></p><footer><a href="https://f.example.com/">f</a></footer>',
+      ),
+    ).toBe('https://src.example.org/');
+    expect(
+      find('<div class="body-wrapper"><a href="https://x.example.org/">x</a></div>'),
+    ).toBeNull();
+  });
+
+  it('skips private, credentialed and non-http links, and the final (redirected) site', () => {
+    const html =
+      '<article><a href="http://10.0.0.1/">p</a><a href="https://u:p@e.example.com/">c</a><a href="ftp://f.example.com/">f</a><a href="https://moved.example.net/x">m</a><a href="https://ok.example.org/">ok</a></article>';
+    expect(pageOutboundLink(html, 'https://moved.example.net/s', ENTRY, APP)).toBe(
+      'https://ok.example.org/',
+    );
+  });
+
+  it('is bounded and fast on a 128 KB page of anchors', () => {
+    const html = '<article>' + '<a href="https://self.slashdot.org/x">s</a>'.repeat(3000);
+    const t = performance.now();
+    expect(find(html)).toBeNull();
+    expect(performance.now() - t).toBeLessThan(50);
   });
 });

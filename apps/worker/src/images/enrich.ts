@@ -7,7 +7,13 @@
  */
 import { Db, sql, type Meta, type Statement } from '../db';
 import { safeFetch, type FetchFn } from '../fetch';
-import { extractPreview, MAX_PAGE_BYTES, primaryOutboundLink, type PreviewImage } from './extract';
+import {
+  extractPreview,
+  MAX_PAGE_BYTES,
+  pageOutboundLink,
+  primaryOutboundLink,
+  type PreviewImage,
+} from './extract';
 import { judgeImage, upgradeToHttps } from './weak';
 
 /**
@@ -79,7 +85,15 @@ const hostOf = (url: string): string | null => {
   }
 };
 
-async function previewOf(deps: EnrichDeps, url: string): Promise<PreviewImage | null> {
+interface Page {
+  image: PreviewImage | null;
+  /** The decoded bytes read (at most 128 KB) and the final URL, kept to look for a source link. */
+  html: string | null;
+  url: string;
+}
+
+async function pageOf(deps: EnrichDeps, url: string): Promise<Page> {
+  const none: Page = { image: null, html: null, url };
   try {
     const res = await safeFetch(url, {
       fetch: deps.fetch,
@@ -91,13 +105,17 @@ async function previewOf(deps: EnrichDeps, url: string): Promise<PreviewImage | 
       timeoutMs: PAGE_TIMEOUT_MS,
       accept: HTML_ACCEPT,
     });
-    if (res.kind !== 'ok') return null;
+    if (res.kind !== 'ok') return none;
     const type = res.headers.get('Content-Type');
-    if (type && !/html/i.test(type)) return null;
+    if (type && !/html/i.test(type)) return none;
     const html = new TextDecoder('utf-8').decode(res.body);
-    return extractPreview(html, res.url, deps.appOrigin, deps.allowHosts ?? []);
+    return {
+      image: extractPreview(html, res.url, deps.appOrigin, deps.allowHosts ?? []),
+      html,
+      url: res.url,
+    };
   } catch {
-    return null;
+    return none;
   }
 }
 
@@ -185,17 +203,25 @@ export async function runEnrichImages(deps: EnrichDeps): Promise<EnrichSummary> 
     };
 
     out.fetched++;
-    const good = consider(await previewOf(deps, url));
+    const article = await pageOf(deps, url);
+    const good = consider(article.image);
     if (good) return { kind: 'set', image: good };
 
-    const link = primaryOutboundLink(r.content, url, deps.appOrigin, deps.allowHosts ?? []);
+    // The feed's own links first; when they give nothing (Slashdot: share links only), the first
+    // external link in the story text of the page we already read (no extra fetch).
+    const allow = deps.allowHosts ?? [];
+    const link =
+      primaryOutboundLink(r.content, url, deps.appOrigin, allow) ??
+      (article.html
+        ? pageOutboundLink(article.html, article.url, url, deps.appOrigin, allow)
+        : null);
     if (link) {
       const c = claim(link);
       if (c === 'budget') return { kind: 'defer' };
       if (c === 'ok') {
         out.fetched++;
         out.fallbackFetched++;
-        const viaLink = consider(await previewOf(deps, link));
+        const viaLink = consider((await pageOf(deps, link)).image);
         if (viaLink) return { kind: 'set', image: viaLink };
       }
     }
