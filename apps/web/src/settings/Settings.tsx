@@ -1,3 +1,4 @@
+import { isStandalone } from '../lib/useSwipe';
 import { useEffect, useId, useState, type FormEvent } from 'react';
 import { Link } from 'react-router';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
@@ -368,7 +369,7 @@ export function Settings() {
           Data
         </h2>
         <div className="mt-2 flex flex-col gap-2 sm:flex-row">
-          <Link to="/manage/import" className={BUTTON}>
+          <Link to="/manage/import" replace={isStandalone()} className={BUTTON}>
             Import OPML
           </Link>
           {EXPORT_OPML_AVAILABLE && (

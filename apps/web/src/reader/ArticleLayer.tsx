@@ -12,13 +12,8 @@ import { createPortal } from 'react-dom';
 import { useLocation, useNavigate, useNavigationType } from 'react-router';
 import { ArrowLeft } from 'lucide-react';
 import { DESKTOP_QUERY, useMediaQuery } from '../lib/hooks';
-import {
-  IOS_EDGE_PX,
-  isStandalone,
-  prefersReducedMotion,
-  settleTo,
-  useSwipe,
-} from '../lib/useSwipe';
+import { isListOpen, parentListPath } from '../lib/articleNav';
+import { isStandalone, prefersReducedMotion, settleTo, useSwipe } from '../lib/useSwipe';
 import { OfflineBanner } from '../shell/OfflineBanner';
 import { LayerContext, ShellSlotsContext, useChromeInsets } from '../shell/slots';
 import { findRoute } from '../routes/table';
@@ -103,14 +98,21 @@ export function ArticleLayer({
 
   // 'default' is the key of the first entry in a tab: nothing of the app's own to go back to.
   const hasAppHistory = location.key !== 'default';
+  const standalone = useMemo(isStandalone, []);
   const navigateBack = () => {
-    if (hasAppHistory) navigate(-1);
+    // TID-070: the installed app keeps no history of its own (iOS's swipe-back would animate it
+    // with a blank snapshot), so going back replaces the article with its list.
+    if (standalone) {
+      navigate(
+        { pathname: route.parent ?? parentListPath(location.pathname), search: location.search },
+        { replace: true },
+      );
+    } else if (hasAppHistory) navigate(-1);
     else navigate(route.parent ?? '/all');
   };
 
   const layerRef = useRef<HTMLDivElement>(null);
   const scrimRef = useRef<HTMLDivElement>(null);
-  const standalone = useMemo(isStandalone, []);
   useChromeInsets(layerRef, headerFrame, bottomBarEl, true);
   const width = () => window.innerWidth;
   /** The content, the header frame and the bar frame move as one (see above). */
@@ -184,9 +186,9 @@ export function ArticleLayer({
     timers.current.push(settleTo(layerRef.current, moved, done, SLIDE_MS, SLIDE_EASE));
   };
 
-  // Opened by a tap (PUSH): slide in from the right while the list shifts left and the scrim fades in.
+  // Opened by a tap (PUSH, or REPLACE in the installed app): slide in from the right while the list shifts left and the scrim fades in.
   useLayoutEffect(() => {
-    if (!root || navType !== 'PUSH' || !canSlide()) return;
+    if (!root || !isListOpen(navType, location.state) || !canSlide()) return;
     sliding.current = 'in';
     slide(1, 0, () => {
       sliding.current = null;
@@ -205,8 +207,8 @@ export function ArticleLayer({
     // Below lg the document scrolls the article: the next one starts at the top.
     if (!isDesktop) window.scrollTo(0, 0);
     const el = main.current;
-    if (!el || navType !== 'REPLACE' || !canSlide()) return;
-    const dir = (location.state as StepState | null)?.step ?? 1;
+    const dir = (location.state as StepState | null)?.step;
+    if (!el || navType !== 'REPLACE' || dir === undefined || !canSlide()) return;
     el.style.transition = '';
     el.style.transform = `translateX(${dir * STEP_PX}px)`;
     el.style.opacity = '0';
@@ -232,7 +234,6 @@ export function ArticleLayer({
   useSwipe({
     enabled: standalone && !isDesktop && !!root,
     direction: 'right',
-    avoidEdgePx: IOS_EDGE_PX,
     // Wide code blocks and tables scroll sideways; a swipe there is theirs.
     ignoreWithin: 'pre, table',
     extent: width,

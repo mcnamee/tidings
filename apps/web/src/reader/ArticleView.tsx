@@ -10,6 +10,7 @@ import { useQueryClient } from '@tanstack/react-query';
 import { ChevronLeft, ChevronRight, ExternalLink, Loader2 } from 'lucide-react';
 import type { Entry, EntryListState, EntrySummary } from '@tidings/shared';
 import { ApiRequestError } from '../api';
+import { isUserOpen, stepState } from '../lib/articleNav';
 import { clickThrough, sendEngagement } from '../lib/engagement';
 import { useEntries, useEntry } from '../lib/queries';
 import { setEntryRead } from '../lib/readState';
@@ -18,7 +19,7 @@ import { effectiveSort, markReadOnOpen, unreadOnlyDefault } from '../lib/setting
 import { toast } from '../lib/toast';
 import { BottomBar, HeaderActions } from '../shell/slots';
 import { ArticleContent } from './ArticleContent';
-import { ArticleLayer, type StepState } from './ArticleLayer';
+import { ArticleLayer } from './ArticleLayer';
 
 const BAR_BUTTON =
   'inline-flex min-h-11 items-center justify-center gap-1 rounded-md px-2 text-base font-medium text-fg active:bg-sunken disabled:text-fg-muted';
@@ -73,9 +74,12 @@ export function ArticleRoute() {
   const session = useSession();
   const navigate = useNavigate();
   const { view, id, base } = listContext(pathname, params);
-  // TID-066: a tap from a list (PUSH) or Previous / Next (REPLACE) is the user opening an article.
-  // A direct link, reload or history Back/Forward (POP) is not, so it earns no signal.
-  const userOpened = useNavigationType() !== 'POP';
+  // TID-066/070: a tap from a list or Previous / Next is the user opening an article, marked in the
+  // navigation state (the installed app replaces instead of pushing). A direct link, reload or
+  // history Back/Forward is not, so it earns no signal.
+  const navType = useNavigationType();
+  const { state: locState } = useLocation();
+  const userOpened = isUserOpen(navType, locState);
 
   const asParam = search.get('state');
   const state: EntryListState =
@@ -99,7 +103,7 @@ export function ArticleRoute() {
   const go = (to: EntrySummary, step: -1 | 1) =>
     navigate(`${base}/a/${to.id}?state=${state}`, {
       replace: true,
-      state: { step } satisfies StepState,
+      state: stepState(step),
     });
 
   async function step(dir: -1 | 1) {
