@@ -165,7 +165,7 @@ export async function runEnrichImages(deps: EnrichDeps): Promise<EnrichSummary> 
   const drop: number[] = [];
   const work: Row[] = [];
   for (const r of rows) {
-    if (!r.url || !hostOf(r.url) || r.unread === 0 || r.fetched_at < now - MAX_AGE_SECONDS) {
+    if (!r.url || !hostOf(r.url) || r.fetched_at < now - MAX_AGE_SECONDS) {
       drop.push(r.entry_id);
     } else work.push(r);
   }

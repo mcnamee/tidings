@@ -169,15 +169,21 @@ describe('enrichment', () => {
     for (const id of [miss, err, slow, pdf]) expect(await imageOf(id)).toBeNull();
   });
 
-  it('does not touch entries that have no url, are read, or are too old', async () => {
+  it('does not touch entries that have no url or are too old', async () => {
     const noUrl = await entry({ url: null });
-    const read = await entry({ read: true });
     const old = await entry({ fetchedAt: NOW - MAX_AGE_SECONDS - 10 });
     const out = await runEnrichImages(deps());
-    expect(out).toMatchObject({ fetched: 0, skipped: 3 });
+    expect(out).toMatchObject({ fetched: 0, skipped: 2 });
     expect(fake.calls).toHaveLength(0);
-    for (const id of [noUrl, read, old]) expect(await imageOf(id)).toBeNull();
+    for (const id of [noUrl, old]) expect(await imageOf(id)).toBeNull();
     expect(await queued()).toBe(0);
+  });
+
+  it('enriches read entries too (they still show in All and Starred)', async () => {
+    const read = await entry({ read: true });
+    fake.route(await urlOf(read), page(html('https://cdn.example.com/read.jpg')));
+    await runEnrichImages(deps());
+    expect(await imageOf(read)).toBe('https://cdn.example.com/read.jpg');
   });
 
   it('never overwrites an image that arrived between the read and the write', async () => {

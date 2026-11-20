@@ -17,6 +17,9 @@ import {
 } from './text';
 import type { FeedFormat, ParsedFeed, ParsedItem, ParseOptions, ParseResult } from './types';
 
+/** media:content URLs that are clearly not pictures. */
+const NON_IMAGE_EXT = /\.(?:mp3|mp4|m4a|m4v|mov|webm|ogg|oga|ogv|wav|aac|pdf|m3u8)$/i;
+
 type Field =
   | 'title'
   | 'link'
@@ -395,10 +398,17 @@ function parseFeedUnsafe(input: string, options: ParseOptions): ParseResult {
         }
         if (name === 'media:content') {
           const type = (attribs['type'] ?? '').toLowerCase();
-          if (attribs['medium'] === 'image' || type.startsWith('image/')) {
-            if (it.mediaImage === null && attribs['url']) {
-              it.mediaImage = attribs['url'];
-              it.mediaSize = declared(attribs);
+          const medium = (attribs['medium'] ?? '').toLowerCase();
+          const url = attribs['url'];
+          // Some feeds (the Guardian) give no type or medium: take it unless it names a non-image file.
+          const untyped =
+            !type && !medium && !!url && !NON_IMAGE_EXT.test(url.split(/[?#]/)[0] ?? '');
+          if (url && (medium === 'image' || type.startsWith('image/') || untyped)) {
+            const size = declared(attribs);
+            // Several renditions (the Guardian sends 140 and 460 wide): keep the widest.
+            if (it.mediaImage === null || (size.width ?? 0) > (it.mediaSize.width ?? 0)) {
+              it.mediaImage = url;
+              it.mediaSize = size;
             }
           }
           return;

@@ -38,6 +38,19 @@ describe('itunes:image (AC17)', () => {
     );
   });
 
+  it('takes untyped media:content (the Guardian) and keeps the widest rendition, but not media files', () => {
+    const g = (w: number) =>
+      `<media:content width="${w}" url="https://i.guim.co.uk/img/media/abc/master/1.jpg?width=${w}&amp;s=x"><media:credit>Photo</media:credit></media:content>`;
+    const item = parseItem(rss(`<item><guid>g</guid>${g(140)}${g(460)}</item>`));
+    expect(item.imageUrl).toBe('https://i.guim.co.uk/img/media/abc/master/1.jpg?width=460&s=x');
+    expect(item.imageWidth).toBe(460);
+    expect(
+      parseItem(
+        rss('<item><guid>g</guid><media:content url="https://cdn.example.test/ep.mp3"/></item>'),
+      ).imageUrl,
+    ).toBeNull();
+  });
+
   it('is not taken from channel-level art, and a non-http(s) href is ignored', () => {
     const ch = `<rss version="2.0" ${NS}><channel><title>T</title><itunes:image href="https://cdn.example.test/chan.jpg"/><item><guid>g</guid></item></channel></rss>`;
     expect(parseItem(ch).imageUrl).toBeNull();

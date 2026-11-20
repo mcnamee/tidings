@@ -51,3 +51,9 @@ Production finding: Slashdot entries lost their junk image but got none, because
 - **A persisted flag for small images:** schema change and an API field for what the browser learns for free on load; rejected.
 - **Upgrading every `http:` image:** breaks hosts without https (broken image); rejected for the short known list.
 - **Following every link of an entry:** unbounded; rejected for the single primary link.
+
+## Amendment (2026-11-20): read entries, untyped media:content
+
+- The image step now enriches read entries as well as unread ones (they still show in All, Starred and folders). The 12-per-run and 600-per-day caps are unchanged, so the cost ceiling is the same.
+- Migration 0012 is a one-time backfill of up to 500 entries from the last 3 days, read or unread, with no image, a plain-http image or a weak-looking URL.
+- The feed parser takes `media:content` with no `type` or `medium` (the Guardian) unless the URL names a media file, and keeps the widest rendition when several are given.
