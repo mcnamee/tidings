@@ -18,6 +18,7 @@ import { handleScheduled } from '../src/refresh';
 import { refreshFeed } from '../src/refresh';
 import migration from '../migrations/0009_image_queue.sql?raw';
 import migration10 from '../migrations/0010_weak_image_backfill.sql?raw';
+import migration11 from '../migrations/0011_weak_image_backfill_http.sql?raw';
 import {
   count,
   createFixture,
@@ -272,6 +273,81 @@ describe('weak images and the outbound link (TID-072, ADR 0020)', () => {
     expect(await imageOf(id)).toBe('https://www.reuters.com/r.jpg');
   });
 
+  // Slashdot shape (TID-072b): the feed description has only share links; the source link is in the
+  // story text of the page, well past the first 16 KB, after a topic icon, a byline link on a
+  // social site and links to the site itself.
+  const SD_DESC =
+    '<p>Stocks fell. NBC News reports: x</p><div class="share_submission">' +
+    '<a class="slashpop" href="http://twitter.com/home?status=Title+https%3A%2F%2Fnews.slashdot.org%2Fstory%2F1"><img src="https://a.fsdn.com/sd/twitter_icon_large.png"></a>' +
+    '<a class="slashpop" href="http://www.facebook.com/sharer.php?u=https%3A%2F%2Fnews.slashdot.org%2Fstory%2F1"><img src="https://a.fsdn.com/sd/facebook_icon_large.png"></a></div>' +
+    '<p><a href="https://news.slashdot.org/story/26/11/20/1934244/x?utm_source=rss1.0moreanon">Read more of this story</a> at Slashdot.</p>';
+  const SD_URL = 'https://news.slashdot.org/story/26/11/20/1934244/x';
+  const sdPage = (bodyLinks: string, pad = 30_000) =>
+    '<!doctype html><html><head><title>t</title><meta property="og:image" content="https://a.fsdn.com/sd/topics/money_64.png"></head><body>' +
+    `<nav><a href="https://www.example-nav.com/">nav</a></nav><!-- ${'x'.repeat(pad)} -->` +
+    '<article class="fhitem"><header><span class="topic"><a href="//news.slashdot.org/index2.pl?fhfilter=money"><img src="//a.fsdn.com/sd/topics/money_64.png" width="64" height="64"></a></span>' +
+    '<h1 class="story"><a href="//news.slashdot.org/story/1">Title</a></h1>' +
+    '<span class="story-byline">by <a href="https://www.linkedin.com/in/beauhd/">BeauHD</a></span></header>' +
+    `<div class="body" id="fhbody-1"><div id="text-1" class="p">Stocks fell ${bodyLinks}</div></div></article>` +
+    '<footer><a href="https://www.example-footer.com/">f</a></footer></body></html>';
+
+  it('Slashdot: share links in the feed are ignored; the source link comes from the story page body', async () => {
+    const id = await entry({
+      url: SD_URL,
+      image: 'https://a.fsdn.com/sd/twitter_icon_large.png',
+      content: SD_DESC,
+    });
+    fake.route(
+      SD_URL,
+      page(
+        sdPage(
+          '<a href="https://www.nbcnews.com/business/markets/anthropic-rcna610394">plunged</a> and <a href="https://slashdot.org/story/26/11/19/1/ipo">record IPO</a>',
+        ),
+      ),
+    );
+    fake.route(
+      'https://www.nbcnews.com/business/markets/anthropic-rcna610394',
+      page(og('https://media-cldnry.s-nbcnews.com/image/upload/a.jpg', 1200, 675)),
+    );
+    const out = await runEnrichImages(deps());
+    expect(out).toMatchObject({ fetched: 2, fallbackFetched: 1, found: 1 });
+    expect(await imageOf(id)).toBe('https://media-cldnry.s-nbcnews.com/image/upload/a.jpg');
+    // Only the story page and the source were requested: no share, social, nav or footer link.
+    expect(fake.calls.map((c) => new URL(c.url).host).sort()).toEqual([
+      'news.slashdot.org',
+      'www.nbcnews.com',
+    ]);
+    expect(await queued()).toBe(0);
+  });
+
+  it('never follows share or social links, from the feed or from the page, and clears the junk image', async () => {
+    const id = await entry({
+      url: SD_URL,
+      image: 'https://a.fsdn.com/sd/twitter_icon_large.png',
+      content: SD_DESC,
+    });
+    fake.route(
+      SD_URL,
+      page(
+        sdPage(
+          '<a href="https://twitter.com/intent/tweet?url=x">t</a><a href="https://www.facebook.com/sharer.php?u=x">f</a><a href="https://www.reddit.com/submit?url=x">r</a><a href="mailto:a@b.c">m</a>',
+        ),
+      ),
+    );
+    const out = await runEnrichImages(deps());
+    expect(out).toMatchObject({ fetched: 1, fallbackFetched: 0, missed: 1 });
+    expect(fake.calls).toHaveLength(1);
+    expect(await imageOf(id)).toBeNull();
+  });
+
+  it('a story page with a source link beyond the first 16 KB of body text still works, within 128 KB', async () => {
+    const id = await entry({ url: SD_URL, content: SD_DESC });
+    fake.route(SD_URL, page(sdPage('<a href="https://www.nbcnews.com/late">late</a>', 100_000)));
+    fake.route('https://www.nbcnews.com/late', page(og('https://cdn.nbc.example/l.jpg', 800, 400)));
+    await runEnrichImages(deps());
+    expect(await imageOf(id)).toBe('https://cdn.nbc.example/l.jpg');
+  });
+
   it('stores a good article-page image without a second fetch', async () => {
     const id = await entry({ image: 'https://x.example.com/i_64.jpg', content: SLASHDOT });
     fake.route(await urlOf(id), page(og('https://cdn.example.com/good.jpg', 1000, 500)));
@@ -494,6 +570,79 @@ describe('migration 0010 on a populated database', () => {
     for (const s of statements) await db.run(sql(s));
     expect(await count('image_queue')).toBe(300);
     expect(await count('image_queue', 'entry_id < 20020')).toBe(0);
+  });
+});
+
+describe('migration 0011 on a populated database', () => {
+  const statements = migration11
+    .split('\n')
+    .filter((l) => !l.trim().startsWith('--'))
+    .join('\n')
+    .split(/;\s*\n/)
+    .map((s) => s.trim())
+    .filter(Boolean);
+
+  it('queues recent unread entries with an http: image or a weak URL that are not queued, and nothing else', async () => {
+    const nowS = Math.floor(Date.now() / 1000);
+    const techmeme = await entry({
+      queued: false,
+      fetchedAt: nowS - 60,
+      image: 'http://www.techmeme.com/261120/i28.jpg',
+    });
+    const icon = await entry({
+      queued: false,
+      fetchedAt: nowS - 60,
+      image: 'https://a.fsdn.com/sd/twitter_icon_large.png',
+    });
+    const already = await entry({ fetchedAt: nowS - 60, image: 'http://x.example.com/a.jpg' });
+    await entry({ queued: false, fetchedAt: nowS - 60, image: 'https://cdn.example.com/a.jpg' });
+    await entry({ queued: false, fetchedAt: nowS - 60 });
+    await entry({ queued: false, fetchedAt: nowS - 4 * DAY, image: 'http://x.example.com/o.jpg' });
+    await entry({
+      queued: false,
+      fetchedAt: nowS - 60,
+      read: true,
+      image: 'http://x.example.com/r.jpg',
+    });
+    const before = await count('entries');
+    for (const s of statements) await db.run(sql(s));
+    const rows = (
+      await db.all<{ entry_id: number }>(sql('SELECT entry_id FROM image_queue ORDER BY entry_id'))
+    ).rows;
+    expect(rows.map((r) => r.entry_id)).toEqual([techmeme, icon, already]);
+    expect(await count('entries')).toBe(before);
+    // Running it again adds nothing.
+    for (const s of statements) await db.run(sql(s));
+    expect(await count('image_queue')).toBe(3);
+  });
+
+  it('caps the backfill at 300 rows, newest first', async () => {
+    const nowS = Math.floor(Date.now() / 1000);
+    const stmts: ReturnType<typeof sql>[] = [];
+    for (let i = 0; i < 320; i++) {
+      stmts.push(
+        sql(
+          `INSERT INTO entries (id, feed_id, guid_hash, url, title, image_url, published_at, fetched_at)
+           VALUES (?, ?, ?, ?, 't', 'http://x.example.com/img/p.jpg', ?, ?)`,
+          30_000 + i,
+          feedId,
+          `v${i}`,
+          `https://bulk.example.com/${i}`,
+          nowS,
+          nowS,
+        ),
+        sql(
+          `INSERT INTO user_entries (user_id, entry_id, feed_id, published_at, is_read) VALUES ('u1', ?, ?, ?, 0)`,
+          30_000 + i,
+          feedId,
+          nowS,
+        ),
+      );
+    }
+    for (let i = 0; i < stmts.length; i += 100) await db.batch(stmts.slice(i, i + 100));
+    for (const s of statements) await db.run(sql(s));
+    expect(await count('image_queue')).toBe(300);
+    expect(await count('image_queue', 'entry_id < 30020')).toBe(0);
   });
 });
 
