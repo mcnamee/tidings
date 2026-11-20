@@ -378,7 +378,13 @@ describe('weak images at refresh (TID-072)', () => {
           item('d', thumb('https://cdn.example.com/share.jpg')) +
           item('e', thumb('http://www.techmeme.com/261120/i32.jpg', 100)) +
           item('f', thumb('https://cdn.example.com/big.jpg', 800)) +
-          item('g', ''),
+          item('g', '') +
+          // The live Techmeme feed: no width/height, plain http.
+          item(
+            'h',
+            '<description><![CDATA[<a href="https://www.bloomberg.com/x"><img src="http://www.techmeme.com/261120/i33.jpg"></a>]]></description>',
+          ) +
+          item('i', thumb('https://cdn.example.com/unsized.jpg')),
       ),
     );
     await refreshFeed(await jobFor(id), f.deps);
@@ -390,6 +396,8 @@ describe('weak images at refresh (TID-072)', () => {
       { title: 'e', image_url: 'https://www.techmeme.com/261120/i32.jpg', q: 1 },
       { title: 'f', image_url: 'https://cdn.example.com/big.jpg', q: 0 },
       { title: 'g', image_url: null, q: 1 },
+      { title: 'h', image_url: 'https://www.techmeme.com/261120/i33.jpg', q: 1 },
+      { title: 'i', image_url: 'https://cdn.example.com/unsized.jpg', q: 0 },
     ]);
   });
 

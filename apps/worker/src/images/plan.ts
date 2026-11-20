@@ -80,7 +80,12 @@ export async function planImages(
     else {
       plan.set(c.hash, {
         image: upgradeToHttps(imageUrl, link),
-        needsImage: verdict === 'small' && queueable,
+        // An image of unknown size on plain http is usually an aggregator's thumbnail (Techmeme's
+        // feed <IMG> has no width/height): keep it, but look for a better one.
+        needsImage:
+          queueable &&
+          (verdict === 'small' ||
+            (imageUrl.startsWith('http:') && !c.item.imageWidth && !c.item.imageHeight)),
       });
     }
   }
