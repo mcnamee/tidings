@@ -27,6 +27,7 @@ import { usePullToRefresh } from '../lib/usePullToRefresh';
 import { SHEET_BUTTON, Sheet } from '../manage/Sheet';
 import { BottomBar, HeaderActions } from '../shell/slots';
 import { ArticleRow, LIST_GRID } from './ArticleRow';
+import { CaughtUpArt } from './CaughtUpArt';
 
 const COUNT_FORMAT = new Intl.NumberFormat('en-US');
 const formatCount = (n: number) => COUNT_FORMAT.format(n);
@@ -34,9 +35,19 @@ const formatCount = (n: number) => COUNT_FORMAT.format(n);
 const BUTTON =
   'inline-flex min-h-11 items-center justify-center gap-2 rounded-md border border-line-strong bg-surface px-4 text-base font-medium text-fg active:bg-sunken';
 
-function State({ title, children }: { title: string; children?: ReactNode }) {
+function State({
+  title,
+  art = false,
+  children,
+}: {
+  title: string;
+  /** A random spot illustration above the title (TID-073). */
+  art?: boolean;
+  children?: ReactNode;
+}) {
   return (
     <div className="px-2 py-10 text-center">
+      {art && <CaughtUpArt />}
       <h2 className="text-lg font-semibold text-fg">{title}</h2>
       <div className="mt-2 flex flex-col items-center gap-2 text-base text-fg-muted">
         {children}
@@ -131,7 +142,7 @@ function Empty({
   }
   if (state === 'unread') {
     return (
-      <State title="All caught up">
+      <State title="All caught up" art>
         <p>No unread articles here.</p>
         <button type="button" onClick={onShowAll} className={BUTTON}>
           Show all articles
@@ -140,7 +151,7 @@ function Empty({
     );
   }
   return (
-    <State title={view === 'feed' ? 'No articles yet' : 'Nothing here yet'}>
+    <State title={view === 'feed' ? 'No articles yet' : 'Nothing here yet'} art>
       <p>
         {view === 'feed' ? 'This feed has no articles.' : 'There are no articles in this view.'}
       </p>

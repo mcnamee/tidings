@@ -5,6 +5,7 @@ import { MemoryRouter, useLocation, useNavigate } from 'react-router';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { Counts, EntrySummary, Subscription } from '@tidings/shared';
 import { App } from '../App';
+import { CAUGHT_UP_ART, caughtUpSrc } from './CaughtUpArt';
 import { reportReachable } from '../lib/connectivity';
 import { SESSION_KEY } from '../lib/session';
 import { installFakeApi, type FakeApi } from '../test-api';
@@ -403,6 +404,22 @@ describe('AC7: empty states', () => {
     expect(await screen.findByText('All caught up')).toBeInTheDocument();
     await userEvent.click(screen.getByRole('button', { name: 'Show all articles' }));
     expect(await screen.findByText('Title 5')).toBeInTheDocument();
+  });
+
+  it('"All caught up" shows one illustration from the set (TID-073)', async () => {
+    api.set(ENTRIES('all', 'unread'), page([]));
+    renderApp('/all');
+    await screen.findByText('All caught up');
+    const art = screen.getByTestId('caught-up-art');
+    const name = art.getAttribute('data-art')!;
+    expect(CAUGHT_UP_ART).toContain(name);
+    const imgs = [...art.querySelectorAll('img')];
+    expect(imgs.map((i) => i.getAttribute('src'))).toEqual([
+      caughtUpSrc(name, 'light'),
+      caughtUpSrc(name, 'dark'),
+    ]);
+    // decorative: empty alt, so screen readers skip it
+    imgs.forEach((i) => expect(i).toHaveAttribute('alt', ''));
   });
 
   it('a feed that was never fetched', async () => {
