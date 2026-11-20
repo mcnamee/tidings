@@ -175,13 +175,28 @@ export function plainField(raw: string): string {
   return htmlToText(trimmed, 4096);
 }
 
-/** First `<img src>` in the first 8 KB of content, raw (caller validates the URL). */
-export function firstImgSrc(html: string): string | null {
+/**
+ * First `<img>` in the first 8 KB of content: its raw `src` (caller validates the URL) and the
+ * declared `width`/`height` attributes when they are plain integers (TID-072).
+ */
+export function firstImg(
+  html: string,
+): { src: string; width: number | null; height: number | null } | null {
   const window = html.length > IMAGE_SCAN_CHARS ? html.slice(0, IMAGE_SCAN_CHARS) : html;
-  const m = /<img\b[^>]*?\bsrc\s*=\s*(?:"([^"]*)"|'([^']*)'|([^\s>]+))/i.exec(window);
-  if (!m) return null;
-  const v = m[1] ?? m[2] ?? m[3];
-  return v === undefined ? null : decodeEntities(v);
+  const tag = /<img\b[^>]*>/i.exec(window)?.[0];
+  if (!tag) return null;
+  const attr = (name: string): string | null => {
+    const m = new RegExp(`(?<![\\w-])${name}\\s*=\\s*(?:"([^"]*)"|'([^']*)'|([^\\s>]+))`, 'i').exec(
+      tag,
+    );
+    const v = m ? (m[1] ?? m[2] ?? m[3]) : undefined;
+    return v === undefined ? null : v;
+  };
+  const src = attr('src');
+  if (src === null) return null;
+  const dim = (v: string | null): number | null =>
+    v !== null && /^\s*\d{1,6}\s*$/.test(v) ? Number(v) : null;
+  return { src: decodeEntities(src), width: dim(attr('width')), height: dim(attr('height')) };
 }
 
 export function escapeHtml(text: string): string {

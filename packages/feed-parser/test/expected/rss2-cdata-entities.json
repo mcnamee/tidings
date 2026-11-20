@@ -14,7 +14,9 @@
         "publishedAt": 1794298500,
         "contentHtml": "<p>Full body.</p><p><img src=\"https://rich.example.test/img/a.jpg\" alt=\"inline\"> Smart quotes &ldquo;like this&rdquo;, an em dash &mdash; and a snowman &#9731;.</p>",
         "summary": "Summary with a link.",
-        "imageUrl": "https://rich.example.test/thumbs/a.jpg"
+        "imageUrl": "https://rich.example.test/thumbs/a.jpg",
+        "imageWidth": 320,
+        "imageHeight": 180
       },
       {
         "guidKey": "rich-b",
@@ -25,7 +27,9 @@
         "publishedAt": 1794230100,
         "contentHtml": "<p>Entity-escaped HTML description with &nbsp; and ’apostrophe’.</p>",
         "summary": "Entity-escaped HTML description with and ’apostrophe’.",
-        "imageUrl": "https://rich.example.test/media/b.jpg"
+        "imageUrl": "https://rich.example.test/media/b.jpg",
+        "imageWidth": null,
+        "imageHeight": null
       },
       {
         "guidKey": "rich-c",
@@ -36,7 +40,9 @@
         "publishedAt": 1794125700,
         "contentHtml": "Unicode body.",
         "summary": "Unicode body.",
-        "imageUrl": null
+        "imageUrl": null,
+        "imageWidth": null,
+        "imageHeight": null
       }
     ],
     "stoppedEarly": false

@@ -14,7 +14,9 @@
         "publishedAt": 1794301200,
         "contentHtml": "Description of item three.",
         "summary": "Description of item three.",
-        "imageUrl": null
+        "imageUrl": null,
+        "imageWidth": null,
+        "imageHeight": null
       },
       {
         "guidKey": "rss-example-2",
@@ -25,7 +27,9 @@
         "publishedAt": 1794229200,
         "contentHtml": "Description of item two.",
         "summary": "Description of item two.",
-        "imageUrl": null
+        "imageUrl": null,
+        "imageWidth": null,
+        "imageHeight": null
       },
       {
         "guidKey": "rss-example-1",
@@ -36,7 +40,9 @@
         "publishedAt": 1794096000,
         "contentHtml": "Description of item one.",
         "summary": "Description of item one.",
-        "imageUrl": null
+        "imageUrl": null,
+        "imageWidth": null,
+        "imageHeight": null
       }
     ],
     "stoppedEarly": false

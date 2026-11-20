@@ -17,6 +17,7 @@ import { ImageEnricher } from '../src/images/entrypoint';
 import { handleScheduled } from '../src/refresh';
 import { refreshFeed } from '../src/refresh';
 import migration from '../migrations/0009_image_queue.sql?raw';
+import migration10 from '../migrations/0010_weak_image_backfill.sql?raw';
 import {
   count,
   createFixture,
@@ -62,6 +63,7 @@ interface Seed {
   read?: boolean;
   fetchedAt?: number;
   queued?: boolean;
+  content?: string | null;
 }
 /** An entry linked to u1 (unread unless `read`), queued by default. Returns its id. */
 async function entry(o: Seed = {}): Promise<number> {
@@ -69,12 +71,13 @@ async function entry(o: Seed = {}): Promise<number> {
   const url = o.url === undefined ? `https://site${n}.example.com/a/${n}` : o.url;
   await db.run(
     sql(
-      `INSERT INTO entries (feed_id, guid_hash, url, title, image_url, published_at, fetched_at)
-       VALUES (?, ?, ?, 't', ?, ?, ?)`,
+      `INSERT INTO entries (feed_id, guid_hash, url, title, image_url, content_html, published_at, fetched_at)
+       VALUES (?, ?, ?, 't', ?, ?, ?, ?)`,
       feedId,
       `h${n}`,
       url,
       o.image ?? null,
+      o.content ?? null,
       NOW - 100,
       o.fetchedAt ?? NOW - 100,
     ),
@@ -165,15 +168,13 @@ describe('enrichment', () => {
     for (const id of [miss, err, slow, pdf]) expect(await imageOf(id)).toBeNull();
   });
 
-  it('does not touch entries that already have an image, have no url, are read, or are too old', async () => {
-    const has = await entry({ image: 'https://feed.example.com/own.jpg' });
+  it('does not touch entries that have no url, are read, or are too old', async () => {
     const noUrl = await entry({ url: null });
     const read = await entry({ read: true });
     const old = await entry({ fetchedAt: NOW - MAX_AGE_SECONDS - 10 });
     const out = await runEnrichImages(deps());
-    expect(out).toMatchObject({ fetched: 0, skipped: 4 });
+    expect(out).toMatchObject({ fetched: 0, skipped: 3 });
     expect(fake.calls).toHaveLength(0);
-    expect(await imageOf(has)).toBe('https://feed.example.com/own.jpg');
     for (const id of [noUrl, read, old]) expect(await imageOf(id)).toBeNull();
     expect(await queued()).toBe(0);
   });
@@ -225,6 +226,266 @@ describe('enrichment', () => {
     fake.route('https://www.final.example.com/news/story', page(html('thumb.jpg')));
     await runEnrichImages(deps());
     expect(await imageOf(id)).toBe('https://www.final.example.com/news/thumb.jpg');
+  });
+});
+
+const og = (u: string, w?: number, h?: number) =>
+  html(u).replace(
+    '</head>',
+    `${w ? `<meta property="og:image:width" content="${w}">` : ''}${h ? `<meta property="og:image:height" content="${h}">` : ''}</head>`,
+  );
+
+describe('weak images and the outbound link (TID-072, ADR 0020)', () => {
+  const TECHMEME =
+    '<A HREF="https://www.bloomberg.com/news/articles/x"><IMG SRC="http://www.techmeme.com/261120/i32.jpg" WIDTH="100" HEIGHT="68"></A> <P>Story</P>';
+  const SLASHDOT = '<p>Story text <a href="https://www.reuters.com/world/china/y">source</a></p>';
+
+  it('Techmeme: the permalink page has nothing, so the source article og:image replaces the thumbnail', async () => {
+    const id = await entry({
+      url: 'https://www.techmeme.com/261120/p32',
+      image: 'https://www.techmeme.com/261120/i32.jpg',
+      content: TECHMEME,
+    });
+    fake.route('https://www.techmeme.com/261120/p32', page(html(null)));
+    fake.route(
+      'https://www.bloomberg.com/news/articles/x',
+      page(og('https://assets.bwbx.io/images/x/big.jpg', 1200, 630)),
+    );
+    const out = await runEnrichImages(deps());
+    expect(out).toMatchObject({ fetched: 2, fallbackFetched: 1, found: 1 });
+    expect(await imageOf(id)).toBe('https://assets.bwbx.io/images/x/big.jpg');
+    expect(await queued()).toBe(0);
+  });
+
+  it('Slashdot: a topic icon on the story page is junk, so the source article image is used', async () => {
+    const id = await entry({
+      url: 'https://tech.slashdot.org/story/26/11/20/1/x',
+      image: 'https://a.fsdn.com/sd/twitter_icon_large.png',
+      content: SLASHDOT,
+    });
+    fake.route(
+      'https://tech.slashdot.org/story/26/11/20/1/x',
+      page(html('https://a.fsdn.com/sd/topics/china_64.png')),
+    );
+    fake.route('https://www.reuters.com/world/china/y', page(og('https://www.reuters.com/r.jpg')));
+    await runEnrichImages(deps());
+    expect(await imageOf(id)).toBe('https://www.reuters.com/r.jpg');
+  });
+
+  it('stores a good article-page image without a second fetch', async () => {
+    const id = await entry({ image: 'https://x.example.com/i_64.jpg', content: SLASHDOT });
+    fake.route(await urlOf(id), page(og('https://cdn.example.com/good.jpg', 1000, 500)));
+    const out = await runEnrichImages(deps());
+    expect(out).toMatchObject({ fetched: 1, fallbackFetched: 0 });
+    expect(await imageOf(id)).toBe('https://cdn.example.com/good.jpg');
+  });
+
+  it('keeps a small-but-real image as the fallback when nothing better exists', async () => {
+    const id = await entry({ content: SLASHDOT });
+    fake.route(await urlOf(id), page(og('https://cdn.example.com/s.jpg', 200, 150)));
+    fake.route('https://www.reuters.com/world/china/y', page(html(null)));
+    await runEnrichImages(deps());
+    expect(await imageOf(id)).toBe('https://cdn.example.com/s.jpg');
+  });
+
+  it('never replaces an existing image with a worse one, and keeps a small existing image', async () => {
+    const id = await entry({ image: 'https://feed.example.com/small.jpg', content: SLASHDOT });
+    fake.route(await urlOf(id), page(og('https://cdn.example.com/s.jpg', 200, 150)));
+    fake.route(
+      'https://www.reuters.com/world/china/y',
+      page(html('https://cdn.example.com/icon.png')),
+    );
+    await runEnrichImages(deps());
+    expect(await imageOf(id)).toBe('https://feed.example.com/small.jpg');
+    expect(await queued()).toBe(0);
+  });
+
+  it('clears a junk image when nothing better is found', async () => {
+    const id = await entry({ image: 'https://a.fsdn.com/sd/twitter_icon_large.png' });
+    fake.route(await urlOf(id), page(html(null)));
+    await runEnrichImages(deps());
+    expect(await imageOf(id)).toBeNull();
+    expect(await queued()).toBe(0);
+  });
+
+  it('does not follow a link on the same site, a private address or a non-http link', async () => {
+    const id = await entry({
+      url: 'https://www.example.com/a/1',
+      content:
+        '<a href="https://blog.example.com/x">same site</a><a href="http://127.0.0.1/x">lo</a><a href="javascript:1">js</a>',
+    });
+    fake.route('https://www.example.com/a/1', page(html(null)));
+    const out = await runEnrichImages(deps());
+    expect(out).toMatchObject({ fetched: 1, fallbackFetched: 0, missed: 1 });
+    expect(await imageOf(id)).toBeNull();
+  });
+
+  it('counts both fetches against the host cap and the daily counter', async () => {
+    for (let i = 0; i < 4; i++) await entry({ content: SLASHDOT });
+    fake.route(/site\d+\.example\.com/, page(html(null)));
+    fake.route('https://www.reuters.com/world/china/y', page(og('https://www.reuters.com/r.jpg')));
+    const out = await runEnrichImages(deps());
+    // Reuters is capped at PAGES_PER_HOST fetches a run; the fourth entry is dropped without it.
+    expect(fake.callsTo('https://www.reuters.com/world/china/y')).toHaveLength(PAGES_PER_HOST);
+    expect(out.fetched).toBe(fake.calls.length);
+    const used = await db.first<{ count: number }>(
+      sql("SELECT count FROM rate_limits WHERE key = 'img:pages'"),
+    );
+    expect(used?.count).toBe(fake.calls.length);
+  });
+
+  it('never exceeds the per-run fetch budget when every entry needs the outbound page', async () => {
+    for (let i = 0; i < 20; i++) {
+      await entry({ content: `<a href="https://src${i}.example.org/a"><img src="x"></a>` });
+    }
+    fake.route(/site\d+\.example\.com/, page(html(null)));
+    fake.route(/src\d+\.example\.org/, page(html(null)));
+    const out = await runEnrichImages(deps());
+    expect(fake.calls.length).toBeLessThanOrEqual(PAGES_PER_RUN);
+    expect(out.fetched).toBe(fake.calls.length);
+    expect(PAGES_PER_RUN * (MAX_REDIRECTS + 1) + 4).toBeLessThan(50);
+  });
+});
+
+describe('weak images at refresh (TID-072)', () => {
+  const feed = 'https://feed.example.com/rss.xml';
+  const item = (g: string, extra: string) =>
+    `<item><title>${g}</title><link>https://site.example.com/${g}</link><guid isPermaLink="false">${g}</guid>${extra}</item>`;
+  const feedXml = (items: string) =>
+    `<?xml version="1.0"?><rss version="2.0" xmlns:media="http://search.yahoo.com/mrss/"><channel><title>F</title><link>https://site.example.com/</link>${items}</channel></rss>`;
+  const thumb = (u: string, w?: number) =>
+    `<media:thumbnail url="${u}"${w ? ` width="${w}" height="${w}"` : ''}/>`;
+  const stored = async (id: number) =>
+    (
+      await db.all<{ title: string; image_url: string | null; q: number }>(
+        sql(
+          `SELECT e.title, e.image_url, EXISTS (SELECT 1 FROM image_queue q WHERE q.entry_id = e.id) AS q
+             FROM entries e WHERE e.feed_id = ? ORDER BY e.title`,
+          id,
+        ),
+      )
+    ).rows;
+
+  it('drops icons and a site default used by several entries, keeps small images, queues them all', async () => {
+    const f = createFixture();
+    const id = await seedFeed({ url: feed, subscribers: ['u1'], lastSuccessAt: 1 });
+    f.fake.serveFeed(
+      feed,
+      feedXml(
+        item('a', thumb('https://a.fsdn.com/sd/twitter_icon_large.png')) +
+          item('b', thumb('https://cdn.example.com/share.jpg')) +
+          item('c', thumb('https://cdn.example.com/share.jpg')) +
+          item('d', thumb('https://cdn.example.com/share.jpg')) +
+          item('e', thumb('http://www.techmeme.com/261120/i32.jpg', 100)) +
+          item('f', thumb('https://cdn.example.com/big.jpg', 800)) +
+          item('g', ''),
+      ),
+    );
+    await refreshFeed(await jobFor(id), f.deps);
+    expect(await stored(id)).toEqual([
+      { title: 'a', image_url: null, q: 1 },
+      { title: 'b', image_url: null, q: 1 },
+      { title: 'c', image_url: null, q: 1 },
+      { title: 'd', image_url: null, q: 1 },
+      { title: 'e', image_url: 'https://www.techmeme.com/261120/i32.jpg', q: 1 },
+      { title: 'f', image_url: 'https://cdn.example.com/big.jpg', q: 0 },
+      { title: 'g', image_url: null, q: 1 },
+    ]);
+  });
+
+  it('treats a picture already used by two stored entries of the feed as the site default', async () => {
+    const id = await seedFeed({ url: feed, subscribers: ['u1'], lastSuccessAt: 1 });
+    for (let i = 0; i < 2; i++) {
+      await db.run(
+        sql(
+          `INSERT INTO entries (feed_id, guid_hash, url, title, image_url, published_at, fetched_at)
+           VALUES (?, ?, ?, 'old', 'https://cdn.example.com/share.jpg', ?, ?)`,
+          id,
+          `old${i}`,
+          `https://site.example.com/old${i}`,
+          NOW,
+          NOW,
+        ),
+      );
+    }
+    const f = createFixture();
+    f.fake.serveFeed(feed, feedXml(item('n', thumb('https://cdn.example.com/share.jpg'))));
+    await refreshFeed(await jobFor(id), f.deps);
+    const n = (await stored(id)).find((r) => r.title === 'n')!;
+    expect(n).toMatchObject({ image_url: null, q: 1 });
+  });
+});
+
+describe('migration 0010 on a populated database', () => {
+  const statements = migration10
+    .split('\n')
+    .filter((l) => !l.trim().startsWith('--'))
+    .join('\n')
+    .split(/;\s*\n/)
+    .map((s) => s.trim())
+    .filter(Boolean);
+
+  it('queues recent unread entries whose stored image looks weak, and nothing else', async () => {
+    const nowS = Math.floor(Date.now() / 1000);
+    const weak = await entry({
+      queued: false,
+      fetchedAt: nowS - 60,
+      image: 'https://a.fsdn.com/sd/twitter_icon_large.png',
+    });
+    const topic = await entry({
+      queued: false,
+      fetchedAt: nowS - 60,
+      image: 'https://a.fsdn.com/sd/topics/china_64.png',
+    });
+    await entry({ queued: false, fetchedAt: nowS - 60, image: 'https://cdn.example.com/a.jpg' });
+    await entry({ queued: false, fetchedAt: nowS - 60 }); // no image: 0009's job
+    await entry({
+      queued: false,
+      fetchedAt: nowS - 4 * DAY,
+      image: 'https://x.example.com/logo.png',
+    });
+    await entry({
+      queued: false,
+      fetchedAt: nowS - 60,
+      read: true,
+      image: 'https://x.example.com/logo.png',
+    });
+    const before = await count('entries');
+    for (const s of statements) await db.run(sql(s));
+    const rows = (
+      await db.all<{ entry_id: number }>(sql('SELECT entry_id FROM image_queue ORDER BY entry_id'))
+    ).rows;
+    expect(rows.map((r) => r.entry_id)).toEqual([weak, topic]);
+    expect(await count('entries')).toBe(before);
+  });
+
+  it('caps the backfill at 300 rows', async () => {
+    const nowS = Math.floor(Date.now() / 1000);
+    const stmts: ReturnType<typeof sql>[] = [];
+    for (let i = 0; i < 320; i++) {
+      stmts.push(
+        sql(
+          `INSERT INTO entries (id, feed_id, guid_hash, url, title, image_url, published_at, fetched_at)
+           VALUES (?, ?, ?, ?, 't', 'https://x.example.com/img/logo.png', ?, ?)`,
+          20_000 + i,
+          feedId,
+          `w${i}`,
+          `https://bulk.example.com/${i}`,
+          nowS,
+          nowS,
+        ),
+        sql(
+          `INSERT INTO user_entries (user_id, entry_id, feed_id, published_at, is_read) VALUES ('u1', ?, ?, ?, 0)`,
+          20_000 + i,
+          feedId,
+          nowS,
+        ),
+      );
+    }
+    for (let i = 0; i < stmts.length; i += 100) await db.batch(stmts.slice(i, i + 100));
+    for (const s of statements) await db.run(sql(s));
+    expect(await count('image_queue')).toBe(300);
+    expect(await count('image_queue', 'entry_id < 20020')).toBe(0);
   });
 });
 

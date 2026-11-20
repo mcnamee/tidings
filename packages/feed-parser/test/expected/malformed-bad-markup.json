@@ -14,7 +14,9 @@
         "publishedAt": 1794301200,
         "contentHtml": "Control char here: and an undefined entity &nbsp; &bogus; end.",
         "summary": "Control char here: and an undefined entity &bogus; end.",
-        "imageUrl": null
+        "imageUrl": null,
+        "imageWidth": null,
+        "imageHeight": null
       },
       {
         "guidKey": "sloppy-2",
@@ -25,7 +27,9 @@
         "publishedAt": 1794214800,
         "contentHtml": null,
         "summary": null,
-        "imageUrl": null
+        "imageUrl": null,
+        "imageWidth": null,
+        "imageHeight": null
       }
     ],
     "stoppedEarly": false

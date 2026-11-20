@@ -18,6 +18,9 @@ export interface ParsedItem {
   summary: string | null;
   /** http(s) image URL or null. */
   imageUrl: string | null;
+  /** Declared pixel size of that image (`width`/`height` attributes), or null (TID-072). */
+  imageWidth: number | null;
+  imageHeight: number | null;
 }
 
 export interface ParsedFeed {

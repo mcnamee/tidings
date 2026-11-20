@@ -14,7 +14,9 @@
         "publishedAt": 1794301200,
         "contentHtml": null,
         "summary": null,
-        "imageUrl": null
+        "imageUrl": null,
+        "imageWidth": null,
+        "imageHeight": null
       },
       {
         "guidKey": "dup-1",
@@ -25,7 +27,9 @@
         "publishedAt": 1794297600,
         "contentHtml": null,
         "summary": null,
-        "imageUrl": null
+        "imageUrl": null,
+        "imageWidth": null,
+        "imageHeight": null
       },
       {
         "guidKey": "dup-2a",
@@ -36,7 +40,9 @@
         "publishedAt": 1794294000,
         "contentHtml": null,
         "summary": null,
-        "imageUrl": null
+        "imageUrl": null,
+        "imageWidth": null,
+        "imageHeight": null
       },
       {
         "guidKey": "dup-2b",
@@ -47,7 +53,9 @@
         "publishedAt": 1794290400,
         "contentHtml": null,
         "summary": null,
-        "imageUrl": null
+        "imageUrl": null,
+        "imageWidth": null,
+        "imageHeight": null
       },
       {
         "guidKey": "https://dupes.example.test/noguid",
@@ -58,7 +66,9 @@
         "publishedAt": 1794286800,
         "contentHtml": null,
         "summary": null,
-        "imageUrl": null
+        "imageUrl": null,
+        "imageWidth": null,
+        "imageHeight": null
       },
       {
         "guidKey": "No GUID, no link\n2026-11-10T04:00:00.000Z\n",
@@ -69,7 +79,9 @@
         "publishedAt": 1794283200,
         "contentHtml": "Identity must come from title and date.",
         "summary": "Identity must come from title and date.",
-        "imageUrl": null
+        "imageUrl": null,
+        "imageWidth": null,
+        "imageHeight": null
       },
       {
         "guidKey": "https://dupes.example.test/emptyguid",
@@ -80,7 +92,9 @@
         "publishedAt": 1794279600,
         "contentHtml": null,
         "summary": null,
-        "imageUrl": null
+        "imageUrl": null,
+        "imageWidth": null,
+        "imageHeight": null
       }
     ],
     "stoppedEarly": false
