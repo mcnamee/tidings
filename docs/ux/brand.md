@@ -73,3 +73,24 @@ Regenerate after changing the logo, tokens or splash layout:
 4. `npm test -w @tidings/web` checks every link points at a file of the stated pixel size and that the colours equal the CSS tokens.
 
 Needs a real iPhone: the launch image appears at once (delete and re-add the app to the Home Screen after an update; iOS caches launch images), the hand-off to the page splash shows no jump in the mark or word, and the vertical position matches (the status-bar insets in the config are best-known values).
+
+## 8. Caught-up illustrations (TID-073)
+
+Twelve spot illustrations for the list states that say there is nothing to read: "All caught up" (unread filter, nothing unread) and "No articles yet" / "Nothing here yet" (empty feed or view). They are shown above the heading and nowhere else ("No feeds yet", feed-problem states, errors and the end-of-list line stay text-only, because a joke there would be wrong).
+
+**Look.** Reference is a sheet of loose hand-drawn icons: a thin, slightly wobbly ink line drawn over a flat watercolour blob, with the two deliberately out of register (lines run past the paint, paint sits off-centre). Lines have varying width, tapered ends, overshoot and a second looser pass; the blob has uneven displaced edges, darker pooling at the rim, soft wash variation and paper-tooth speckle. One blue only, from the accent family, so the set is calm and always matches the app.
+
+| | Light | Dark |
+|---|---|---|
+| Ink | #1d1c1a (`--c-text`) | #f1efe9 (warm off-white) |
+| Paint | #b6c8f7 with wash toward #4d73d9 | #4a6fdc with wash toward #335cb3 |
+
+The dark paint is a deeper mid blue rather than the dark accent (#8eaeff): off-white line on #8eaeff would be about 2:1, on #4a6fdc it is about 4:1, and lines that run past the blob sit on #1b1c20 at over 14:1. The pictures are decorative, so contrast is for legibility, not a WCAG requirement.
+
+**The set** (file stem): `clap` clapping hands, `cat` smiling cat, `trophy`, `ok` OK hand, `coffee` cup with steam and a heart, `plane` paper plane, `sun` sun in sunglasses, `popper` party popper, `thumbs` thumbs up, `dog` sleeping dog, `medal` medal with star, `plant` smiling pot plant.
+
+**In the app.** `apps/web/src/lists/CaughtUpArt.tsx`. 176 px (`size-44`) square, centred, 8 px above the heading, `alt=""`, `loading="lazy"`. Two `<img>` per picture, `dark:hidden` and `hidden dark:block`, so the `data-theme` attribute (system, light, dark) decides, with CSS classes only (CSP). A `display: none` lazy image is not fetched, so only one PNG downloads. The pick is made once per mount (`useState` initialiser) and is never the same as the previous one. No motion, so nothing to reduce for `prefers-reduced-motion`.
+
+**Files.** Sources: `apps/web/art/caught-up/*.svg` (generated, one per picture and theme), `lib.mjs` (hand-drawn-line and paint engine) and `drawings.mjs` (the twelve drawings, as point lists on a 480 grid). Outputs: `apps/web/public/caught-up/<name>-<light|dark>.png`, 480x480 (shown at 176, so 2.7x), transparent, palette PNGs of 18 to 33 KB each (about 650 KB for all 24). Contact sheet: `apps/web/art/caught-up/contact-sheet.png`. Regenerate everything with `CHROME_PATH=/usr/bin/google-chrome node scripts/render-caught-up.mjs` (`--only=cat,dog` for some, `--raw` to skip the PNG squeeze). To add a picture: add a drawing in `drawings.mjs`, add its stem to `CAUGHT_UP_ART`, re-run, check the contact sheet. The grain is deliberately hard-edged: soft noise makes the PNGs about 50 percent bigger.
+
+Review screenshots: `docs/ux/reviews/tid-073/caught-up-{375,1280}-{light,dark}.png` (capture script `docs/ux/reviews/capture-tid-073.mjs`).
