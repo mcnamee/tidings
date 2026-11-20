@@ -22,6 +22,13 @@ export interface SafeFetchOptions {
   etag?: string | null;
   lastModified?: string | null;
   maxBodyBytes?: number;
+  /**
+   * TID-071: with this set, a body longer than `maxBodyBytes` is cut there (the stream is cancelled)
+   * and returned as `ok` with `truncated: true`, instead of failing with `too_large`.
+   */
+  truncate?: boolean;
+  /** Replaces the feed `Accept` header (page fetches ask for HTML). */
+  accept?: string;
   maxRedirects?: number;
   timeoutMs?: number;
 }
@@ -54,6 +61,8 @@ export type SafeFetchResult =
       body: Uint8Array;
       /** Lower-case hex SHA-256 of `body`, computed while streaming. */
       sha256: string;
+      /** True when `truncate` cut the body at `maxBodyBytes`. */
+      truncated: boolean;
     })
   | (Base & { kind: 'not_modified'; status: 304; headers: Headers })
   | (Base & { kind: 'http_error'; status: number; headers: Headers })
@@ -88,7 +97,7 @@ export async function safeFetch(rawUrl: string, opts: SafeFetchOptions): Promise
   // Only these headers are ever sent, on every hop: no cookies, no auth, nothing user-controlled.
   const headers: Record<string, string> = {
     'User-Agent': `Tidings/1.0 (+${opts.appOrigin})`,
-    Accept: ACCEPT_HEADER,
+    Accept: opts.accept ?? ACCEPT_HEADER,
   };
   if (opts.etag) headers['If-None-Match'] = opts.etag;
   if (opts.lastModified) headers['If-Modified-Since'] = opts.lastModified;
@@ -161,12 +170,12 @@ export async function safeFetch(rawUrl: string, opts: SafeFetchOptions): Promise
       }
 
       const declared = Number(res.headers.get('Content-Length'));
-      if (Number.isFinite(declared) && declared > maxBody) {
+      if (!opts.truncate && Number.isFinite(declared) && declared > maxBody) {
         await res.body?.cancel().catch(drop);
         return fail('too_large', `Content-Length ${declared} exceeds ${maxBody}`, base);
       }
 
-      const read = await readBody(res, maxBody, guard);
+      const read = await readBody(res, maxBody, guard, opts.truncate === true);
       if (read === 'too_large') return fail('too_large', `Body exceeds ${maxBody} bytes`, base);
       return { kind: 'ok', status: res.status, headers: res.headers, ...read, ...base };
     }
@@ -182,10 +191,11 @@ async function readBody(
   res: Response,
   max: number,
   guard: Guard,
-): Promise<'too_large' | { body: Uint8Array; sha256: string }> {
+  truncate: boolean,
+): Promise<'too_large' | { body: Uint8Array; sha256: string; truncated: boolean }> {
   if (!res.body) {
     const empty = new Uint8Array(0);
-    return { body: empty, sha256: await sha256Of(empty) };
+    return { body: empty, sha256: await sha256Of(empty), truncated: false };
   }
   const reader = res.body.getReader();
   const digestStream =
@@ -199,6 +209,16 @@ async function readBody(
       const { done, value } = await guard(reader.read());
       if (done) break;
       total += value.byteLength;
+      if (total > max && truncate) {
+        // Keep exactly `max` bytes and stop reading; the rest is never downloaded or decoded.
+        const keep = value.byteLength - (total - max);
+        chunks.push(value.subarray(0, keep));
+        total = max;
+        await reader.cancel().catch(drop);
+        await digestWriter?.abort().catch(drop);
+        const cut = joinChunks(chunks, total);
+        return { body: cut, sha256: await sha256Of(cut), truncated: true };
+      }
       if (total > max) {
         await reader.cancel().catch(drop);
         await digestWriter?.abort().catch(drop);
@@ -212,17 +232,22 @@ async function readBody(
     await digestWriter?.abort().catch(drop);
     throw err;
   }
+  const body = joinChunks(chunks, total);
+  if (digestStream && digestWriter) {
+    await digestWriter.close();
+    return { body, sha256: hex(await digestStream.digest), truncated: false };
+  }
+  return { body, sha256: await sha256Of(body), truncated: false };
+}
+
+function joinChunks(chunks: Uint8Array[], total: number): Uint8Array {
   const body = new Uint8Array(total);
   let offset = 0;
   for (const c of chunks) {
     body.set(c, offset);
     offset += c.byteLength;
   }
-  if (digestStream && digestWriter) {
-    await digestWriter.close();
-    return { body, sha256: hex(await digestStream.digest) };
-  }
-  return { body, sha256: await sha256Of(body) };
+  return body;
 }
 
 async function sha256Of(bytes: Uint8Array): Promise<string> {

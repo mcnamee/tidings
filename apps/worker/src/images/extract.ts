@@ -1,0 +1,212 @@
+/**
+ * Preview-image extraction from the start of an article page (TID-071, ADR 0019, spec 7.3b, 10.5).
+ * Pure and bounded: the input is at most 128 KB, scanning stops at `</head>` or `<body`, and the
+ * result is a canonical http(s) URL on a public host or null. Nothing here is trusted: every value
+ * comes from a page we do not control.
+ */
+import { canonicalizeHttpUrl } from '@tidings/shared/url';
+import { checkUrl } from '../fetch/address';
+
+export const MAX_PAGE_BYTES = 128 * 1024;
+const MAX_URL_CHARS = 2048;
+const MAX_TAGS = 2000;
+/** An og:image declared smaller than this on either side is a logo or tracking pixel. */
+export const MIN_IMAGE_SIDE = 100;
+
+const NAMED: Record<string, string> = {
+  amp: '&',
+  lt: '<',
+  gt: '>',
+  quot: '"',
+  apos: "'",
+  nbsp: ' ',
+};
+
+/** Decodes the entities that occur in attribute values; unknown ones are left as they are. */
+export function decodeEntities(s: string): string {
+  if (!s.includes('&')) return s;
+  return s.replace(
+    /&(?:#(\d{1,7})|#[xX]([0-9a-fA-F]{1,6})|([a-zA-Z]{2,6}));/g,
+    (m, dec: string | undefined, hex: string | undefined, name: string | undefined) => {
+      if (name) return NAMED[name.toLowerCase()] ?? m;
+      const cp = dec ? Number(dec) : parseInt(hex as string, 16);
+      if (cp === 0 || cp > 0x10ffff || (cp >= 0xd800 && cp <= 0xdfff)) return '';
+      return String.fromCodePoint(cp);
+    },
+  );
+}
+
+interface Tag {
+  name: string;
+  attrs: Map<string, string>;
+  end: number;
+}
+
+const isSpace = (c: string | undefined) =>
+  c === ' ' || c === '\t' || c === '\n' || c === '\r' || c === '\f';
+
+/** Parses one tag starting at `<` (index `i`). Linear: every loop advances. Null if unterminated. */
+function readTag(html: string, i: number): Tag | null {
+  let j = i + 1;
+  const n = html.length;
+  const nameStart = j;
+  while (j < n && !isSpace(html[j]) && html[j] !== '>' && html[j] !== '/') j++;
+  const name = html.slice(nameStart, j).toLowerCase();
+  const attrs = new Map<string, string>();
+  for (;;) {
+    while (j < n && (isSpace(html[j]) || html[j] === '/')) j++;
+    if (j >= n) return null;
+    if (html[j] === '>') return { name, attrs, end: j + 1 };
+    const keyStart = j;
+    while (j < n && !isSpace(html[j]) && html[j] !== '=' && html[j] !== '>' && html[j] !== '/') j++;
+    if (j === keyStart) j++; // a stray '=': skip it
+    const key = html.slice(keyStart, j).toLowerCase();
+    while (j < n && isSpace(html[j])) j++;
+    let value = '';
+    if (html[j] === '=') {
+      j++;
+      while (j < n && isSpace(html[j])) j++;
+      const q = html[j];
+      if (q === '"' || q === "'") {
+        const close = html.indexOf(q, j + 1);
+        if (close === -1) return null;
+        value = html.slice(j + 1, close);
+        j = close + 1;
+      } else {
+        const vs = j;
+        while (j < n && !isSpace(html[j]) && html[j] !== '>') j++;
+        value = html.slice(vs, j);
+      }
+    }
+    if (key !== '' && !attrs.has(key)) attrs.set(key, value);
+  }
+}
+
+interface Candidate {
+  rank: number;
+  raw: string;
+  width: number | null;
+  height: number | null;
+}
+
+const META_RANK: Record<string, number> = {
+  'og:image': 0,
+  'og:image:url': 0,
+  'og:image:secure_url': 1,
+  'twitter:image': 2,
+  'twitter:image:src': 2,
+};
+const LINK_RANK = 3;
+
+const toInt = (v: string): number | null => (/^\s*\d{1,6}\s*$/.test(v) ? Number(v) : null);
+
+/** Candidate URLs in the page head, in document order, with the declared og size where given. */
+function candidates(html: string): Candidate[] {
+  const out: Candidate[] = [];
+  let lastOg: Candidate | null = null;
+  const lower = html.toLowerCase();
+  let i = 0;
+  let tags = 0;
+  while (tags < MAX_TAGS && (i = html.indexOf('<', i)) !== -1) {
+    if (lower.startsWith('<!--', i)) {
+      const close = html.indexOf('-->', i + 4);
+      if (close === -1) break;
+      i = close + 3;
+      continue;
+    }
+    const first = lower.charCodeAt(i + 1);
+    const isLetter = first >= 97 && first <= 122;
+    if (lower.startsWith('</head', i) || lower.startsWith('<body', i)) break;
+    if (!isLetter) {
+      i++;
+      continue;
+    }
+    if (lower.startsWith('<script', i) || lower.startsWith('<style', i)) {
+      const closer = lower.startsWith('<script', i) ? '</script' : '</style';
+      const end = lower.indexOf(closer, i + 6);
+      if (end === -1) break;
+      i = end + 2;
+      continue;
+    }
+    const tag = readTag(html, i);
+    if (!tag) break; // unterminated tag: nothing reliable follows
+    i = tag.end;
+    tags++;
+    if (tag.name === 'meta') {
+      const key = (tag.attrs.get('property') ?? tag.attrs.get('name') ?? '').trim().toLowerCase();
+      const content = tag.attrs.get('content');
+      if (content === undefined) continue;
+      const rank = META_RANK[key];
+      if (rank !== undefined) {
+        const c: Candidate = { rank, raw: content, width: null, height: null };
+        out.push(c);
+        if (key.startsWith('og:image')) lastOg = c;
+      } else if (key === 'og:image:width' && lastOg) lastOg.width = toInt(content);
+      else if (key === 'og:image:height' && lastOg) lastOg.height = toInt(content);
+    } else if (tag.name === 'link') {
+      const rels = (tag.attrs.get('rel') ?? '').toLowerCase().split(/\s+/);
+      const href = tag.attrs.get('href');
+      if (rels.includes('image_src') && href !== undefined) {
+        out.push({ rank: LINK_RANK, raw: href, width: null, height: null });
+      }
+    }
+  }
+  return out;
+}
+
+const PLACEHOLDER_NAME =
+  /^(?:logo|favicon|placeholder|blank|spacer|pixel|1x1|default[-_]?(?:image|og|share|thumb))/i;
+
+/** A usable public http(s) image URL from an attribute value, or null. */
+export function cleanImageUrl(
+  raw: string,
+  base: string,
+  appOrigin: string,
+  allowHosts: readonly string[] = [],
+): string | null {
+  const decoded = decodeEntities(raw).trim();
+  // eslint-disable-next-line no-control-regex
+  if (decoded === '' || decoded.length > MAX_URL_CHARS || /[\u0000-\u001f\u007f]/.test(decoded)) {
+    return null;
+  }
+  // Markup or whitespace inside the value means the tag was mangled (an unclosed quote ran on).
+  if (/[<>\s"]/.test(decoded)) return null;
+  let abs: URL;
+  try {
+    abs = new URL(decoded, base);
+  } catch {
+    return null;
+  }
+  if (abs.protocol !== 'http:' && abs.protocol !== 'https:') return null;
+  if (abs.username !== '' || abs.password !== '') return null;
+  const canon = canonicalizeHttpUrl(abs.href);
+  if (!canon.ok) return null;
+  if (!checkUrl(canon.url, appOrigin, allowHosts).ok) return null;
+  const last = new URL(canon.url).pathname.split('/').pop() ?? '';
+  if (/\.ico$/i.test(last) || PLACEHOLDER_NAME.test(last)) return null;
+  return canon.url;
+}
+
+/**
+ * The preview image of a page: `og:image` (and `og:image:url`), then `og:image:secure_url`, then
+ * `twitter:image`, then `<link rel="image_src">`, first in document order within a kind. `pageUrl` is
+ * the final URL after redirects, the base for relative values.
+ */
+export function extractPreviewImage(
+  html: string,
+  pageUrl: string,
+  appOrigin: string,
+  allowHosts: readonly string[] = [],
+): string | null {
+  const found = candidates(html.length > MAX_PAGE_BYTES ? html.slice(0, MAX_PAGE_BYTES) : html);
+  found.sort((a, b) => a.rank - b.rank); // stable: document order within a rank
+  for (const c of found) {
+    const tiny =
+      (c.width !== null && c.width < MIN_IMAGE_SIDE) ||
+      (c.height !== null && c.height < MIN_IMAGE_SIDE);
+    if (tiny) continue;
+    const url = cleanImageUrl(c.raw, pageUrl, appOrigin, allowHosts);
+    if (url) return url;
+  }
+  return null;
+}

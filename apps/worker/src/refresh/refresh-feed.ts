@@ -270,6 +270,17 @@ export async function refreshFeed(job: RefreshJob, deps: RefreshDeps): Promise<R
         job.feedId,
         ...toLink.map((h) => h.hash),
       ),
+      // TID-071: new entries with a page but no image wait for a preview image (ADR 0019). Queued only
+      // here, when the entry is first stored, so each one is tried at most once.
+      sql(
+        `INSERT OR IGNORE INTO image_queue (entry_id)
+         SELECT e.id FROM entries e
+          WHERE e.feed_id = ? AND e.guid_hash IN (${placeholders(toLink.length)})
+            AND e.image_url IS NULL AND e.url IS NOT NULL
+            AND EXISTS (SELECT 1 FROM user_entries ue WHERE ue.entry_id = e.id AND ue.is_read = 0)`,
+        job.feedId,
+        ...toLink.map((h) => h.hash),
+      ),
     );
   }
 

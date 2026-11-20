@@ -318,8 +318,9 @@ describe('AC8: write cost of 250 imported feeds with 50 items each, then their f
     // 53,000 before TID-021's ue_entry index (+1 per linked row); TID-061 adds 2 key-index rows per
     // linked entry (10 per feed, 5,000 in all; ADR 0017), keys are not written for the 40 unlinked.
     // TID-067 adds 1 embed_queue row per linked entry (2,500 in all; the embeddings themselves are
-    // written later by the embed step, 2 rows each, not counted here). Measured 62,054.
-    expect(total).toBeLessThanOrEqual(63_000);
+    // written later by the embed step, 2 rows each, not counted here). TID-071 adds 1 image_queue row per
+    // linked entry without a feed image (2,500 in all; these feeds have none). Measured 64,554.
+    expect(total).toBeLessThanOrEqual(65_500);
   }, 180_000);
 });
 

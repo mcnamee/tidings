@@ -20,6 +20,7 @@ const SPEC_TABLES = [
   'engagement',
   'entry_embeddings',
   'embed_queue',
+  'image_queue',
   'user_profiles',
 ];
 const SPEC_INDEXES = [

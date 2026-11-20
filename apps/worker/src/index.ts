@@ -7,6 +7,9 @@ export { FeedRefresher } from './refresh/entrypoint';
 // TID-067: the Workers AI steps of the recommended sort (embedding and profiles), same mechanism.
 export { Recommender } from './recommend/entrypoint';
 
+// TID-071: preview images from article pages for entries whose feed gave none, same mechanism.
+export { ImageEnricher } from './images/entrypoint';
+
 const app = createApp();
 
 export default {
