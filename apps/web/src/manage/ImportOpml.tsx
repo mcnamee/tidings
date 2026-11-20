@@ -305,7 +305,7 @@ export function ImportOpml() {
             >
               Try again
             </PrimaryButton>
-            <Link to="/manage" className={SECONDARY}>
+            <Link to="/manage" replace={isStandalone()} className={SECONDARY}>
               Back to Manage
             </Link>
           </div>
@@ -391,6 +391,7 @@ function Progress({
             {plural(failed, 'feed')} couldn&apos;t be fetched.{' '}
             <Link
               to="/manage"
+              replace={isStandalone()}
               className="inline-block -my-3 py-3 text-accent underline underline-offset-2"
             >
               See which

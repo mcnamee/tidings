@@ -1,6 +1,8 @@
 import { useState } from 'react';
 import { Link } from 'react-router';
 import type { EntrySummary } from '@tidings/shared';
+import { openState } from '../lib/articleNav';
+import { isStandalone } from '../lib/useSwipe';
 import { relativeTime, relativeTimeLong } from '../lib/time';
 import { rowLayout } from './rowLayout';
 
@@ -57,6 +59,8 @@ export function ArticleRow({
     >
       <Link
         to={to}
+        replace={isStandalone()}
+        state={openState()}
         className={`-mx-4 min-h-11 px-4 py-4 hover:bg-sunken active:bg-sunken lg:mx-0 lg:h-full lg:rounded-xl lg:border lg:border-line lg:bg-surface lg:p-3 lg:shadow-sm lg:hover:border-line-strong lg:hover:bg-sunken ${
           hero
             ? 'block lg:flex lg:items-start lg:gap-5'

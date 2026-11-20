@@ -129,7 +129,7 @@ describe('article slide-in and out (TID-058)', () => {
     await waitFor(() => expect(screen.queryByTestId('article-layer')).toBeNull(), {
       timeout: 1500,
     });
-    expect(path()).toBe('/all');
+    expect(path()).toBe('/all?state=unread');
     expect(under().style.transform).toBe('');
   });
 

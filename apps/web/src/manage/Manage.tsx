@@ -1,3 +1,4 @@
+import { isStandalone } from '../lib/useSwipe';
 import { useState, type FormEvent } from 'react';
 import { Link } from 'react-router';
 import {
@@ -80,6 +81,7 @@ export function Manage() {
 
       <Link
         to="/manage/add"
+        replace={isStandalone()}
         className="flex min-h-12 w-full items-center justify-center gap-2 rounded-md bg-accent px-4 text-base font-medium text-accent-fg"
       >
         <Plus aria-hidden="true" className="size-5" strokeWidth={1.75} />
@@ -87,6 +89,7 @@ export function Manage() {
       </Link>
       <Link
         to="/manage/import"
+        replace={isStandalone()}
         className="mt-2 flex min-h-12 w-full items-center justify-center rounded-md border border-line-strong bg-surface px-4 text-base font-medium text-fg"
       >
         Import from OPML

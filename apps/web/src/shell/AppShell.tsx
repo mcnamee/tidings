@@ -175,8 +175,10 @@ export function AppShell() {
     prev.current = { open, pathname: location.pathname };
     if (!before) return;
     if (before.pathname !== location.pathname) {
-      // An article's layer moves focus to its own heading.
-      if (navType !== 'POP' && !covered) heading.current?.focus();
+      // An article's layer moves focus to its own heading. Coming back from an article (a replace
+      // in the installed app, TID-070) leaves focus alone, like Back does: the list is as it was.
+      const fromArticle = findRoute(before.pathname).kind === 'article';
+      if (navType !== 'POP' && !covered && !fromArticle) heading.current?.focus();
     } else if (before.open && !open) {
       menuButton.current?.focus();
     }
@@ -187,7 +189,8 @@ export function AppShell() {
   const hasAppHistory = location.key !== 'default';
   function goBack() {
     // The Add/Import sub-pages go one entry back when the app has history (spec 11.2).
-    if (hasAppHistory) navigate(-1);
+    // The installed app keeps no history of its own (TID-070), so it goes to the parent directly.
+    if (hasAppHistory && !historyless) navigate(-1);
     else navigate(route.parent ?? '/all', { replace: true });
   }
 

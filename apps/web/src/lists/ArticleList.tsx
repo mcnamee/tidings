@@ -88,11 +88,16 @@ function Empty({
     return (
       <State title="No feeds yet">
         <p>Add a feed or import your OPML file.</p>
-        <Link to="/manage/add" className="inline-flex min-h-11 items-center text-accent underline">
+        <Link
+          to="/manage/add"
+          replace={isStandalone()}
+          className="inline-flex min-h-11 items-center text-accent underline"
+        >
           Add a feed
         </Link>
         <Link
           to="/manage/import"
+          replace={isStandalone()}
           className="inline-flex min-h-11 items-center text-accent underline"
         >
           Import from Inoreader
@@ -106,7 +111,11 @@ function Empty({
       return (
         <State title="This feed has problems">
           {errorMessage && <p>{errorMessage}</p>}
-          <Link to="/manage" className="inline-flex min-h-11 items-center text-accent underline">
+          <Link
+            to="/manage"
+            replace={isStandalone()}
+            className="inline-flex min-h-11 items-center text-accent underline"
+          >
             Manage feeds
           </Link>
         </State>

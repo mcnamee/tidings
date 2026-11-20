@@ -135,7 +135,7 @@ describe('article layer (swipe back)', () => {
 
     fire('pointermove', 300);
     fire('pointerup', 300);
-    await waitFor(() => expect(path()).toBe('/all'), { timeout: 1000 });
+    await waitFor(() => expect(path()).toBe('/all?state=unread'), { timeout: 1000 });
     expect(screen.queryByTestId('article-layer')).toBeNull();
     // The same list, in place, with the page put back.
     expect(screen.getByTestId('list-underlay').querySelector('ul')).toBe(list);
