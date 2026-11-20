@@ -8,7 +8,7 @@ import { saveLastList } from '../lib/lastList';
 import { useSidebarHidden } from '../lib/sidebar';
 import { useCounts } from '../lib/queries';
 import { findRoute } from '../routes/table';
-import { isStandalone, useSwipe } from '../lib/useSwipe';
+import { isStandalone, prefersReducedMotion, useSwipe } from '../lib/useSwipe';
 import { Drawer, drawerWidth, type DrawerControl } from './Drawer';
 import { Lockup } from './Logo';
 import { FeedNav } from './FeedNav';
@@ -203,6 +203,30 @@ export function AppShell() {
   useEffect(() => {
     if (open) setPeeking(false);
   }, [open]);
+  // Every close slides out (owner, 2026-11-21), not only a swipe: the scrim, the close button,
+  // Escape, a link in the drawer and Back all drop `open` at once, so the same Drawer stays mounted
+  // (`closing`, set during render so it never unmounts in between) until its slide-out ends.
+  const [wasOpen, setWasOpen] = useState(open);
+  const [closing, setClosing] = useState(false);
+  // A reopen during the slide-out starts a fresh Drawer (its own entrance), not the leaving one.
+  const [drawerGen, setDrawerGen] = useState(0);
+  if (open !== wasOpen) {
+    setWasOpen(open);
+    if (open && closing) setDrawerGen((g) => g + 1);
+    setClosing(!open && !isDesktop && !prefersReducedMotion());
+  }
+  useEffect(() => {
+    if (!closing) return;
+    const control = drawerControl.current;
+    if (!control) return setClosing(false);
+    let live = true;
+    control.settle(false, () => {
+      if (live) setClosing(false);
+    });
+    return () => {
+      live = false;
+    };
+  }, [closing]);
   useSwipe({
     enabled: standalone && !isDesktop && !open && !showBack && !covered && route.kind !== 'auth',
     direction: 'right',
@@ -342,8 +366,14 @@ export function AppShell() {
           </div>
         </div>
         <div ref={setLayerEl} className="max-lg:overflow-x-clip" />
-        {(open || peeking) && (
-          <Drawer onClose={closeDrawer} peeking={peeking && !open} control={drawerControl} />
+        {(open || peeking || closing) && (
+          <Drawer
+            key={drawerGen}
+            onClose={closeDrawer}
+            peeking={(peeking || closing) && !open}
+            closing={closing && !open}
+            control={drawerControl}
+          />
         )}
       </LayerContext.Provider>
     </ShellSlotsContext.Provider>

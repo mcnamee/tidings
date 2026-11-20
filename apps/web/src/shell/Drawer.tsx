@@ -29,10 +29,13 @@ export interface DrawerControl {
 export function Drawer({
   onClose,
   peeking = false,
+  closing = false,
   control,
 }: {
   onClose: () => void;
   peeking?: boolean;
+  /** Sliding out after it closed: out of the accessibility tree and the tab order already. */
+  closing?: boolean;
   control?: Ref<DrawerControl>;
 }) {
   const root = useRef<HTMLDivElement>(null);
@@ -121,6 +124,8 @@ export function Drawer({
   return (
     <div
       ref={root}
+      aria-hidden={closing || undefined}
+      inert={closing}
       className={`fixed inset-0 z-50 touch-pan-y ${peeking ? 'pointer-events-none' : ''}`}
     >
       <div

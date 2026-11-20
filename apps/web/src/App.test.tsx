@@ -1,5 +1,5 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { render, screen, within, act } from '@testing-library/react';
+import { render, screen, within, act, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter, useLocation, useNavigate } from 'react-router';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
@@ -349,6 +349,16 @@ describe('navigation drawer (AC4)', () => {
     expect(menu).toHaveAttribute('aria-expanded', 'false');
     expect(document.documentElement).not.toHaveClass('scroll-locked');
     expect(path()).toBe('/all');
+  });
+
+  it('slides out on every close: stays mounted, hidden, until the slide ends', async () => {
+    const { user } = await openDrawer();
+    await user.keyboard('{Escape}');
+    const panel = document.getElementById('nav-drawer');
+    expect(panel).not.toBeNull();
+    expect(panel!.style.transform).toBe('translateX(-100%)');
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+    await waitFor(() => expect(document.getElementById('nav-drawer')).toBeNull());
   });
 
   it('closes on backdrop tap and returns focus to Menu', async () => {
