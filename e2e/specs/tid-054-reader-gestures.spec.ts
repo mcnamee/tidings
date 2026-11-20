@@ -74,6 +74,7 @@ test.describe('TID-054: the title opens the original', () => {
     await expect(link).toHaveAttribute('href', 'https://example.com/gesture/1');
     await expect(link).toHaveAttribute('target', '_blank');
     await expect(link).toHaveAttribute('rel', 'noopener noreferrer');
+    await page.keyboard.press('Tab'); // TID-069: focus rings are for keyboard use
     await link.focus();
     await expect(link).toHaveCSS('outline-style', 'solid');
 
@@ -144,7 +145,7 @@ test.describe('TID-055: swipe gestures in the installed app', () => {
     await expect(page.getByRole('heading', { level: 2, name: 'Row 1', exact: true })).toBeVisible();
     const cdp = await page.context().newCDPSession(page);
 
-    await swipe(cdp, 46, 260);
+    await swipe(cdp, 5, 260); // TID-069: from the very edge
     const drawer = page.getByRole('dialog', { name: 'Navigation' });
     await expect(drawer).toBeVisible();
     await expect(drawer).toHaveCSS('transform', 'none');
@@ -285,7 +286,9 @@ test.describe('TID-055: swipe gestures in the installed app', () => {
     await expect(page.getByRole('heading', { level: 1 })).toHaveCount(1);
     const under = page.getByTestId('list-underlay');
     await expect(under).toHaveAttribute('inert', '');
-    expect(await scrollY(page)).toBe(y);
+    // TID-069: the article is the document scroller (at the top); the list is frozen under it.
+    expect(await scrollY(page)).toBe(0);
+    await expect(page.getByTestId('main-scroll')).toHaveCSS('top', `-${y}px`);
     const cdp = await page.context().newCDPSession(page);
 
     // Cancel: the article slides back, the list returns underneath.

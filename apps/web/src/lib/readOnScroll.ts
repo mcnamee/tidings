@@ -87,31 +87,25 @@ export function createReadBatcher(
  * Watches the rows of the list inside `listRef` (`li[data-entry-id]`) and marks each one read when
  * the person has scrolled past it. A row only counts once it has been seen on screen, so rows
  * above the start position (scroll restore) and rows a jump went over are left alone.
- * `root` is the scroll container below `lg` (TID-064: its top edge is the line a row must cross, the
- * header sits outside it); `null` observes the window and uses `rootMargin` to keep the sticky
- * header out of the viewport; `undefined` waits for the container.
+ * The window is the scroller (TID-069); `rootMargin` keeps the header (fixed below `lg`, sticky
+ * from it) out of the viewport, so a row counts once it is above the header's bottom edge.
  */
 export function useMarkReadOnScroll(
   client: QueryClient,
   listRef: RefObject<HTMLElement | null>,
   items: EntrySummary[],
   enabled: boolean,
-  root: HTMLElement | null | undefined = null,
 ): void {
   const itemsRef = useRef(items);
   itemsRef.current = items;
   const observerRef = useRef<IntersectionObserver | null>(null);
 
   useEffect(() => {
-    if (!enabled || root === undefined || typeof IntersectionObserver === 'undefined') return;
+    if (!enabled || typeof IntersectionObserver === 'undefined') return;
     const batcher = createReadBatcher(client);
     const seen = new Set<string>();
-    const header = root ? null : document.querySelector('header')?.parentElement;
-    const top = root
-      ? Math.round(root.getBoundingClientRect().top)
-      : header
-        ? Math.round(header.getBoundingClientRect().bottom)
-        : 0;
+    const header = document.querySelector('header')?.parentElement;
+    const top = header ? Math.round(header.getBoundingClientRect().bottom) : 0;
     const observer = new IntersectionObserver(
       (hits) => {
         for (const hit of hits) {
@@ -127,7 +121,7 @@ export function useMarkReadOnScroll(
           if (item) batcher.add(item);
         }
       },
-      root ? { root } : { rootMargin: `-${Math.max(0, top)}px 0px 0px 0px` },
+      { rootMargin: `-${Math.max(0, top)}px 0px 0px 0px` },
     );
     observerRef.current = observer;
     const onHide = () => {
@@ -143,7 +137,7 @@ export function useMarkReadOnScroll(
       window.removeEventListener('pagehide', onPageHide);
       batcher.dispose();
     };
-  }, [client, enabled, root]);
+  }, [client, enabled]);
 
   // Rows that arrive later (next pages) are observed too; observing a row twice is harmless.
   useEffect(() => {
@@ -151,5 +145,5 @@ export function useMarkReadOnScroll(
     const list = listRef.current;
     if (!observer || !list) return;
     list.querySelectorAll('li[data-entry-id]').forEach((li) => observer.observe(li));
-  }, [items.length, enabled, listRef, root]);
+  }, [items.length, enabled, listRef]);
 }

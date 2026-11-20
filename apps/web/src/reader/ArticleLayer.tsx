@@ -1,4 +1,5 @@
 import {
+  useCallback,
   useContext,
   useEffect,
   useLayoutEffect,
@@ -19,7 +20,7 @@ import {
   useSwipe,
 } from '../lib/useSwipe';
 import { OfflineBanner } from '../shell/OfflineBanner';
-import { LayerContext, ShellSlotsContext } from '../shell/slots';
+import { LayerContext, ShellSlotsContext, useChromeInsets } from '../shell/slots';
 import { findRoute } from '../routes/table';
 import { useRouteTitle } from '../shell/useRouteTitle';
 
@@ -39,10 +40,16 @@ export interface StepState {
 
 /**
  * The article as a full-screen layer above its list (TID-055). The list stays mounted underneath
- * (inert and aria-hidden, see AppShell), so the layer has its own header, scroll container and
- * bottom bar, and swiping it away shows the list moving in from -30% and un-dimming. The layer is
+ * (inert and aria-hidden, frozen in place by AppShell), so the layer has its own header and bottom
+ * bar, and swiping it away shows the list moving in from -30% and un-dimming. The layer is
  * portalled next to the page (not inside it) so the page's transform never becomes its containing
- * block. From 1024px it covers only the content column, leaving the sidebar in place.
+ * block.
+ *
+ * TID-069: below 1024px the article is the document scroller (a status-bar tap scrolls it to the
+ * top; the bounce is native). The header and bottom bar are `position: fixed` frames, the content
+ * is in the flow, and a slide or swipe moves the three together (a transform on a common parent
+ * would make the fixed bars scroll away). From 1024px the layer is a fixed box beside the sidebar
+ * with `main` as its own scroller, as before.
  */
 export function ArticleLayer({
   contentKey,
@@ -64,6 +71,17 @@ export function ArticleLayer({
 
   const [headerActionsEl, setHeaderActionsEl] = useState<HTMLElement | null>(null);
   const [bottomBarEl, setBottomBarEl] = useState<HTMLElement | null>(null);
+  const [headerFrame, setHeaderFrameEl] = useState<HTMLElement | null>(null);
+  const headerRef = useRef<HTMLDivElement | null>(null);
+  const barRef = useRef<HTMLDivElement | null>(null);
+  const setHeaderFrame = useCallback((el: HTMLDivElement | null) => {
+    headerRef.current = el;
+    setHeaderFrameEl(el);
+  }, []);
+  const setBar = useCallback((el: HTMLDivElement | null) => {
+    barRef.current = el;
+    setBottomBarEl(el);
+  }, []);
   const slots = useMemo(
     () => ({ headerActions: headerActionsEl, bottomBar: bottomBarEl }),
     [headerActionsEl, bottomBarEl],
@@ -93,12 +111,15 @@ export function ArticleLayer({
   const layerRef = useRef<HTMLDivElement>(null);
   const scrimRef = useRef<HTMLDivElement>(null);
   const standalone = useMemo(isStandalone, []);
+  useChromeInsets(layerRef, headerFrame, bottomBarEl, true);
   const width = () => window.innerWidth;
+  /** The content, the header frame and the bar frame move as one (see above). */
+  const parts = () => [layerRef.current, headerRef.current, barRef.current];
   const place = (p: number) => {
-    const layer = layerRef.current;
-    if (layer) {
-      layer.style.transition = '';
-      layer.style.transform = `translateX(${p * width()}px)`;
+    for (const el of parts()) {
+      if (!el) continue;
+      el.style.transition = '';
+      el.style.transform = `translateX(${p * width()}px)`;
     }
     const under = underlay?.current;
     if (under) {
@@ -125,9 +146,10 @@ export function ArticleLayer({
   // slide under), not for a direct link or reload (POP), and not with reduced motion.
   const canSlide = () => !!layerRef.current && !isDesktop && !prefersReducedMotion();
   const clearSlide = () => {
-    if (layerRef.current) {
-      layerRef.current.style.transition = '';
-      layerRef.current.style.transform = '';
+    for (const el of parts()) {
+      if (!el) continue;
+      el.style.transition = '';
+      el.style.transform = '';
     }
     if (scrimRef.current) {
       scrimRef.current.style.transition = '';
@@ -156,15 +178,10 @@ export function ArticleLayer({
       SLIDE_MS,
       SLIDE_EASE,
     );
-    timers.current.push(
-      settleTo(
-        layerRef.current,
-        { transform: `translateX(${to * w}px)` },
-        done,
-        SLIDE_MS,
-        SLIDE_EASE,
-      ),
-    );
+    const moved = { transform: `translateX(${to * w}px)` };
+    settleTo(headerRef.current, moved, undefined, SLIDE_MS, SLIDE_EASE);
+    settleTo(barRef.current, moved, undefined, SLIDE_MS, SLIDE_EASE);
+    timers.current.push(settleTo(layerRef.current, moved, done, SLIDE_MS, SLIDE_EASE));
   };
 
   // Opened by a tap (PUSH): slide in from the right while the list shifts left and the scrim fades in.
@@ -185,6 +202,8 @@ export function ArticleLayer({
   useLayoutEffect(() => {
     if (shown.current === contentKey) return;
     shown.current = contentKey;
+    // Below lg the document scrolls the article: the next one starts at the top.
+    if (!isDesktop) window.scrollTo(0, 0);
     const el = main.current;
     if (!el || navType !== 'REPLACE' || !canSlide()) return;
     const dir = (location.state as StepState | null)?.step ?? 1;
@@ -223,9 +242,12 @@ export function ArticleLayer({
       sliding.current = 'out'; // the swipe finishes the slide itself
       if (!layerRef.current?.style.transform) return navigateBack(); // reduced motion: no drag
       const rest = { transform: 'translateX(0)' };
+      const away = { transform: `translateX(${width()}px)` };
       settleTo(scrimRef.current, { transform: '', opacity: '0' });
       if (underlay?.current) settleTo(underlay.current, rest);
-      settleTo(layerRef.current, { transform: `translateX(${width()}px)` }, navigateBack);
+      settleTo(headerRef.current, away);
+      settleTo(barRef.current, away);
+      settleTo(layerRef.current, away, navigateBack);
     },
     onCancel: () => {
       settleTo(scrimRef.current, { transform: '', opacity: '1' });
@@ -236,8 +258,10 @@ export function ArticleLayer({
           clearUnder,
         );
       }
+      settleTo(headerRef.current, { transform: 'translateX(0)' });
+      settleTo(barRef.current, { transform: 'translateX(0)' });
       settleTo(layerRef.current, { transform: 'translateX(0)' }, () => {
-        if (layerRef.current) layerRef.current.style.transform = '';
+        clearSlide();
         if (scrimRef.current) scrimRef.current.style.opacity = '';
       });
     },
@@ -253,55 +277,58 @@ export function ArticleLayer({
         className={`pointer-events-none fixed inset-0 z-30 bg-scrim opacity-0 ${left}`}
       />
       <div
+        ref={setHeaderFrame}
+        className={`fixed inset-x-0 top-0 z-[31] flex-none touch-pan-y ${left}`}
+      >
+        <header className="border-b border-line bg-surface pl-[max(1rem,env(safe-area-inset-left))] pr-[max(1rem,env(safe-area-inset-right))] pt-[env(safe-area-inset-top)]">
+          <div className="flex min-h-14 items-center gap-2 py-2 lg:mx-auto lg:max-w-2xl">
+            <button
+              type="button"
+              aria-label="Back"
+              onClick={goBack}
+              className="-ml-2 inline-flex size-11 shrink-0 items-center justify-center rounded-md text-fg active:bg-sunken"
+            >
+              <ArrowLeft aria-hidden="true" className="size-6" />
+            </button>
+            <h1
+              ref={heading}
+              tabIndex={-1}
+              {...(title.heading === null ? { 'aria-busy': true, 'aria-label': 'Loading' } : {})}
+              className="min-w-0 flex-1 line-clamp-2 break-words text-lg font-semibold text-fg"
+            >
+              {title.heading ?? (
+                <span
+                  aria-hidden="true"
+                  className="block h-6 w-32 animate-skeleton rounded-md bg-sunken"
+                />
+              )}
+            </h1>
+            <div ref={setHeaderActionsEl} className="flex items-center gap-2" />
+          </div>
+        </header>
+        <OfflineBanner />
+      </div>
+      <div
         ref={layerRef}
         data-testid="article-layer"
-        className={`fixed inset-0 z-30 flex flex-col bg-canvas touch-pan-y overscroll-contain ${left}`}
+        className={`relative z-30 min-h-dvh touch-pan-y bg-canvas max-lg:pb-[var(--bar-h,0px)] max-lg:pt-[var(--header-h,4rem)] lg:fixed lg:inset-x-0 lg:bottom-[var(--bar-h,0px)] lg:top-[var(--header-h,4rem)] lg:flex lg:min-h-0 lg:flex-col ${left}`}
       >
-        <div className="flex-none">
-          <header className="border-b border-line bg-surface pl-[max(1rem,env(safe-area-inset-left))] pr-[max(1rem,env(safe-area-inset-right))] pt-[env(safe-area-inset-top)]">
-            <div className="flex min-h-14 items-center gap-2 py-2 lg:mx-auto lg:max-w-2xl">
-              <button
-                type="button"
-                aria-label="Back"
-                onClick={goBack}
-                className="-ml-2 inline-flex size-11 shrink-0 items-center justify-center rounded-md text-fg active:bg-sunken"
-              >
-                <ArrowLeft aria-hidden="true" className="size-6" />
-              </button>
-              <h1
-                ref={heading}
-                tabIndex={-1}
-                {...(title.heading === null ? { 'aria-busy': true, 'aria-label': 'Loading' } : {})}
-                className="min-w-0 flex-1 line-clamp-2 break-words text-lg font-semibold text-fg"
-              >
-                {title.heading ?? (
-                  <span
-                    aria-hidden="true"
-                    className="block h-6 w-32 animate-skeleton rounded-md bg-sunken"
-                  />
-                )}
-              </h1>
-              <div ref={setHeaderActionsEl} className="flex items-center gap-2" />
-            </div>
-          </header>
-          <OfflineBanner />
-        </div>
         <main
           key={contentKey}
           ref={main}
           id="main"
           tabIndex={-1}
           data-testid="article-scroll"
-          className="min-h-0 flex-1 overflow-y-auto overscroll-contain py-4 pl-[max(1rem,env(safe-area-inset-left))] pr-[max(1rem,env(safe-area-inset-right))]"
+          className="py-4 pl-[max(1rem,env(safe-area-inset-left))] pr-[max(1rem,env(safe-area-inset-right))] lg:min-h-0 lg:flex-1 lg:overflow-y-auto lg:overscroll-contain"
         >
           <div className="mx-auto max-w-2xl">{children}</div>
         </main>
-        <div
-          id="bottom-bar"
-          ref={setBottomBarEl}
-          className="flex-none border-t border-line bg-surface pb-[env(safe-area-inset-bottom)] pl-[max(1rem,env(safe-area-inset-left))] pr-[max(1rem,env(safe-area-inset-right))] empty:hidden"
-        />
       </div>
+      <div
+        id="bottom-bar"
+        ref={setBar}
+        className={`fixed inset-x-0 bottom-0 z-[31] flex-none border-t border-line bg-surface pb-[env(safe-area-inset-bottom)] pl-[max(1rem,env(safe-area-inset-left))] pr-[max(1rem,env(safe-area-inset-right))] empty:hidden ${left}`}
+      />
     </ShellSlotsContext.Provider>,
     root,
   );

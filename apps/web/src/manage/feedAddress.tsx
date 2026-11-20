@@ -1,4 +1,5 @@
 import { Link } from 'react-router';
+import { isStandalone } from '../lib/useSwipe';
 import type { AlreadySubscribedDetails, FeedChoiceDetails } from '@tidings/shared';
 import type { BannerContent } from '../auth/ui';
 
@@ -41,6 +42,7 @@ export function alreadyFollowBanner(id: string | null, onOpen?: () => void): Ban
         {id && (
           <Link
             to={`/feeds/${id}`}
+            replace={isStandalone()}
             onClick={onOpen}
             className="inline-block -my-3 py-3 text-accent underline underline-offset-2"
           >

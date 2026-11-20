@@ -1,5 +1,6 @@
 import { useEffect, useId, useRef, useState, type FormEvent } from 'react';
 import { Link, useNavigate } from 'react-router';
+import { isStandalone } from '../lib/useSwipe';
 import { useQueryClient } from '@tanstack/react-query';
 import { CircleAlert } from 'lucide-react';
 import {
@@ -167,7 +168,8 @@ export function AddFeed() {
       const { subscription } = res;
       if (res.fetch.ok) {
         toast.success(`Added ${subscription.title}`);
-        void navigate(`/feeds/${subscription.id}`);
+        // Installed app: a list never has an entry behind it for iOS's edge swipe-back to land on.
+        void navigate(`/feeds/${subscription.id}`, { replace: isStandalone() });
         return;
       }
       // The subscription exists; the first fetch did not work. Say so on this screen, where it
@@ -210,6 +212,7 @@ export function AddFeed() {
         <div className="mt-6 flex flex-col gap-3">
           <Link
             to={`/feeds/${screen.subscription.id}`}
+            replace={isStandalone()}
             className="flex min-h-12 w-full items-center justify-center rounded-md bg-accent px-4 text-base font-medium text-accent-fg"
           >
             Open feed

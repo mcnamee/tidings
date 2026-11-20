@@ -286,17 +286,25 @@
   }
 }
 
-/* Focus: section 10. */
+/* Focus: section 10. Rings show for keyboard use only (TID-069): <html data-input="keyboard"> is set
+   by a navigation key and cleared by any pointer or touch (lib/inputModality), so a tap never
+   leaves a ring on the Menu button or the screen title. Text fields always show theirs.
+   Programmatically focused headings and the main landmark never do. */
 :focus-visible {
+  outline: none;
+}
+html[data-input='keyboard'] :focus-visible,
+:is(input, textarea, select):focus-visible {
   outline: 2px solid var(--c-focus);
   outline-offset: 2px;
   border-radius: var(--radius-sm);
 }
-:focus:not(:focus-visible) {
+:is(h1, h2, h3, main)[tabindex='-1']:focus-visible {
   outline: none;
 }
 @media (forced-colors: active) {
-  :focus-visible {
+  html[data-input='keyboard'] :focus-visible,
+  :is(input, textarea, select):focus-visible {
     outline-color: Highlight;
   }
 }
@@ -305,16 +313,13 @@
 html {
   background-color: var(--c-bg);
 }
-/* No document rubber-band (iOS 16+): the header and the status-bar area never move. */
-html,
-body {
-  overscroll-behavior-y: none;
-}
-/* TID-064: below lg the signed-in shell is a fixed-height column whose `main` scrolls natively (and
-   so gets the real iOS bounce, momentum included). The document itself never scrolls there. */
-@media (max-width: 63.999rem) {
-  html:has([data-testid='list-underlay']) {
-    overflow: hidden;
+/* From lg the document has no rubber band (desktop layout). Below it the document is the scroller
+   and bounces natively at both ends (TID-069); the header and bottom bar are position: fixed, which
+   iOS does not move during the bounce (sticky ones move with it, the old gap above the header). */
+@media (min-width: 64rem) {
+  html,
+  body {
+    overscroll-behavior-y: none;
   }
 }
 body {

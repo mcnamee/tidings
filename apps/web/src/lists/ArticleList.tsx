@@ -22,10 +22,10 @@ import { useSession } from '../lib/session';
 import { effectiveSort, markReadOnScroll, unreadOnlyDefault } from '../lib/settings';
 import { useUpdateSettings } from '../settings/useUpdateSettings';
 import { useMarkReadOnScroll } from '../lib/readOnScroll';
-import { prefersReducedMotion } from '../lib/useSwipe';
+import { isStandalone, prefersReducedMotion } from '../lib/useSwipe';
 import { usePullToRefresh } from '../lib/usePullToRefresh';
 import { SHEET_BUTTON, Sheet } from '../manage/Sheet';
-import { BottomBar, HeaderActions, useScrollRoot } from '../shell/slots';
+import { BottomBar, HeaderActions } from '../shell/slots';
 import { ArticleRow, LIST_GRID } from './ArticleRow';
 
 const COUNT_FORMAT = new Intl.NumberFormat('en-US');
@@ -190,9 +190,8 @@ export function ArticleList({
     await Promise.all([entries.refetch(), client.refetchQueries({ queryKey: COUNTS_KEY })]);
   }
   const stretchRef = useRef<HTMLDivElement>(null);
-  // TID-064: below lg the list scrolls in the shell's `main` (the root of every observer here).
-  const scrollRoot = useScrollRoot();
-  const { state: pull, native } = usePullToRefresh(refresh, !covered, scrollRoot, stretchRef);
+  // TID-069: the window is the scroller on every layout (the header and bottom bar are fixed).
+  const { state: pull, native } = usePullToRefresh(refresh, !covered, stretchRef);
   // The indicator waits above the list content and is uncovered as the content is pulled down, by
   // the browser's own bounce or by our transform. It shows in the flow instead with reduced motion
   // (nothing stretches), and while a native pull refreshes (the bounce has settled back to the top).
@@ -224,7 +223,6 @@ export function ArticleList({
     listRef,
     items,
     !covered && markReadOnScroll(session.data?.user?.settings),
-    scrollRoot,
   );
 
   const sentinel = useRef<HTMLDivElement>(null);
@@ -232,16 +230,16 @@ export function ArticleList({
   const canObserve = typeof IntersectionObserver !== 'undefined';
   useEffect(() => {
     const el = sentinel.current;
-    if (!el || !hasNextPage || !canObserve || scrollRoot === undefined) return;
+    if (!el || !hasNextPage || !canObserve) return;
     const observer = new IntersectionObserver(
       (hits) => {
         if (hits.some((h) => h.isIntersecting) && !isFetchingNextPage) void fetchNextPage();
       },
-      { root: scrollRoot, rootMargin: '400px' },
+      { rootMargin: '400px' },
     );
     observer.observe(el);
     return () => observer.disconnect();
-  }, [hasNextPage, isFetchingNextPage, fetchNextPage, canObserve, items.length, scrollRoot]);
+  }, [hasNextPage, isFetchingNextPage, fetchNextPage, canObserve, items.length]);
 
   function setState(next: EntryListState) {
     const p = new URLSearchParams(params);
@@ -258,7 +256,11 @@ export function ArticleList({
   if (notFound) {
     body = (
       <State title="We couldn't find that page.">
-        <Link to="/all" className="inline-flex min-h-11 items-center text-accent underline">
+        <Link
+          to="/all"
+          replace={isStandalone()}
+          className="inline-flex min-h-11 items-center text-accent underline"
+        >
           Go to All articles
         </Link>
       </State>
@@ -302,7 +304,7 @@ export function ArticleList({
         {!hasNextPage && (
           <div
             data-testid="list-end"
-            className="flex min-h-[var(--main-h,60dvh)] flex-col items-center justify-center gap-2 text-sm text-fg-muted lg:min-h-40"
+            className="flex min-h-[calc(100dvh-var(--header-h,0px)-var(--bar-h,0px))] flex-col items-center justify-center gap-2 text-sm text-fg-muted lg:min-h-40"
           >
             {items.every((i) => i.isRead) ? (
               <>

@@ -1,4 +1,11 @@
-import { createContext, useContext, useEffect, type ReactNode, type RefObject } from 'react';
+import {
+  createContext,
+  useContext,
+  useEffect,
+  useLayoutEffect,
+  type ReactNode,
+  type RefObject,
+} from 'react';
 import { createPortal } from 'react-dom';
 
 // The header's right-hand actions and the bottom bar are the only parts of the shell a screen may
@@ -19,14 +26,6 @@ export interface LayerSlots {
   sidebarHidden?: boolean;
 }
 export const LayerContext = createContext<LayerSlots>({ root: null, underlay: null });
-
-/**
- * The element the page scrolls in. Below `lg` the shell's `main` is its own native scroll container
- * (TID-064), so scroll-aware code uses it as the IntersectionObserver root and reads its scrollTop.
- * `null`: the document scrolls (desktop, or no shell); `undefined`: the container is not mounted yet.
- */
-export const ScrollRootContext = createContext<HTMLElement | null | undefined>(null);
-export const useScrollRoot = () => useContext(ScrollRootContext);
 
 export const ShellSlotsContext = createContext<ShellSlots>({
   headerActions: null,
@@ -68,4 +67,35 @@ export function BottomBar({ children }: { children: ReactNode }) {
         bottomBar,
       )
     : null;
+}
+
+/**
+ * TID-069: below lg the header and bottom bar are `position: fixed` and the document scrolls under
+ * them, so the content needs matching padding. This publishes their measured heights (safe areas
+ * included) as `--header-h` and `--bar-h` on `target` (CSSOM, CSP-safe) and keeps them current
+ * (large text, a wrapped banner or bar). The bar may be absent or empty (height 0).
+ */
+export function useChromeInsets(
+  target: RefObject<HTMLElement | null>,
+  header: HTMLElement | null,
+  bar: HTMLElement | null,
+  enabled: boolean,
+): void {
+  useLayoutEffect(() => {
+    const el = target.current;
+    if (!el || !header || !enabled) return;
+    const publish = () => {
+      el.style.setProperty('--header-h', `${header.offsetHeight}px`);
+      el.style.setProperty('--bar-h', `${bar?.offsetHeight ?? 0}px`);
+    };
+    publish();
+    const observer = typeof ResizeObserver === 'undefined' ? null : new ResizeObserver(publish);
+    observer?.observe(header);
+    if (bar) observer?.observe(bar);
+    return () => {
+      observer?.disconnect();
+      el.style.removeProperty('--header-h');
+      el.style.removeProperty('--bar-h');
+    };
+  }, [target, header, bar, enabled]);
 }

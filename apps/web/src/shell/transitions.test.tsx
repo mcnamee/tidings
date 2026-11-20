@@ -169,7 +169,7 @@ describe('article slide-in and out (TID-058)', () => {
 describe('pull to refresh stretches the content, not the header (TID-058)', () => {
   const header = () => screen.getByRole('banner').parentElement as HTMLElement;
   const content = () => screen.getByRole('list').closest('div.relative') as HTMLElement;
-  // TID-064: touches land on the shell's scrolling main (not on the window).
+  // TID-069: the window is the scroller; touches on the content bubble up to it.
   const main = () => screen.getByTestId('main-scroll');
 
   it('moves the list content down with resistance and leaves the header alone, then springs back', async () => {
@@ -201,12 +201,14 @@ describe('pull to refresh stretches the content, not the header (TID-058)', () =
     const up = new TouchEvent('touchmove', {
       touches: [{ clientY: 200 } as Touch],
       cancelable: true,
+      bubbles: true,
     });
     act(() => void main().dispatchEvent(up));
     expect(up.defaultPrevented).toBe(false);
     const down = new TouchEvent('touchmove', {
       touches: [{ clientY: 380 } as Touch],
       cancelable: true,
+      bubbles: true,
     });
     act(() => void main().dispatchEvent(down));
     expect(down.defaultPrevented).toBe(true);
