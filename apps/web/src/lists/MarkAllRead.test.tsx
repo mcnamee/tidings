@@ -292,12 +292,12 @@ describe('a failed mark all', () => {
     expect(client.getQueryData<Counts>(['counts'])?.total).toBe(3);
   });
 
-  it('is disabled while there is nothing unread', async () => {
+  it('is not shown while there is nothing to list', async () => {
     api.set(ENTRIES('all'), page([]));
     api.set('GET /api/counts', counts(0));
     renderApp('/all');
     await screen.findByText('All caught up');
-    expect(markAllButton()).toBeDisabled();
+    expect(screen.queryByRole('button', { name: /Mark all as read/ })).not.toBeInTheDocument();
   });
 });
 

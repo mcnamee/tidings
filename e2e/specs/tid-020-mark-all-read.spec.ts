@@ -52,7 +52,7 @@ test('AC1, AC3, AC5: a folder asks first, marks only its entries, and Undo resto
   await expect(page.getByRole('link', { name: /Item 9600/ })).toBeVisible();
 
   await page.goto('/folders/f1');
-  await page.getByRole('button', { name: 'Show all articles' }).click();
+  await page.getByRole('button', { name: 'Unread only' }).click();
   await expect(page.getByRole('link', { name: /Item 9500/ })).toBeVisible();
 });
 

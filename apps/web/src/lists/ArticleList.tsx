@@ -46,7 +46,13 @@ function State({
   children?: ReactNode;
 }) {
   return (
-    <div className="px-2 py-10 text-center">
+    <div
+      className={`px-2 text-center ${
+        art
+          ? 'flex min-h-[calc(100dvh-var(--header-h,4rem)-var(--bar-h,0px)-2rem)] flex-col items-center justify-center pb-10 lg:min-h-[70vh]'
+          : 'py-10'
+      }`}
+    >
       {art && <CaughtUpArt />}
       <h2 className="text-lg font-semibold text-fg">{title}</h2>
       <div className="mt-2 flex flex-col items-center gap-2 text-base text-fg-muted">
@@ -87,13 +93,11 @@ function Empty({
   state,
   subscription,
   noSubscriptions,
-  onShowAll,
 }: {
   view: EntryListView;
   state: EntryListState;
   subscription: Subscription | undefined;
   noSubscriptions: boolean;
-  onShowAll: () => void;
 }) {
   if (noSubscriptions) {
     return (
@@ -142,12 +146,8 @@ function Empty({
   }
   if (state === 'unread') {
     return (
-      <State title="All caught up" art>
-        <p>No unread articles here.</p>
-        <button type="button" onClick={onShowAll} className={BUTTON}>
-          Show all articles
-        </button>
-      </State>
+      // Owner, 2026-11-21: just the picture and the title; Unread only in the header shows the rest.
+      <State title="All caught up" art />
     );
   }
   return (
@@ -272,6 +272,13 @@ export function ArticleList({
   const subscription = view === 'feed' ? subscriptions.data?.find((s) => s.id === id) : undefined;
   const now = Date.now();
 
+  // Nothing to list: no bottom bar either (owner, 2026-11-21); pull to refresh still works.
+  const isEmpty =
+    !notFound &&
+    !entries.isPending &&
+    !(entries.isError && !entries.data) &&
+    items.length === 0 &&
+    !hasNextPage;
   let body: ReactNode;
   if (notFound) {
     body = (
@@ -295,14 +302,13 @@ export function ArticleList({
         </button>
       </State>
     );
-  } else if (items.length === 0 && !hasNextPage) {
+  } else if (isEmpty) {
     body = (
       <Empty
         view={view}
         state={state}
         subscription={subscription}
         noSubscriptions={view === 'all' && subscriptions.data?.length === 0}
-        onShowAll={() => setState('all')}
       />
     );
   } else {
@@ -387,26 +393,28 @@ export function ArticleList({
           </button>
         )}
       </HeaderActions>
-      <BottomBar>
-        <button
-          type="button"
-          onClick={() => (toMark > MARK_ALL_CONFIRM_OVER ? setConfirming(true) : markAll())}
-          disabled={!asOf || toMark === 0}
-          className="inline-flex min-h-11 items-center gap-2 rounded-md px-3 text-base font-medium text-fg active:bg-sunken disabled:text-fg-muted"
-        >
-          <CheckCheck aria-hidden="true" className="size-5" strokeWidth={1.75} />
-          Mark all as read
-        </button>
-        <button
-          type="button"
-          onClick={() => void refresh()}
-          disabled={pull === 'refreshing'}
-          className="inline-flex min-h-11 items-center gap-2 rounded-md px-3 text-base font-medium text-fg active:bg-sunken disabled:text-fg-muted"
-        >
-          <RefreshCw aria-hidden="true" className="size-5" strokeWidth={1.75} />
-          Refresh
-        </button>
-      </BottomBar>
+      {!isEmpty && (
+        <BottomBar>
+          <button
+            type="button"
+            onClick={() => (toMark > MARK_ALL_CONFIRM_OVER ? setConfirming(true) : markAll())}
+            disabled={!asOf || toMark === 0}
+            className="inline-flex min-h-11 items-center gap-2 rounded-md px-3 text-base font-medium text-fg active:bg-sunken disabled:text-fg-muted"
+          >
+            <CheckCheck aria-hidden="true" className="size-5" strokeWidth={1.75} />
+            Mark all as read
+          </button>
+          <button
+            type="button"
+            onClick={() => void refresh()}
+            disabled={pull === 'refreshing'}
+            className="inline-flex min-h-11 items-center gap-2 rounded-md px-3 text-base font-medium text-fg active:bg-sunken disabled:text-fg-muted"
+          >
+            <RefreshCw aria-hidden="true" className="size-5" strokeWidth={1.75} />
+            Refresh
+          </button>
+        </BottomBar>
+      )}
       {confirming && (
         <Sheet
           title={`Mark ${formatCount(toMark)} articles as read?`}

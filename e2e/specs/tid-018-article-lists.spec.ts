@@ -45,7 +45,7 @@ test('AC1: the three views show their own articles, newest first', async ({ page
   await page.goto('/feeds/s2');
   await expect(page.getByRole('heading', { level: 1, name: 'Loose Feed' })).toBeVisible();
   await expect(page.getByText('All caught up')).toBeVisible();
-  await page.getByRole('button', { name: 'Show all articles' }).click();
+  await page.getByRole('button', { name: 'Unread only' }).click();
   await expect(rows).toHaveText(['Already read']);
 });
 

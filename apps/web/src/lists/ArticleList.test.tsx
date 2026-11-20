@@ -397,13 +397,17 @@ describe('AC7: empty states', () => {
     );
   });
 
-  it('nothing unread: "All caught up", and Show all articles switches to All', async () => {
+  it('nothing unread: "All caught up" only, no button, no bottom bar; Unread only shows the rest', async () => {
     api.set(ENTRIES('all', 'unread'), page([]));
     api.set(ENTRIES('all', 'all'), page([entry(5, { isRead: true })]));
     renderApp('/all');
     expect(await screen.findByText('All caught up')).toBeInTheDocument();
-    await userEvent.click(screen.getByRole('button', { name: 'Show all articles' }));
+    expect(screen.queryByText('No unread articles here.')).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Show all articles' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /Mark all as read/ })).not.toBeInTheDocument();
+    await userEvent.click(screen.getByRole('button', { name: 'Unread only' }));
     expect(await screen.findByText('Title 5')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /Mark all as read/ })).toBeInTheDocument();
   });
 
   it('"All caught up" shows one illustration from the set (TID-073)', async () => {
