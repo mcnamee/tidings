@@ -9,7 +9,7 @@ import {
   escapeAttr,
   escapeHtml,
   escapeText,
-  firstImgSrc,
+  firstImg,
   plainField,
   safeSlice,
   sniffedHtml,
@@ -59,8 +59,19 @@ interface ItemState {
   mediaImage: string | null;
   enclosureImage: string | null;
   itunesImage: string | null;
+  /** Declared `width`/`height` of the media thumbnail and media image (TID-072). */
+  thumbnailSize: DeclaredSize;
+  mediaSize: DeclaredSize;
   enclosureUrl: string | null;
 }
+
+type DeclaredSize = { width: number | null; height: number | null };
+const declared = (attribs: Record<string, string>): DeclaredSize => ({
+  width: toDim(attribs['width']),
+  height: toDim(attribs['height']),
+});
+const toDim = (v: string | undefined): number | null =>
+  v !== undefined && /^\s*\d{1,6}\s*$/.test(v) ? Number(v) : null;
 
 const CONTENT_FIELDS: ReadonlySet<Field> = new Set([
   'description',
@@ -99,6 +110,8 @@ function newItem(depth: number, about: string | null, base: string | null): Item
     mediaImage: null,
     enclosureImage: null,
     itunesImage: null,
+    thumbnailSize: { width: null, height: null },
+    mediaSize: { width: null, height: null },
     enclosureUrl: null,
   };
 }
@@ -255,11 +268,25 @@ function parseFeedUnsafe(input: string, options: ParseOptions): ParseResult {
     const summaryText = summarySource === null ? '' : summarise(summarySource);
 
     let imageUrl: string | null = null;
-    for (const candidate of [it.thumbnail, it.mediaImage, it.enclosureImage, it.itunesImage]) {
+    let imageSize: DeclaredSize = { width: null, height: null };
+    const sources: [string | null, DeclaredSize][] = [
+      [it.thumbnail, it.thumbnailSize],
+      [it.mediaImage, it.mediaSize],
+      [it.enclosureImage, { width: null, height: null }],
+      [it.itunesImage, { width: null, height: null }],
+    ];
+    for (const [candidate, size] of sources) {
       imageUrl = resolveUrl(candidate, it.base);
-      if (imageUrl) break;
+      if (imageUrl) {
+        imageSize = size;
+        break;
+      }
     }
-    if (!imageUrl && contentHtml) imageUrl = resolveUrl(firstImgSrc(contentHtml), it.base);
+    if (!imageUrl && contentHtml) {
+      const img = firstImg(contentHtml);
+      imageUrl = resolveUrl(img?.src ?? null, it.base);
+      if (imageUrl && img) imageSize = { width: img.width, height: img.height };
+    }
 
     const authorText = plainField(f.dcCreator ?? f.author ?? '') || feedAuthor || '';
 
@@ -273,6 +300,8 @@ function parseFeedUnsafe(input: string, options: ParseOptions): ParseResult {
       contentHtml,
       summary: summaryText === '' ? null : summaryText,
       imageUrl,
+      imageWidth: imageUrl ? imageSize.width : null,
+      imageHeight: imageUrl ? imageSize.height : null,
     });
   };
 
@@ -354,7 +383,10 @@ function parseFeedUnsafe(input: string, options: ParseOptions): ParseResult {
         const it = item;
         // Media and enclosure elements carry data in attributes, at any depth.
         if (name === 'media:thumbnail') {
-          it.thumbnail ??= attribs['url'] ?? null;
+          if (it.thumbnail === null && attribs['url']) {
+            it.thumbnail = attribs['url'];
+            it.thumbnailSize = declared(attribs);
+          }
           return;
         }
         if (name === 'itunes:image') {
@@ -364,7 +396,10 @@ function parseFeedUnsafe(input: string, options: ParseOptions): ParseResult {
         if (name === 'media:content') {
           const type = (attribs['type'] ?? '').toLowerCase();
           if (attribs['medium'] === 'image' || type.startsWith('image/')) {
-            it.mediaImage ??= attribs['url'] ?? null;
+            if (it.mediaImage === null && attribs['url']) {
+              it.mediaImage = attribs['url'];
+              it.mediaSize = declared(attribs);
+            }
           }
           return;
         }

@@ -4,7 +4,7 @@ import type { EntrySummary } from '@tidings/shared';
 import { openState } from '../lib/articleNav';
 import { isStandalone } from '../lib/useSwipe';
 import { relativeTime, relativeTimeLong } from '../lib/time';
-import { rowLayout } from './rowLayout';
+import { isKnownSmall, MIN_FEATURE_WIDTH, rememberSmall, rowLayout } from './rowLayout';
 
 /**
  * The list's columns from `lg` (TID-062): the rows become magazine cards. Two columns beside the
@@ -21,7 +21,9 @@ export const LIST_GRID =
  * (when the feed has one) and a hero entry is a featured card: it spans two columns (a full row in
  * the 2-column grid), image on the left half, bigger title and summary on the right. The grid is
  * `grid-flow-dense`, so featured cards leave no holes; the cost is that their visual order can
- * differ slightly from DOM and keyboard order. All feed text is rendered as text: React escapes
+ * differ slightly from DOM and keyboard order. An image that loads narrower than 300px (TID-072)
+ * is never stretched: the row becomes `small`, a thumbnail at natural size in a 96px box, with no
+ * featured or 2-column layout. All feed text is rendered as text: React escapes
  * it, and nothing here ever sets HTML (spec 10.5).
  */
 export function ArticleRow({
@@ -36,8 +38,9 @@ export function ArticleRow({
   prev?: EntrySummary;
 }) {
   const [broken, setBroken] = useState(false);
+  const [small, setSmall] = useState(() => isKnownSmall(entry.imageUrl));
   const title = entry.title?.trim() || 'Untitled article';
-  const layout = broken ? 'text' : rowLayout(entry, prev);
+  const layout = broken ? 'text' : small ? 'small' : rowLayout(entry, prev);
   const hero = layout === 'hero';
   const summary = entry.summary?.replace(/\s+/g, ' ').trim() ?? '';
   const img = (cls: string) => (
@@ -48,7 +51,14 @@ export function ArticleRow({
       decoding="async"
       referrerPolicy="no-referrer"
       onError={() => setBroken(true)}
-      className={`bg-sunken object-cover ${cls}`}
+      onLoad={(e) => {
+        const w = e.currentTarget.naturalWidth;
+        if (w > 0 && w < MIN_FEATURE_WIDTH && entry.imageUrl) {
+          rememberSmall(entry.imageUrl);
+          setSmall(true);
+        }
+      }}
+      className={`bg-sunken ${cls}`}
     />
   );
   return (
@@ -64,16 +74,28 @@ export function ArticleRow({
         className={`-mx-4 min-h-11 px-4 py-4 hover:bg-sunken active:bg-sunken lg:mx-0 lg:h-full lg:rounded-xl lg:border lg:border-line lg:bg-surface lg:p-3 lg:shadow-sm lg:hover:border-line-strong lg:hover:bg-sunken ${
           hero
             ? 'block lg:flex lg:items-start lg:gap-5'
-            : 'flex items-start gap-3 lg:flex-col lg:gap-0'
+            : layout === 'small'
+              ? 'flex items-start gap-3'
+              : 'flex items-start gap-3 lg:flex-col lg:gap-0'
         }`}
       >
-        {hero && img('aspect-video max-h-80 w-full rounded-lg lg:max-h-none lg:w-1/2 lg:shrink-0')}
+        {hero &&
+          img(
+            'aspect-video max-h-80 w-full object-cover rounded-lg lg:max-h-none lg:w-1/2 lg:shrink-0',
+          )}
         {layout === 'thumb' &&
-          img('size-24 shrink-0 rounded-lg lg:aspect-video lg:size-auto lg:w-full')}
+          img('size-24 shrink-0 rounded-lg object-cover lg:aspect-video lg:size-auto lg:w-full')}
+        {layout === 'small' && (
+          // Natural size, capped to the same 96px box a thumbnail uses: a small image is never
+          // upscaled, and the text beside it does not move when the image loads.
+          <span className="flex size-24 shrink-0 items-start justify-center rounded-lg bg-sunken">
+            {img('h-auto max-h-24 w-auto max-w-24 rounded-lg object-contain')}
+          </span>
+        )}
         <div className="min-w-0 flex-1">
           <h2
             className={`line-clamp-4 break-words leading-snug ${hero ? 'mt-3 text-xl lg:mt-0 lg:text-2xl' : 'text-lg'} ${
-              layout === 'text' ? '' : 'lg:mt-3'
+              layout === 'text' || layout === 'small' ? '' : 'lg:mt-3'
             } ${entry.isRead ? 'font-normal text-fg-muted' : 'font-semibold text-fg'}`}
           >
             {title}

@@ -1,5 +1,19 @@
 export type RowLayout = 'hero' | 'thumb' | 'text';
 
+/**
+ * A preview image that loads narrower than this (natural pixels) is never stretched into a hero or a
+ * card (TID-072): the row shows it as a small thumbnail and takes no featured or 2-column layout.
+ */
+export const MIN_FEATURE_WIDTH = 300;
+
+/** Image URLs seen to load small, so a remounted row (Back, refetch) renders small straight away. */
+const smallImages = new Set<string>();
+export const isKnownSmall = (url: string | null): boolean => url !== null && smallImages.has(url);
+export const rememberSmall = (url: string): void => {
+  if (smallImages.size > 500) smallImages.clear();
+  smallImages.add(url);
+};
+
 /** Roughly 1 in 5 image entries are hero rows. */
 const HERO_ONE_IN = 5;
 

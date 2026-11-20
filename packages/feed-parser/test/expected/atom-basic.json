@@ -14,7 +14,9 @@
         "publishedAt": 1794301200,
         "contentHtml": "<p>Body of the <strong>third</strong> entry.</p>",
         "summary": "Short summary of the third entry.",
-        "imageUrl": null
+        "imageUrl": null,
+        "imageWidth": null,
+        "imageHeight": null
       },
       {
         "guidKey": "tag:atom.example.test,2026:post-2",
@@ -25,7 +27,9 @@
         "publishedAt": 1794178800,
         "contentHtml": "<div xmlns=\"http://www.w3.org/1999/xhtml\"><p>XHTML body with <em>markup</em>.</p></div>",
         "summary": "XHTML body with markup.",
-        "imageUrl": null
+        "imageUrl": null,
+        "imageWidth": null,
+        "imageHeight": null
       },
       {
         "guidKey": "tag:atom.example.test,2026:post-1",
@@ -36,7 +40,9 @@
         "publishedAt": 1794096000,
         "contentHtml": "Plain text summary.",
         "summary": "Plain text summary.",
-        "imageUrl": null
+        "imageUrl": null,
+        "imageWidth": null,
+        "imageHeight": null
       }
     ],
     "stoppedEarly": false

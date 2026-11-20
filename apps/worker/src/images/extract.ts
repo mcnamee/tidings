@@ -187,17 +187,25 @@ export function cleanImageUrl(
   return canon.url;
 }
 
+export interface PreviewImage {
+  url: string;
+  /** The `og:image:width` / `og:image:height` the page declared, or null. */
+  width: number | null;
+  height: number | null;
+}
+
 /**
  * The preview image of a page: `og:image` (and `og:image:url`), then `og:image:secure_url`, then
  * `twitter:image`, then `<link rel="image_src">`, first in document order within a kind. `pageUrl` is
- * the final URL after redirects, the base for relative values.
+ * the final URL after redirects, the base for relative values. The declared size is returned so the
+ * caller can judge it (TID-072).
  */
-export function extractPreviewImage(
+export function extractPreview(
   html: string,
   pageUrl: string,
   appOrigin: string,
   allowHosts: readonly string[] = [],
-): string | null {
+): PreviewImage | null {
   const found = candidates(html.length > MAX_PAGE_BYTES ? html.slice(0, MAX_PAGE_BYTES) : html);
   found.sort((a, b) => a.rank - b.rank); // stable: document order within a rank
   for (const c of found) {
@@ -206,7 +214,95 @@ export function extractPreviewImage(
       (c.height !== null && c.height < MIN_IMAGE_SIDE);
     if (tiny) continue;
     const url = cleanImageUrl(c.raw, pageUrl, appOrigin, allowHosts);
-    if (url) return url;
+    if (url) return { url, width: c.width, height: c.height };
   }
   return null;
+}
+
+/** {@link extractPreview}, URL only. */
+export function extractPreviewImage(
+  html: string,
+  pageUrl: string,
+  appOrigin: string,
+  allowHosts: readonly string[] = [],
+): string | null {
+  return extractPreview(html, pageUrl, appOrigin, allowHosts)?.url ?? null;
+}
+
+/** The registrable-ish domain of a host: last two labels, three under a short second level (co.uk). */
+export function siteOf(host: string): string {
+  const labels = host.toLowerCase().replace(/\.$/, '').split('.');
+  if (labels.length <= 2) return labels.join('.');
+  const sld = labels[labels.length - 2] as string;
+  const tld = labels[labels.length - 1] as string;
+  const take = tld.length === 2 && sld.length <= 3 ? 3 : 2;
+  return labels.slice(-take).join('.');
+}
+
+const SCAN_CHARS = 16 * 1024;
+const MAX_ANCHORS = 60;
+
+/**
+ * The entry's primary outbound link (TID-072): the first `<a href>` in the feed's content or
+ * description that points to a different site than the entry link, preferring one that wraps an
+ * `<img>` (Techmeme wraps its thumbnail in a link to the source story). Bounded: it reads at most
+ * 16 KB and 60 anchors. The result is a canonical public http(s) URL or null; the fetch re-checks it.
+ */
+export function primaryOutboundLink(
+  contentHtml: string | null,
+  entryUrl: string,
+  appOrigin: string,
+  allowHosts: readonly string[] = [],
+): string | null {
+  if (!contentHtml) return null;
+  let entrySite: string;
+  try {
+    entrySite = siteOf(new URL(entryUrl).hostname);
+  } catch {
+    return null;
+  }
+  const html = contentHtml.length > SCAN_CHARS ? contentHtml.slice(0, SCAN_CHARS) : contentHtml;
+  const re = /<a\b[^>]*?\bhref\s*=\s*(?:"([^"]*)"|'([^']*)'|([^\s>]+))[^>]*>/gi;
+  let first: string | null = null;
+  let m: RegExpExecArray | null;
+  let n = 0;
+  while (n < MAX_ANCHORS && (m = re.exec(html)) !== null) {
+    n++;
+    const raw = m[1] ?? m[2] ?? m[3];
+    if (raw === undefined) continue;
+    const url = cleanLinkUrl(raw, entryUrl, appOrigin, allowHosts);
+    if (!url || siteOf(new URL(url).hostname) === entrySite) continue;
+    const wrapsImg = /^\s*<img\b/i.test(html.slice(re.lastIndex, re.lastIndex + 200));
+    if (wrapsImg) return url;
+    first ??= url;
+  }
+  return first;
+}
+
+function cleanLinkUrl(
+  raw: string,
+  base: string,
+  appOrigin: string,
+  allowHosts: readonly string[],
+): string | null {
+  const decoded = decodeEntities(raw).trim();
+  if (
+    decoded === '' ||
+    decoded.length > MAX_URL_CHARS ||
+    // eslint-disable-next-line no-control-regex
+    /[\u0000-\u001f\u007f\s"<>]/.test(decoded)
+  ) {
+    return null;
+  }
+  let abs: URL;
+  try {
+    abs = new URL(decoded, base);
+  } catch {
+    return null;
+  }
+  if (abs.protocol !== 'http:' && abs.protocol !== 'https:') return null;
+  if (abs.username !== '' || abs.password !== '') return null;
+  const canon = canonicalizeHttpUrl(abs.href);
+  if (!canon.ok || !checkUrl(canon.url, appOrigin, allowHosts).ok) return null;
+  return canon.url;
 }

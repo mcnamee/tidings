@@ -14,7 +14,9 @@
         "publishedAt": 1794312000,
         "contentHtml": "&lol9; &xxe;",
         "summary": "&lol9; &xxe;",
-        "imageUrl": null
+        "imageUrl": null,
+        "imageWidth": null,
+        "imageHeight": null
       }
     ],
     "stoppedEarly": false

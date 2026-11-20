@@ -1,4 +1,4 @@
-import { render, screen } from '@testing-library/react';
+import { fireEvent, render, screen } from '@testing-library/react';
 import { MemoryRouter } from 'react-router';
 import { describe, expect, it } from 'vitest';
 import type { EntrySummary } from '@tidings/shared';
@@ -65,5 +65,63 @@ describe('ArticleRow featured cards', () => {
   it('shows summaries on text-only cards too', () => {
     renderRow(make(THUMB_ID, { imageUrl: null, summary: 'Words' }));
     expect(screen.getByTestId('entry-summary')).toHaveTextContent('Words');
+  });
+});
+
+// TID-072: a small preview image is never stretched into a hero or card.
+describe('ArticleRow small images', () => {
+  const load = (img: HTMLElement, naturalWidth: number) => {
+    Object.defineProperty(img, 'naturalWidth', { value: naturalWidth, configurable: true });
+    fireEvent.load(img);
+  };
+
+  it('turns a hero row into a small thumbnail when the image loads under 300px', () => {
+    const { container } = renderRow(make(HERO_ID, { imageUrl: 'https://img.example.com/h1.jpg' }));
+    const li = container.querySelector('li')!;
+    expect(li.dataset.layout).toBe('hero');
+    load(container.querySelector('img')!, 100);
+    expect(li.dataset.layout).toBe('small');
+    expect(li.className).not.toContain('lg:col-span-2');
+    const img = container.querySelector('img')!;
+    expect(img.className).toContain('object-contain');
+    expect(img.className).toContain('max-w-24');
+    expect(img.className).not.toContain('w-full');
+    expect(img.className).not.toContain('aspect-video');
+    expect(container.querySelector('a')!.className).not.toContain('lg:flex-col');
+    expect(container.querySelector('h2')!.className).not.toContain('lg:mt-3');
+  });
+
+  it('turns a thumbnail row into a small thumbnail so a desktop card does not stretch it', () => {
+    const { container } = renderRow(make(THUMB_ID, { imageUrl: 'https://img.example.com/t1.jpg' }));
+    expect(container.querySelector('img')!.className).toContain('lg:w-full');
+    load(container.querySelector('img')!, 150);
+    expect(container.querySelector('li')!.dataset.layout).toBe('small');
+    expect(container.querySelector('img')!.className).not.toContain('lg:w-full');
+  });
+
+  it('keeps hero and thumbnail layouts for images at 300px or wider, or of unknown width', () => {
+    const a = renderRow(make(HERO_ID, { imageUrl: 'https://img.example.com/h2.jpg' }));
+    load(a.container.querySelector('img')!, 300);
+    expect(a.container.querySelector('li')!.dataset.layout).toBe('hero');
+    a.unmount();
+    const b = renderRow(make(HERO_ID, { imageUrl: 'https://img.example.com/h3.jpg' }));
+    load(b.container.querySelector('img')!, 0); // jsdom and some SVGs report 0: unknown
+    expect(b.container.querySelector('li')!.dataset.layout).toBe('hero');
+  });
+
+  it('remembers a small image so a remounted row renders small at once', () => {
+    const url = 'https://img.example.com/h4.jpg';
+    const a = renderRow(make(HERO_ID, { imageUrl: url }));
+    load(a.container.querySelector('img')!, 64);
+    a.unmount();
+    const b = renderRow(make(HERO_ID, { imageUrl: url }));
+    expect(b.container.querySelector('li')!.dataset.layout).toBe('small');
+  });
+
+  it('still falls back to text-only when the image fails', () => {
+    const { container } = renderRow(make(HERO_ID, { imageUrl: 'https://img.example.com/h5.jpg' }));
+    fireEvent.error(container.querySelector('img')!);
+    expect(container.querySelector('li')!.dataset.layout).toBe('text');
+    expect(container.querySelector('img')).toBeNull();
   });
 });

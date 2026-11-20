@@ -14,7 +14,9 @@
         "publishedAt": 1794290400,
         "contentHtml": "<p>Full text of the second RDF item.</p>",
         "summary": "Second RDF item.",
-        "imageUrl": null
+        "imageUrl": null,
+        "imageWidth": null,
+        "imageHeight": null
       },
       {
         "guidKey": "https://rdf.example.test/posts/1",
@@ -25,7 +27,9 @@
         "publishedAt": 1794182400,
         "contentHtml": "First RDF item.",
         "summary": "First RDF item.",
-        "imageUrl": null
+        "imageUrl": null,
+        "imageWidth": null,
+        "imageHeight": null
       }
     ],
     "stoppedEarly": false

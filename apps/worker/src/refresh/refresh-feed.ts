@@ -9,6 +9,7 @@
 import { httpErrorCode, type FeedErrorCode } from '@tidings/shared';
 import { dedupKeys } from '@tidings/shared/dedup-keys';
 import { itemGuidHash, parseFeed, type ParsedItem } from '@tidings/feed-parser';
+import { planImages } from '../images/plan';
 import {
   Db,
   nowSeconds,
@@ -211,6 +212,11 @@ export async function refreshFeed(job: RefreshJob, deps: RefreshDeps): Promise<R
     toLink.map((h, i) => [h.hash, { url: urlKeys[i] ?? null, headline: headlineKeys[i] ?? null }]),
   );
 
+  // TID-072: weak images (icons, site defaults) are dropped, small ones kept as a fallback, and
+  // entries with a weak or missing image are queued for the image step (ADR 0020).
+  const images = await planImages(db, job.feedId, fresh, (m) => meter.add(m));
+  const needsImage = fresh.filter((h) => images.get(h.hash)?.needsImage).map((h) => h.hash);
+
   const statements: Statement[] = [];
   for (let i = 0; i < fresh.length; i += ENTRY_ROWS_PER_STATEMENT) {
     const chunk = fresh.slice(i, i + ENTRY_ROWS_PER_STATEMENT);
@@ -228,7 +234,7 @@ export async function refreshFeed(job: RefreshJob, deps: RefreshDeps): Promise<R
           item.author,
           item.summary,
           item.contentHtml,
-          item.imageUrl,
+          images.get(hash)?.image ?? null,
           item.publishedAt,
           now,
           keysOf.get(hash)?.url ?? null,
@@ -270,17 +276,21 @@ export async function refreshFeed(job: RefreshJob, deps: RefreshDeps): Promise<R
         job.feedId,
         ...toLink.map((h) => h.hash),
       ),
-      // TID-071: new entries with a page but no image wait for a preview image (ADR 0019). Queued only
-      // here, when the entry is first stored, so each one is tried at most once.
-      sql(
-        `INSERT OR IGNORE INTO image_queue (entry_id)
-         SELECT e.id FROM entries e
-          WHERE e.feed_id = ? AND e.guid_hash IN (${placeholders(toLink.length)})
-            AND e.image_url IS NULL AND e.url IS NOT NULL
-            AND EXISTS (SELECT 1 FROM user_entries ue WHERE ue.entry_id = e.id AND ue.is_read = 0)`,
-        job.feedId,
-        ...toLink.map((h) => h.hash),
-      ),
+      // TID-071/072: new entries with a page and a weak or missing image wait for a better one
+      // (ADR 0019, 0020). Queued only here, when the entry is first stored, so each is tried once.
+      ...(needsImage.length === 0
+        ? []
+        : [
+            sql(
+              `INSERT OR IGNORE INTO image_queue (entry_id)
+               SELECT e.id FROM entries e
+                WHERE e.feed_id = ? AND e.guid_hash IN (${placeholders(needsImage.length)})
+                  AND e.url IS NOT NULL
+                  AND EXISTS (SELECT 1 FROM user_entries ue WHERE ue.entry_id = e.id AND ue.is_read = 0)`,
+              job.feedId,
+              ...needsImage,
+            ),
+          ]),
     );
   }
 

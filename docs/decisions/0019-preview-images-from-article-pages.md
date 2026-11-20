@@ -3,7 +3,7 @@
 - Status: Accepted (owner request 2026-11-20; the PM confirms at acceptance)
 - Date: 2026-11-20
 - Deciders: owner (request), software-engineer (design), product-manager (acceptance)
-- Story: TID-071. Builds on ADR 0006 (parsing limits), ADR 0018 / TID-067 (queue and entrypoint pattern) and spec §7.8.
+- Story: TID-071. Amended by ADR 0020 (TID-072: weak images, outbound-link fallback). Builds on ADR 0006 (parsing limits), ADR 0018 / TID-067 (queue and entrypoint pattern) and spec §7.8.
 
 ## Context
 

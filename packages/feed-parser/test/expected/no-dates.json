@@ -14,7 +14,9 @@
         "publishedAt": 1794312000,
         "contentHtml": "No date.",
         "summary": "No date.",
-        "imageUrl": null
+        "imageUrl": null,
+        "imageWidth": null,
+        "imageHeight": null
       },
       {
         "guidKey": "nodates-2",
@@ -25,7 +27,9 @@
         "publishedAt": 1794312000,
         "contentHtml": "No date either.",
         "summary": "No date either.",
-        "imageUrl": null
+        "imageUrl": null,
+        "imageWidth": null,
+        "imageHeight": null
       },
       {
         "guidKey": "nodates-3",
@@ -36,7 +40,9 @@
         "publishedAt": 1794312000,
         "contentHtml": "Unparseable date.",
         "summary": "Unparseable date.",
-        "imageUrl": null
+        "imageUrl": null,
+        "imageWidth": null,
+        "imageHeight": null
       },
       {
         "guidKey": "nodates-4",
@@ -47,7 +53,9 @@
         "publishedAt": 1794312000,
         "contentHtml": "Date far in the future; must not pin to top forever.",
         "summary": "Date far in the future; must not pin to top forever.",
-        "imageUrl": null
+        "imageUrl": null,
+        "imageWidth": null,
+        "imageHeight": null
       }
     ],
     "stoppedEarly": false
