@@ -31,7 +31,7 @@ test('at the end of a short list the last row scrolls above the header and is ma
   await page.goto('/all');
   const last = page.getByRole('heading', { level: 2, name: 'Short 3', exact: true });
   await expect(last).toBeVisible();
-  await expect(page.getByTestId('list-end')).toHaveText('End of list');
+  await expect(page.getByRole('button', { name: 'Scroll to top' })).toBeVisible();
 
   await scrollTo(page, 'end');
   const headerBottom = await page
@@ -39,12 +39,13 @@ test('at the end of a short list the last row scrolls above the header and is ma
     .first()
     .evaluate((el) => el.parentElement!.getBoundingClientRect().bottom);
   const lastBottom = await last.evaluate((el) => el.closest('li')!.getBoundingClientRect().bottom);
-  expect(lastBottom).toBeLessThanOrEqual(headerBottom);
+  // Fully past, with room to spare (iOS left the last row touching the header edge).
+  expect(lastBottom).toBeLessThan(headerBottom - 16);
 
   // The message is centred in the end space, which is as tall as the scroll container.
   const mid = await page.evaluate(() => {
     const end = document.querySelector('[data-testid="list-end"]')!;
-    const text = end.querySelector('p')!.getBoundingClientRect();
+    const text = end.querySelector('button')!.getBoundingClientRect();
     const box = end.getBoundingClientRect();
     return { text: text.top + text.height / 2, box: box.top + box.height / 2 };
   });
@@ -53,4 +54,10 @@ test('at the end of a short list the last row scrolls above the header and is ma
   await expect(last).toHaveClass(/text-fg-muted/);
   await expect(page.getByText("You're all caught up")).toBeVisible();
   await expect(page.getByRole('button', { name: 'Mark all as read' })).toBeVisible();
+
+  // Scroll to top goes back up, then refreshes (the read rows leave the unread-only list).
+  const refreshed = page.waitForResponse((r) => r.url().includes('/api/entries'));
+  await page.getByRole('button', { name: 'Scroll to top' }).click();
+  await refreshed;
+  await expect.poll(() => page.evaluate(() => window.scrollY)).toBeLessThanOrEqual(1);
 });

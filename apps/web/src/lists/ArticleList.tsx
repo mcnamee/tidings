@@ -1,7 +1,7 @@
 import { useEffect, useLayoutEffect, useRef, useState, type ReactNode } from 'react';
 import { Link, useSearchParams } from 'react-router';
 import { useQueryClient } from '@tanstack/react-query';
-import { Check, CheckCheck, Filter, Loader2, RefreshCw, Sparkles } from 'lucide-react';
+import { ArrowUp, Check, CheckCheck, Filter, Loader2, RefreshCw, Sparkles } from 'lucide-react';
 import {
   MARK_ALL_CONFIRM_OVER,
   type EntryListState,
@@ -209,6 +209,22 @@ export function ArticleList({
     trimToFirstPage(client, key);
     await Promise.all([entries.refetch(), client.refetchQueries({ queryKey: COUNTS_KEY })]);
   }
+  /** List end (owner, 2026-11-21): back to the top, then refresh once it gets there. */
+  async function scrollTopThenRefresh() {
+    const smooth = !prefersReducedMotion();
+    window.scrollTo({ top: 0, behavior: smooth ? 'smooth' : 'auto' });
+    if (smooth) {
+      const started = performance.now();
+      await new Promise<void>((done) => {
+        const check = () =>
+          window.scrollY <= 1 || performance.now() - started > 2000
+            ? done()
+            : requestAnimationFrame(check);
+        requestAnimationFrame(check);
+      });
+    }
+    await refresh();
+  }
   const stretchRef = useRef<HTMLDivElement>(null);
   // TID-069: the window is the scroller on every layout (the header and bottom bar are fixed).
   const { state: pull, native } = usePullToRefresh(refresh, !covered, stretchRef);
@@ -328,18 +344,27 @@ export function ArticleList({
           ))}
         </ul>
         {!hasNextPage && (
+          // A screen plus a little: the last rows can scroll fully past the header, so mark read on
+          // scroll reaches them too (on every layout; the old 160 px desktop end left them unread).
           <div
             data-testid="list-end"
-            className="flex min-h-[calc(100dvh-var(--header-h,0px)-var(--bar-h,0px))] flex-col items-center justify-center gap-2 text-sm text-fg-muted lg:min-h-40"
+            className="flex min-h-[calc(100dvh-var(--header-h,0px)-var(--bar-h,0px)+2rem)] flex-col items-center justify-center gap-3 text-sm text-fg-muted"
           >
-            {items.every((i) => i.isRead) ? (
+            {items.every((i) => i.isRead) && (
               <>
                 <Check aria-hidden="true" className="size-5" strokeWidth={1.75} />
                 <p>You&apos;re all caught up</p>
               </>
-            ) : (
-              <p>End of list</p>
             )}
+            <button
+              type="button"
+              onClick={() => void scrollTopThenRefresh()}
+              disabled={pull === 'refreshing'}
+              className={BUTTON}
+            >
+              <ArrowUp aria-hidden="true" className="size-5" strokeWidth={1.75} />
+              Scroll to top
+            </button>
           </div>
         )}
         {hasNextPage && (

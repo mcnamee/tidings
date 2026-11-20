@@ -566,16 +566,31 @@ describe('AC9: pull to refresh', () => {
 });
 
 describe('TID-063/064: room past the last article', () => {
-  it('adds end space once no more pages can load: "End of list" while unread rows remain', async () => {
+  it('adds end space once no more pages can load, with Scroll to top (no "End of list")', async () => {
     api.set(ENTRIES('all', 'unread'), page([entry(1), entry(2, { isRead: true })]));
     renderApp('/all');
     await screen.findByText('Title 1');
     const end = screen.getByTestId('list-end');
-    expect(end).toHaveTextContent('End of list');
+    expect(end).not.toHaveTextContent('End of list');
+    expect(screen.getByRole('button', { name: 'Scroll to top' })).toBeInTheDocument();
+    // Taller than the screen, so the last rows can scroll fully past the header (mark read).
+    expect(end.className).toContain('+2rem');
     // Sized to the viewport minus the fixed header and bottom bar, with the message centred in it.
     expect(end.className).toContain('--header-h');
     expect(end.className).toContain('--bar-h');
     expect(end.className).toContain('justify-center');
+  });
+
+  it('Scroll to top goes to the top, then refreshes the list', async () => {
+    const scrollTo = vi.fn();
+    vi.stubGlobal('scrollTo', scrollTo);
+    api.set(ENTRIES('all', 'unread'), page([entry(1)]));
+    renderApp('/all');
+    await screen.findByText('Title 1');
+    const before = entryCalls().length;
+    await userEvent.click(screen.getByRole('button', { name: 'Scroll to top' }));
+    expect(scrollTo).toHaveBeenCalledWith(expect.objectContaining({ top: 0 }));
+    await waitFor(() => expect(entryCalls().length).toBeGreaterThan(before));
   });
 
   it('says "You\'re all caught up" when every row above is read', async () => {
