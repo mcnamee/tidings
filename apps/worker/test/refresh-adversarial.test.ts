@@ -317,13 +317,14 @@ describe('clock edges', () => {
 });
 
 describe('write budget (spec 9.4)', () => {
-  it('first fetch of a 50-item feed stores 50 entries but links 10: 231 rows, not the 81 in spec 9.8 (DEF-015)', async () => {
+  it('first fetch of a 50-item feed stores 50 entries but links 10: 241 rows, not the 81 in spec 9.8 (DEF-015)', async () => {
     const id = await seedFeed({ url: FEED_URL, lastSuccessAt: null, state: 'pending' });
     fx.fake.route(FEED_URL, { status: 200, body: rss(items(1, 50)) });
     const out = await refresh(id);
     // Only the 10 linked entries are keyed (ADR 0017), 1 extra row each (no headline key here).
     // TID-067: + 10 embed_queue rows for the unread linked entries (the 231 rows of spec 9.8).
-    expect(out.usage.rowsWritten).toBe(50 * 3 + 10 * 1 + 10 * 6 + 1 + 10);
+    // TID-071: + 10 image_queue rows (links, no feed image).
+    expect(out.usage.rowsWritten).toBe(50 * 3 + 10 * 1 + 10 * 6 + 1 + 10 + 10);
   });
 
   it('a realistic mix writes only what spec 9.4 predicts', async () => {
@@ -349,7 +350,8 @@ describe('write budget (spec 9.4)', () => {
     // 20 unchanged (0), 5 failing (1 each), 5 changed with 2 new items (2x4 + 2x6 + 1 = 21; 4 per
     // entry since TID-061's entries_url_key).
     // + 2 embed_queue rows per changed feed (TID-067).
-    expect(written).toBe(5 + 5 * 23);
+    // + 2 image_queue rows per changed feed (TID-071).
+    expect(written).toBe(5 + 5 * 25);
   });
 
   it('a near-1 MiB feed with 50 large items still writes in one batch under 15 statements', async () => {

@@ -183,17 +183,17 @@ describe('AC3: daily cap', () => {
 });
 
 describe('AC4: normal feeds cost the same', () => {
-  it('3 new in 50, 2 subscribers: 52 rows written, 151 read, 6 statements (one added by TID-067)', async () => {
+  it('3 new in 50, 2 subscribers: 55 rows written, 163 read, 7 statements (one each added by TID-067 and TID-071)', async () => {
     const id = await seedFeed({ url: FEED_URL, subscribers: ['u1', 'u2'] });
     const feed = fx.fake.serveFeed(FEED_URL, rss(items(4, 50)), { etag: '"v1"' });
     await refresh(id);
     feed.update(rss(items(1, 50)), '"v2"');
     const out = await refresh(id);
     expect(out.newEntries).toBe(3);
-    expect(out.usage.rowsWritten).toBe(52); // 3 x 4 + 3 x 6 x 2 + 1 (ue_entry, TID-021; entries_url_key, TID-061) + 3 embed_queue rows (TID-067)
-    expect(out.usage.rowsRead).toBe(151); // 121 + 3 new x 2 subscribers x 3 for the TID-061 duplicate probe + 12 for the embed_queue insert (TID-067: 4 per new entry)
+    expect(out.usage.rowsWritten).toBe(55); // + 3 image_queue rows (TID-071); 3 x 4 + 3 x 6 x 2 + 1 (ue_entry, TID-021; entries_url_key, TID-061) + 3 embed_queue rows (TID-067)
+    expect(out.usage.rowsRead).toBe(163); // + 12 for the image_queue insert (TID-071: 4 per new entry); 121 + 3 new x 2 subscribers x 3 for the TID-061 duplicate probe + 12 for the embed_queue insert (TID-067: 4 per new entry)
     // parked check, dedup lookup, then one batch: entries insert, link, feed update.
-    expect(out.usage.statements).toBe(6);
+    expect(out.usage.statements).toBe(7);
   });
 });
 

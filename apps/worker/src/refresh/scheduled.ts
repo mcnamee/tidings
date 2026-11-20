@@ -10,6 +10,7 @@ import type { Recommender } from '../recommend/entrypoint';
 import { EMBED_MAX_TRIES } from '../recommend/embed';
 import { runDispatcher, type DispatcherDeps } from './dispatcher';
 import type { FeedRefresher } from './entrypoint';
+import type { ImageEnricher } from '../images/entrypoint';
 
 /** Cron `17 * * * *` is the maintenance job (TID-021); everything else dispatches refreshes. */
 export const MAINTENANCE_CRON = '17 * * * *';
@@ -17,12 +18,16 @@ export const MAINTENANCE_CRON = '17 * * * *';
 /** The two Workers AI steps (TID-067). Tests pass fakes; production calls `ctx.exports.Recommender`. */
 export type RecommenderSteps = Pick<Recommender, 'embedPending' | 'buildProfiles'>;
 
+/** The image step (TID-071). Tests pass a fake; production calls `ctx.exports.ImageEnricher`. */
+export type ImageSteps = Pick<ImageEnricher, 'enrichPending'>;
+
 export async function handleScheduled(
   controller: ScheduledController,
   env: Env,
   ctx: ExecutionContext,
   overrides: Partial<DispatcherDeps> = {},
   recommender?: RecommenderSteps,
+  imageSteps?: ImageSteps,
 ): Promise<void> {
   // TID-010 AC6: refuse to run when ALLOW_FETCH_HOSTS is set outside local development.
   try {
@@ -65,5 +70,20 @@ export async function handleScheduled(
     } catch {
       console.warn(JSON.stringify({ level: 'warn', event: 'embed_dispatch_failed' }));
     }
+  }
+  // TID-071: fetch preview images for queued entries in their own invocation, only when the queue
+  // has a row (one primary-key read otherwise). Never affects the refresh above.
+  try {
+    const pending = await db.first<{ one: number }>(
+      sql('SELECT 1 AS one FROM image_queue LIMIT 1'),
+    );
+    if (pending) {
+      const images =
+        imageSteps ??
+        (ctx.exports as unknown as { ImageEnricher?: ImageSteps } | undefined)?.ImageEnricher;
+      await images?.enrichPending();
+    }
+  } catch {
+    console.warn(JSON.stringify({ level: 'warn', event: 'image_dispatch_failed' }));
   }
 }

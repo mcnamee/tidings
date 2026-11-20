@@ -330,3 +330,33 @@ describe('results (AC7 and status handling)', () => {
     if (res.kind === 'http_error') expect(res.headers.get('retry-after')).toBe('120');
   });
 });
+
+describe('truncate and accept (TID-071)', () => {
+  it('cuts a longer body at maxBodyBytes and reports truncated, instead of too_large', async () => {
+    const { f, opts } = setup();
+    const body = new Uint8Array(5000).fill(65);
+    f.route(FEED, { status: 200, headers: { 'Content-Length': '5000' }, body });
+    const res = await safeFetch(FEED, opts({ maxBodyBytes: 1024, truncate: true }));
+    expect(res).toMatchObject({ kind: 'ok', truncated: true });
+    if (res.kind === 'ok') {
+      expect(res.body.byteLength).toBe(1024);
+      expect(res.sha256).toBe(await sha256Hex(res.body));
+    }
+    // Without the option the same response still fails.
+    expect(await safeFetch(FEED, opts({ maxBodyBytes: 1024 }))).toMatchObject({
+      kind: 'error',
+      code: 'too_large',
+    });
+  });
+
+  it('a body within the limit is not truncated; the Accept header can be replaced', async () => {
+    const { f, opts } = setup();
+    f.route(FEED, { status: 200, body: 'hello' });
+    const res = await safeFetch(
+      FEED,
+      opts({ maxBodyBytes: 1024, truncate: true, accept: 'text/html' }),
+    );
+    expect(res).toMatchObject({ kind: 'ok', truncated: false });
+    expect(f.calls[0]?.headers.get('Accept')).toBe('text/html');
+  });
+});
