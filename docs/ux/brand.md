@@ -74,6 +74,8 @@ Regenerate after changing the logo, tokens or splash layout:
 
 Needs a real iPhone: the launch image appears at once (delete and re-add the app to the Home Screen after an update; iOS caches launch images), the hand-off to the page splash shows no jump in the mark or word, and the vertical position matches (the status-bar insets in the config are best-known values).
 
+> 2026-11-21 (owner): the in-page launch screen (TID-059 `#splash`, `splash.ts`) is removed. The native launch images above are the only launch screen; the app shows its own skeleton as soon as it renders.
+
 ## 8. Caught-up illustrations (TID-073)
 
 Twelve spot illustrations for the list states that say there is nothing to read: "All caught up" (unread filter, nothing unread) and "No articles yet" / "Nothing here yet" (empty feed or view). They are shown above the heading and nowhere else ("No feeds yet", feed-problem states, errors and the end-of-list line stay text-only, because a joke there would be wrong).

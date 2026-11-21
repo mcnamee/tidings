@@ -4,10 +4,8 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { BrowserRouter } from 'react-router';
 import { App } from './App';
 import './index.css';
-import { startSplash } from './splash';
 import { installInputModality } from './lib/inputModality';
 
-startSplash();
 installInputModality();
 
 const queryClient = new QueryClient();
