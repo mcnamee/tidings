@@ -89,8 +89,10 @@ These two blocks are the single source of truth. `docs/ux/check-contrast.mjs` re
   --c-toast-fg: #f4f3ef;
   --c-toast-action: #a9c2ff;
   --c-scrim: rgb(20 19 17 / 0.45);
+  --c-glass: rgb(255 255 255 / 0.75);
   --sh-2: 0 8px 24px rgb(29 28 26 / 0.14), 0 2px 6px rgb(29 28 26 / 0.08);
   --sh-3: 0 16px 40px rgb(29 28 26 / 0.2), 0 4px 10px rgb(29 28 26 / 0.1);
+  --sh-reveal: 0 0 36px rgb(29 28 26 / 0.22);
   --img-filter: none;
 }
 [data-theme='dark'] {
@@ -120,8 +122,10 @@ These two blocks are the single source of truth. `docs/ux/check-contrast.mjs` re
   --c-toast-fg: #e8e7e3;
   --c-toast-action: #9db8ff;
   --c-scrim: rgb(0 0 0 / 0.6);
+  --c-glass: rgb(27 28 32 / 0.75);
   --sh-2: 0 8px 24px rgb(0 0 0 / 0.5);
   --sh-3: 0 16px 40px rgb(0 0 0 / 0.6);
+  --sh-reveal: 0 0 36px rgb(0 0 0 / 0.7);
   --img-filter: brightness(0.9);
 }
 ```
@@ -462,7 +466,8 @@ Motion explains where something came from; it is never decoration. Nothing anima
 
 Specific behaviours:
 
-- Drawer: `translateX(-100%)` to `0`, 200 ms, with the scrim fading 0 to 1. Close is the reverse in 150 ms.
+- Drawer and Filters panel (TID-075, reveal style, below lg): the page card translates by the panel's width (right for the drawer, left for Filters) over 300 ms with `--ease-ios`, rounding its revealing corners to 28 px, a shade fading to 0.7 and the fixed panel underneath parallaxing from 30% of its width; close is the reverse, same time and ease. From lg the Filters overlay keeps `translateX(100%)` to `0`, 200 ms, with the scrim fading 0 to 1, and its close is the reverse.
+- Glass (TID-075): `--c-glass` is the surface at 75% alpha; header bars use `bg-[glass]` through the `glass-bar` class with `backdrop-filter: blur(24px) saturate(1.6)`, and a solid `--c-surface` where it is unsupported. `--sh-reveal` is the lift of the page card off the panel.
 - Toast: slides up 12px and fades in over 200 ms; fades out over 150 ms.
 - Skeletons: opacity pulse (`animate-skeleton`), not a travelling shimmer. They are `bg-sunken`.
 - Optimistic mark-as-read: the unread dot and title weight change immediately (under 100 ms, NFR-5); no animation is needed or allowed to delay it.

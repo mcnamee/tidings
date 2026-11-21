@@ -3,6 +3,7 @@ import {
   useContext,
   useEffect,
   useLayoutEffect,
+  type MutableRefObject,
   type ReactNode,
   type RefObject,
 } from 'react';
@@ -16,7 +17,27 @@ export interface ShellSlots {
   bottomBar: HTMLElement | null;
   /** True while another layer covers this one (a list under an article): it must not publish --bottom-offset. */
   inactive?: boolean;
+  /** True while a drawer or panel is revealed under the page (TID-075): pull to refresh and read-on-scroll stand down. */
+  revealed?: boolean;
 }
+
+/**
+ * What the shell gives a right-hand panel (the list's Filters, TID-075) so it can reveal itself
+ * under the page card like the navigation drawer does. `side` is what the shell has actually done
+ * with the page; the panel waits for 'right' before it animates.
+ */
+export type PanelState = 'off' | 'open' | 'closing';
+export interface PanelReveal {
+  page: RefObject<HTMLElement | null>;
+  shade: RefObject<HTMLElement | null>;
+  side: 'left' | 'right' | null;
+  /** The page's contents are inert (a drawer or panel is open): focus cannot return to them yet. */
+  pageInert: boolean;
+  setPanel(state: PanelState): void;
+  /** What a tap on the visible strip of the page does while the panel is open. */
+  tap: MutableRefObject<(() => void) | null>;
+}
+export const RevealContext = createContext<PanelReveal | null>(null);
 
 /** Where a full-screen layer (the article) mounts, and the page under it that its swipe-back moves. */
 export interface LayerSlots {

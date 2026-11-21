@@ -281,7 +281,7 @@ export function ArticleLayer({
         ref={setHeaderFrame}
         className={`fixed inset-x-0 top-0 z-[31] flex-none touch-pan-y ${left}`}
       >
-        <header className="border-b border-line bg-surface pl-[max(1rem,env(safe-area-inset-left))] pr-[max(1rem,env(safe-area-inset-right))] pt-[env(safe-area-inset-top)]">
+        <header className="glass-bar border-b border-line pl-[max(1rem,env(safe-area-inset-left))] pr-[max(1rem,env(safe-area-inset-right))] pt-[env(safe-area-inset-top)]">
           <div className="flex min-h-14 items-center gap-2 py-2 lg:mx-auto lg:max-w-2xl">
             <button
               type="button"

@@ -273,6 +273,8 @@ describe('TID-055: swipe gestures in the installed app', () => {
     if (release) fire('pointerup', xs[xs.length - 1] ?? x0, target);
   }
   const drawer = () => screen.queryByRole('dialog', { name: 'Navigation' });
+  // TID-075: the page card is what moves (by up to the drawer's 320 px); the panel only parallaxes.
+  const pageX = () => parseFloat(screen.getByTestId('list-underlay').style.transform.slice(11));
   const standalone = () => media.set('display-mode: standalone', true);
 
   it('a left-edge swipe on a list drags the drawer in and opens it past 40%', async () => {
@@ -284,13 +286,15 @@ describe('TID-055: swipe gestures in the installed app', () => {
     fire('pointermove', 30);
     t += 80;
     fire('pointermove', 80);
-    expect(drawer()?.style.transform).toMatch(/^translateX\(-\d/); // following the finger
+    expect(pageX()).toBeGreaterThan(0); // the page follows the finger
+    expect(pageX()).toBeLessThan(320);
+    expect(drawer()?.style.transform).toMatch(/^translateX\(-\d/); // the panel parallaxes in
     t += 80;
     fire('pointermove', 200);
     t += 200;
     fire('pointerup', 200);
     await waitFor(() => expect(drawer()).not.toBeNull());
-    await waitFor(() => expect(drawer()?.style.transform).toBe(''));
+    await waitFor(() => expect(pageX()).toBe(320));
     expect(path()).toBe('/all');
   });
 
@@ -332,7 +336,8 @@ describe('TID-055: swipe gestures in the installed app', () => {
     await screen.findByText('Title 1');
     swipe(10, [30, 100, 150, 200]);
     await waitFor(() => expect(drawer()).not.toBeNull());
-    expect(drawer()?.style.transform).toBe('');
+    expect(pageX()).toBe(320); // no drag, no transition: straight to open
+    expect(screen.getByTestId('list-underlay').style.transition).toBe('');
   });
 
   it('the open drawer swipes left to close, in a browser tab too', async () => {
@@ -341,7 +346,7 @@ describe('TID-055: swipe gestures in the installed app', () => {
     act(() => screen.getByRole('button', { name: 'Open navigation' }).click());
     const panel = await waitFor(() => drawer()!);
     swipe(300, [280, 200, 100], panel, false);
-    expect(panel.style.transform).toMatch(/^translateX\(-/);
+    expect(pageX()).toBeLessThan(320); // the page is dragged back over the drawer
     fire('pointerup', 100, panel);
     await waitFor(() => expect(drawer()).toBeNull());
   });
@@ -352,7 +357,7 @@ describe('TID-055: swipe gestures in the installed app', () => {
     act(() => screen.getByRole('button', { name: 'Open navigation' }).click());
     const panel = await waitFor(() => drawer()!);
     swipe(300, [280, 260], panel);
-    await waitFor(() => expect(panel.style.transform).toBe(''));
+    await waitFor(() => expect(pageX()).toBe(320));
     expect(drawer()).not.toBeNull();
   });
 

@@ -14,8 +14,9 @@ export async function openFilters(page: Page) {
 export async function closeFilters(page: Page) {
   await page.keyboard.press('Escape');
   await expect(page.getByRole('dialog', { name: 'Filters' })).toHaveCount(0);
-  // The panel leaves the accessibility tree at once and the DOM when its slide-out ends.
-  await expect(page.locator('.filter-panel')).toHaveCount(0);
+  // The panel leaves the accessibility tree at once and the DOM when its slide-out ends (the
+  // overlay from lg is `.filter-panel`; below lg, TID-075, it is a dialog on <body>).
+  await expect(page.locator('.filter-panel, body > [role="dialog"]')).toHaveCount(0);
 }
 
 /**

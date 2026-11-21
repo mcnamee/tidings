@@ -85,6 +85,9 @@ const open = async () => {
   await userEvent.click(filtersButton());
   return within(await screen.findByRole('dialog', { name: 'Filters' }));
 };
+// TID-075: the page card is what moves (to the left by the panel's 320 px).
+const card = () => screen.getByTestId('list-underlay');
+const pageX = () => parseFloat(card().style.transform.slice(11));
 const gone = () => waitFor(() => expect(dialog()).not.toBeInTheDocument(), { timeout: 1000 });
 const fire = (type: string, x: number, target: EventTarget) =>
   act(() => {
@@ -136,9 +139,16 @@ describe('opening', () => {
     expect(filtersButton()).toHaveAttribute('aria-expanded', 'true');
     expect(document.documentElement).toHaveClass('scroll-locked');
     expect(document.getElementById('main')?.closest('[inert]')).not.toBeNull();
-    // Its own content is not inert, and it slides in from the right, from CSS (no style attribute).
+    // Its own content is not inert. Below lg it is revealed (TID-075): fixed under the page card,
+    // which slides left; no style attribute, only classes and CSSOM.
     expect(panel.closest('[inert]')).toBeNull();
-    expect(panel).toHaveClass('filter-panel', 'right-0');
+    expect(panel).toHaveClass('fixed', 'right-0');
+    expect(panel).not.toHaveClass('filter-panel');
+    await waitFor(() => expect(pageX()).toBe(-320));
+    expect(card()).toHaveClass('reveal-card');
+    expect(card().style.borderRadius).toBe('0px 28px 28px 0px');
+    expect(screen.getByTestId('filter-scrim').style.opacity).toBe('0.7');
+    expect(screen.getByTestId('filter-scrim').closest('[inert]')).toBeNull();
   });
 
   it('pushes no history entry and changes no route', async () => {
@@ -153,7 +163,7 @@ describe('opening', () => {
 describe('closing: every way slides out, and focus returns to the button', () => {
   it.each([
     ['Escape', async () => userEvent.keyboard('{Escape}')],
-    ['the scrim', async () => userEvent.click(screen.getByTestId('filter-scrim'))],
+    ['a tap on the page strip', async () => userEvent.click(screen.getByTestId('filter-scrim'))],
     [
       'the close button',
       async () => userEvent.click(screen.getByRole('button', { name: 'Close filters' })),
@@ -164,10 +174,15 @@ describe('closing: every way slides out, and focus returns to the button', () =>
     await open();
     await close();
     // Still there for the slide-out, but out of the accessibility tree and tab order.
-    const leaving = document.querySelector('.filter-panel')?.closest('[aria-hidden="true"]');
+    const leaving = document.querySelector('body > [role="dialog"][aria-hidden="true"]');
     expect(leaving).not.toBeNull();
     expect(leaving).toHaveAttribute('inert');
+    expect(pageX()).toBe(0); // the page slides back over it
     await gone();
+    // Once the slide ends the page is an ordinary in-flow page again.
+    await waitFor(() => expect(card().style.transform).toBe(''), { timeout: 1000 });
+    expect(card()).not.toHaveClass('reveal-card');
+    expect(document.querySelector('body > [role="dialog"]')).toBeNull();
     await waitFor(() => expect(filtersButton()).toHaveFocus());
     expect(document.documentElement).not.toHaveClass('scroll-locked');
     expect(document.getElementById('main')?.closest('[inert]')).toBeNull();
@@ -182,10 +197,11 @@ describe('closing: every way slides out, and focus returns to the button', () =>
     fire('pointerdown', 100, panel);
     fire('pointermove', 110, panel);
     fire('pointermove', 200, panel);
-    expect(panel.style.transform).toMatch(/^translateX\(/);
+    await waitFor(() => expect(pageX()).toBeLessThan(0)); // the page follows the finger
+    expect(pageX()).toBeGreaterThan(-320);
     fire('pointermove', 300, panel);
     fire('pointerup', 300, panel);
-    expect(panel.style.transform).toBe('translateX(100%)');
+    expect(pageX()).toBe(0);
     expect(screen.getByTestId('filter-scrim').style.opacity).toBe('0');
     await gone();
   });
@@ -199,7 +215,7 @@ describe('closing: every way slides out, and focus returns to the button', () =>
     fire('pointermove', 110, panel);
     fire('pointermove', 125, panel);
     fire('pointerup', 125, panel);
-    await waitFor(() => expect(panel.style.transform).toBe(''), { timeout: 1000 });
+    await waitFor(() => expect(pageX()).toBe(-320), { timeout: 1000 });
     expect(dialog()).toBeInTheDocument();
   });
 
@@ -214,7 +230,7 @@ describe('closing: every way slides out, and focus returns to the button', () =>
     const panel = await screen.findByRole('dialog', { name: 'Filters' });
     await new Promise((r) => setTimeout(r, 400));
     expect(panel).toBeInTheDocument();
-    expect(panel.style.transform).toBe('');
+    expect(pageX()).toBe(-320);
     expect(screen.getByRole('dialog', { name: 'Filters' })).toBe(panel);
     expect(panel.closest('[inert]')).toBeNull();
   });
@@ -324,5 +340,36 @@ describe('the header on an empty list', () => {
     await screen.findByText('All caught up');
     expect(filtersButton()).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Mark all as read' })).not.toBeInTheDocument();
+  });
+});
+
+describe('from lg it stays an overlay (TID-075)', () => {
+  it('opens as a sheet over a scrim and leaves the page where it is', async () => {
+    installMatchMedia({ 'min-width: 1024px': true });
+    renderApp();
+    await screen.findByText('Title 1');
+    await open();
+    const panel = screen.getByRole('dialog', { name: 'Filters' });
+    expect(panel).toHaveClass('filter-panel', 'right-0');
+    expect(screen.getByTestId('filter-scrim')).toBeInTheDocument();
+    expect(card().style.transform).toBe('');
+    expect(card()).not.toHaveClass('reveal-card');
+    expect(document.getElementById('main')?.closest('[inert]')).not.toBeNull();
+    await userEvent.keyboard('{Escape}');
+    await gone();
+    expect(document.getElementById('main')?.closest('[inert]')).toBeNull();
+  });
+});
+
+describe('while the page is revealed (TID-075)', () => {
+  it('the page is a frozen card whose contents are inert, header included', async () => {
+    renderApp();
+    await screen.findByText('Title 1');
+    await open();
+    expect(card().className).toContain('max-lg:fixed');
+    const inert = document.querySelector('[data-testid="list-underlay"] > .contents');
+    expect(inert).toHaveAttribute('inert');
+    // The header (with the Filters button) is inside the inert contents, so it cannot be tapped.
+    expect(inert?.contains(filtersButton())).toBe(true);
   });
 });

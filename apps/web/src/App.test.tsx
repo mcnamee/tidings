@@ -366,12 +366,14 @@ describe('navigation drawer (AC4)', () => {
     await user.keyboard('{Escape}');
     const panel = document.getElementById('nav-drawer');
     expect(panel).not.toBeNull();
-    expect(panel!.style.transform).toBe('translateX(-100%)');
+    // The page card slides back over it (TID-075); the panel parallaxes back under the card.
+    expect(screen.getByTestId('list-underlay').style.transform).toBe('translateX(0px)');
+    expect(panel!.style.transform).toBe('translateX(-96px)');
     expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
     await waitFor(() => expect(document.getElementById('nav-drawer')).toBeNull());
   });
 
-  it('closes on backdrop tap and returns focus to Menu', async () => {
+  it('closes on a tap on the page strip and returns focus to Menu', async () => {
     const { user, menu } = await openDrawer();
     await user.click(screen.getByTestId('drawer-scrim'));
     expect(screen.queryByRole('dialog')).not.toBeInTheDocument();

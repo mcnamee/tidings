@@ -148,9 +148,14 @@ test.describe('TID-055: swipe gestures in the installed app', () => {
     await swipe(cdp, 5, 260); // TID-069: from the very edge
     const drawer = page.getByRole('dialog', { name: 'Navigation' });
     await expect(drawer).toBeVisible();
-    await expect(drawer).toHaveCSS('transform', 'none');
+    // TID-075: the page card is what moved (320 px aside); the panel rests at its own place.
+    await expect(drawer).toHaveCSS('transform', 'matrix(1, 0, 0, 1, 0, 0)');
+    await expect(page.getByTestId('list-underlay')).toHaveCSS(
+      'transform',
+      'matrix(1, 0, 0, 1, 320, 0)',
+    );
 
-    await swipe(cdp, 260, 40);
+    await swipe(cdp, 350, 40);
     await expect(drawer).toHaveCount(0);
 
     // Short and slow: snaps back, no drawer.

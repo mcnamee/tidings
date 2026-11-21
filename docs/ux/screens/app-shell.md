@@ -68,6 +68,8 @@ The right-action slot, bottom-bar slot and the title are the only things a scree
 
 ### 2.2 Drawer open
 
+> **TID-075 supersedes the overlay drawn below.** The drawer is revealed: the panel is fixed underneath at this position and the whole page card (header included) slides right by 320 px to uncover it, with rounded left corners and a shade. The "scrim" below is that shade over the page, and its visible strip (the right 55 px at 375) is the tap target. See FLOWS.md 1.5.
+
 ```
 +---------------------------------------+
 |///////////////////+-----------------+ |

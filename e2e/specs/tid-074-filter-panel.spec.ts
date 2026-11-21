@@ -118,7 +118,10 @@ test('the panel: opens, applies Unread only at once, refreshes, and closes every
   await page.getByRole('button', { name: 'Close filters' }).click();
   await expect(page.getByRole('dialog', { name: 'Filters' })).toHaveCount(0);
   await openFilters(page);
-  await page.getByTestId('filter-scrim').click({ position: { x: 5, y: 300 } });
+  // Mobile (TID-075): the scrim is the shade over the page card, which has slid 320 px left, so its
+  // visible strip is the card's right 55 px. Desktop: the overlay's scrim, left of the sheet.
+  const strip = testInfo.project.name.startsWith('mobile') ? 345 : 5;
+  await page.getByTestId('filter-scrim').click({ position: { x: strip, y: 300 } });
   await expect(page.getByRole('dialog', { name: 'Filters' })).toHaveCount(0);
 
   // Keyboard only: the panel traps Tab, and the open panel has no serious accessibility violations.

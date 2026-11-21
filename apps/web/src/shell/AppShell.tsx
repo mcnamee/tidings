@@ -12,7 +12,14 @@ import { isStandalone, prefersReducedMotion, useSwipe } from '../lib/useSwipe';
 import { Drawer, drawerWidth, type DrawerControl } from './Drawer';
 import { Lockup } from './Logo';
 import { FeedNav } from './FeedNav';
-import { LayerContext, ShellSlotsContext, useChromeInsets } from './slots';
+import {
+  LayerContext,
+  RevealContext,
+  ShellSlotsContext,
+  useChromeInsets,
+  type PanelReveal,
+  type PanelState,
+} from './slots';
 import { OfflineBanner } from './OfflineBanner';
 import { PasskeyBanner } from './PasskeyBanner';
 import { useDocumentTitle } from './useDocumentTitle';
@@ -55,9 +62,51 @@ export function AppShell() {
   // An article is a full-screen layer above the list it was opened from (reader/ArticleLayer). The
   // list stays mounted underneath, inert and hidden from assistive tech, so Back finds it as it was.
   const covered = route.kind === 'article';
+
+  // TID-075: below lg the drawers are revealed under the page, which becomes a card that slides
+  // aside. The left drawer's states live here: `peeking` while an edge swipe drags it in, `closing`
+  // while it slides out after `open` dropped (every close slides out, owner 2026-11-21: the page
+  // strip, the close button, Escape, a link and Back all drop `open` at once, so the same Drawer
+  // stays mounted, set during render so it never unmounts in between).
+  const [peeking, setPeeking] = useState(false);
+  useEffect(() => {
+    if (open) setPeeking(false);
+  }, [open]);
+  const [wasOpen, setWasOpen] = useState(open);
+  const [closing, setClosing] = useState(false);
+  // A reopen during the slide-out starts a fresh Drawer (its own entrance), not the leaving one.
+  const [drawerGen, setDrawerGen] = useState(0);
+  if (open !== wasOpen) {
+    setWasOpen(open);
+    if (open && closing) setDrawerGen((g) => g + 1);
+    setClosing(!open && !isDesktop && !prefersReducedMotion());
+  }
+  // The list's Filters panel is the right-hand drawer; it reports its state through RevealContext.
+  const [panel, setPanel] = useState<PanelState>('off');
+  const panelTap = useRef<(() => void) | null>(null);
+  const drawerShown = open || peeking || closing;
+  const side: 'left' | 'right' | null = isDesktop
+    ? null
+    : drawerShown
+      ? 'left'
+      : panel !== 'off'
+        ? 'right'
+        : null;
+  // The page is detached from the document's scroll (a fixed card) while an article covers it or a
+  // drawer is revealed under it; its scroll is restored exactly afterwards.
+  const frozen = !isDesktop && (covered || side !== null);
+  // Its contents are inert while a drawer is open (not while one slides out, so the page is usable
+  // as soon as it is back).
+  const pageInert = open || (!isDesktop && panel === 'open');
+
   const slots = useMemo(
-    () => ({ headerActions: headerActionsEl, bottomBar: bottomBarEl, inactive: covered }),
-    [headerActionsEl, bottomBarEl, covered],
+    () => ({
+      headerActions: headerActionsEl,
+      bottomBar: bottomBarEl,
+      inactive: covered,
+      revealed: side !== null,
+    }),
+    [headerActionsEl, bottomBarEl, covered, side],
   );
   const [layerEl, setLayerEl] = useState<HTMLElement | null>(null);
   // TID-069: below lg the document is the scroller (status-bar tap, native bounce at both ends)
@@ -65,32 +114,39 @@ export function AppShell() {
   // --header-h / --bar-h for the content's padding and the end-of-list space.
   const [headerEl, setHeaderEl] = useState<HTMLElement | null>(null);
   const pageRef = useRef<HTMLDivElement>(null);
+  const shadeRef = useRef<HTMLDivElement>(null);
   const mainRef = useRef<HTMLElement>(null);
   useChromeInsets(pageRef, headerEl, bottomBarEl, !isDesktop);
+  const panelReveal = useMemo<PanelReveal>(
+    () => ({ page: pageRef, shade: shadeRef, side, pageInert, setPanel, tap: panelTap }),
+    [side, pageInert],
+  );
   const layer = useMemo(
     () => ({ root: layerEl, underlay: pageRef, sidebarHidden }),
     [layerEl, sidebarHidden],
   );
-  // While an article is open the document scrolls the article, so the list underneath is frozen:
-  // taken out of the flow (fixed) and its content shifted up by the scroll it had. Back puts it
-  // back and restores that scroll exactly. `lastY` follows the list's scroll while it is shown.
+  // While an article is open the document scrolls the article, and while a drawer is revealed the
+  // page is a card (TID-075), so the list is frozen: taken out of the flow (fixed) and its content
+  // shifted up by the scroll it had. Closing puts it back and restores that scroll exactly. A
+  // transform on that card is also what makes its fixed header and bar move with it. `lastY`
+  // follows the list's scroll while it is shown.
   const lastY = useRef(0);
   const frozenAt = useRef<number | null>(null);
   useEffect(() => {
-    if (covered) return;
+    if (frozen) return;
     const track = () => {
       lastY.current = Math.max(0, window.scrollY);
     };
     track();
     window.addEventListener('scroll', track, { passive: true });
     return () => window.removeEventListener('scroll', track);
-  }, [covered]);
+  }, [frozen]);
   // A different list (menu, sidebar, Manage) starts at the top; an article of the same list does not.
   const listKey = location.pathname.replace(/\/a\/[^/]+$/, '');
   const shownList = useRef(listKey);
   useLayoutEffect(() => {
     const main = mainRef.current;
-    const freeze = covered && !isDesktop;
+    const freeze = frozen;
     if (freeze && frozenAt.current === null && main) {
       frozenAt.current = lastY.current;
       main.style.top = `-${frozenAt.current}px`;
@@ -105,14 +161,25 @@ export function AppShell() {
       if (page) {
         page.style.transition = '';
         page.style.transform = '';
+        page.style.borderRadius = '';
+      }
+      const shade = shadeRef.current;
+      if (shade) {
+        shade.style.transition = '';
+        shade.style.opacity = '';
       }
       window.scrollTo(0, y);
     }
     if (shownList.current !== listKey) {
       shownList.current = listKey;
       if (!freeze) window.scrollTo(0, 0);
+      else if (!covered && main) {
+        // Chosen in the drawer while it slides out: the new list is already under the card, at the top.
+        frozenAt.current = 0;
+        main.style.top = '';
+      }
     }
-  }, [covered, isDesktop, listKey]);
+  }, [frozen, covered, listKey]);
   // Lists get a wider column on desktop for the card grid (TID-062); the rest keeps reading width.
   const wide = route.kind === 'list';
 
@@ -199,22 +266,6 @@ export function AppShell() {
   // drags the drawer in, an article drags right and goes back (one history step, like Back).
   const standalone = useMemo(isStandalone, []);
   const drawerControl = useRef<DrawerControl>(null);
-  const [peeking, setPeeking] = useState(false);
-  useEffect(() => {
-    if (open) setPeeking(false);
-  }, [open]);
-  // Every close slides out (owner, 2026-11-21), not only a swipe: the scrim, the close button,
-  // Escape, a link in the drawer and Back all drop `open` at once, so the same Drawer stays mounted
-  // (`closing`, set during render so it never unmounts in between) until its slide-out ends.
-  const [wasOpen, setWasOpen] = useState(open);
-  const [closing, setClosing] = useState(false);
-  // A reopen during the slide-out starts a fresh Drawer (its own entrance), not the leaving one.
-  const [drawerGen, setDrawerGen] = useState(0);
-  if (open !== wasOpen) {
-    setWasOpen(open);
-    if (open && closing) setDrawerGen((g) => g + 1);
-    setClosing(!open && !isDesktop && !prefersReducedMotion());
-  }
   useEffect(() => {
     if (!closing) return;
     const control = drawerControl.current;
@@ -228,7 +279,14 @@ export function AppShell() {
     };
   }, [closing]);
   useSwipe({
-    enabled: standalone && !isDesktop && !open && !showBack && !covered && route.kind !== 'auth',
+    enabled:
+      standalone &&
+      !isDesktop &&
+      !open &&
+      panel === 'off' &&
+      !showBack &&
+      !covered &&
+      route.kind !== 'auth',
     direction: 'right',
     extent: drawerWidth,
     commitAt: 0.4,
@@ -249,147 +307,172 @@ export function AppShell() {
   return (
     <ShellSlotsContext.Provider value={slots}>
       <LayerContext.Provider value={layer}>
-        <div inert={open}>
-          <a
-            href="#main"
-            className="absolute left-4 top-2 z-50 -translate-y-24 rounded-md bg-accent px-4 py-3 font-medium text-accent-fg focus:translate-y-0"
-          >
-            Skip to content
-          </a>
-          <div className="group/shell lg:flex" data-sidebar={sidebarHidden ? 'hidden' : 'shown'}>
-            {isDesktop && (
-              // Hidden: width 0 and inert (out of the tab order and the accessibility tree). The
-              // inner box keeps its width so the tree does not reflow while the column animates.
-              <aside
-                id="sidebar"
-                inert={sidebarHidden}
-                className={`sticky top-0 h-dvh shrink-0 overflow-hidden bg-surface transition-[width] duration-200 ease-out motion-reduce:transition-none ${
-                  sidebarHidden ? 'w-0' : 'w-72 border-r border-line'
-                }`}
-              >
-                <div className="flex h-full w-72 flex-col">
-                  <div className="flex min-h-14 items-center px-4">
-                    <Lockup />
-                  </div>
-                  <FeedNav />
-                </div>
-              </aside>
-            )}
-            <div
-              ref={pageRef}
-              inert={covered}
-              aria-hidden={covered || undefined}
-              data-testid="list-underlay"
-              className={`flex min-h-dvh min-w-0 flex-1 flex-col max-lg:pb-[var(--bar-h,0px)] max-lg:pt-[var(--header-h,4rem)] ${
-                covered
-                  ? 'max-lg:fixed max-lg:inset-x-0 max-lg:top-0 max-lg:h-dvh max-lg:overflow-hidden'
-                  : ''
-              }`}
+        <RevealContext.Provider value={panelReveal}>
+          <div>
+            <a
+              href="#main"
+              inert={pageInert}
+              className="absolute left-4 top-2 z-50 -translate-y-24 rounded-md bg-accent px-4 py-3 font-medium text-accent-fg focus:translate-y-0"
             >
-              <div ref={setHeaderEl} className="fixed inset-x-0 top-0 z-20 shrink-0 lg:sticky">
-                <header className="border-b border-line bg-surface pl-[max(1rem,env(safe-area-inset-left))] pr-[max(1rem,env(safe-area-inset-right))] pt-[env(safe-area-inset-top)]">
-                  <div
-                    className={`flex min-h-14 items-center gap-2 py-2 lg:mx-auto ${wide ? 'lg:max-w-[100rem]' : 'lg:max-w-2xl'}`}
-                  >
-                    {showBack ? (
-                      <button
-                        type="button"
-                        aria-label="Back"
-                        onClick={goBack}
-                        className={`${ICON_BUTTON} -ml-2`}
-                      >
-                        <ArrowLeft aria-hidden="true" className="size-6" />
-                      </button>
-                    ) : (
-                      <button
-                        ref={menuButton}
-                        type="button"
-                        {...(isDesktop
-                          ? {
-                              'aria-label': sidebarHidden ? 'Show sidebar' : 'Hide sidebar',
-                              'aria-expanded': !sidebarHidden,
-                              'aria-controls': 'sidebar',
-                              onClick: toggleSidebar,
-                            }
-                          : {
-                              'aria-label': 'Open navigation',
-                              'aria-haspopup': 'dialog' as const,
-                              'aria-expanded': open,
-                              'aria-controls': 'nav-drawer',
-                              onClick: openDrawer,
-                            })}
-                        className={`${ICON_BUTTON} -ml-2`}
-                      >
-                        <Menu aria-hidden="true" className="size-6" />
-                      </button>
-                    )}
-                    <h1
-                      ref={heading}
-                      tabIndex={-1}
-                      {...(title.heading === null
-                        ? { 'aria-busy': true, 'aria-label': 'Loading' }
-                        : {})}
-                      className="min-w-0 flex-1 line-clamp-2 break-words text-lg font-semibold text-fg"
-                    >
-                      {title.heading === 'All articles' ? (
-                        // Owner, 2026-11-21: the home list shows the logo; the heading text stays for
-                        // screen readers.
-                        <>
-                          <span className="sr-only">All articles</span>
-                          <span
-                            aria-hidden="true"
-                            data-testid="header-logo"
-                            className="flex items-center"
-                          >
-                            <Lockup />
-                          </span>
-                        </>
-                      ) : (
-                        (title.heading ?? (
-                          <span
-                            aria-hidden="true"
-                            className="block h-6 w-32 animate-skeleton rounded-md bg-sunken"
-                          />
-                        ))
-                      )}
-                    </h1>
-                    <div ref={setHeaderActionsEl} className="flex items-center gap-2" />
-                  </div>
-                </header>
-                <OfflineBanner />
-              </div>
-              <main
-                ref={mainRef}
-                id={covered ? undefined : 'main'}
-                tabIndex={-1}
-                data-testid="main-scroll"
-                className="relative min-h-0 flex-1 pl-[max(1rem,env(safe-area-inset-left))] pr-[max(1rem,env(safe-area-inset-right))]"
-              >
-                <div
-                  className={`mx-auto max-w-2xl py-4 pb-[max(1rem,env(safe-area-inset-bottom))] ${wide ? 'lg:max-w-[100rem]' : ''}`}
+              Skip to content
+            </a>
+            <div className="group/shell lg:flex" data-sidebar={sidebarHidden ? 'hidden' : 'shown'}>
+              {isDesktop && (
+                // Hidden: width 0 and inert (out of the tab order and the accessibility tree). The
+                // inner box keeps its width so the tree does not reflow while the column animates.
+                <aside
+                  id="sidebar"
+                  inert={sidebarHidden}
+                  className={`sticky top-0 h-dvh shrink-0 overflow-hidden bg-surface transition-[width] duration-200 ease-out motion-reduce:transition-none ${
+                    sidebarHidden ? 'w-0' : 'w-72 border-r border-line'
+                  }`}
                 >
-                  <PasskeyBanner />
-                  <Outlet />
-                </div>
-              </main>
+                  <div className="flex h-full w-72 flex-col">
+                    <div className="flex min-h-14 items-center px-4">
+                      <Lockup />
+                    </div>
+                    <FeedNav />
+                  </div>
+                </aside>
+              )}
               <div
-                id={covered ? undefined : 'bottom-bar'}
-                ref={setBottomBarEl}
-                className="fixed inset-x-0 bottom-0 shrink-0 lg:sticky lg:bottom-0 z-20 border-t border-line bg-surface pb-[env(safe-area-inset-bottom)] pl-[max(1rem,env(safe-area-inset-left))] pr-[max(1rem,env(safe-area-inset-right))] empty:hidden"
-              />
+                ref={pageRef}
+                inert={covered}
+                aria-hidden={covered || undefined}
+                data-testid="list-underlay"
+                className={`flex min-h-dvh min-w-0 flex-1 flex-col bg-canvas max-lg:pb-[var(--bar-h,0px)] max-lg:pt-[var(--header-h,4rem)] ${
+                  frozen
+                    ? 'max-lg:fixed max-lg:inset-x-0 max-lg:top-0 max-lg:h-dvh max-lg:overflow-hidden'
+                    : ''
+                } ${side === null ? '' : 'max-lg:z-10 reveal-card'}`}
+              >
+                {/* `contents`: no box of its own; it only carries inert, so the shade below stays tappable. */}
+                <div className="contents" inert={pageInert}>
+                  <div ref={setHeaderEl} className="fixed inset-x-0 top-0 z-20 shrink-0 lg:sticky">
+                    <header className="glass-bar border-b border-line pl-[max(1rem,env(safe-area-inset-left))] pr-[max(1rem,env(safe-area-inset-right))] pt-[env(safe-area-inset-top)]">
+                      <div
+                        className={`flex min-h-14 items-center gap-2 py-2 lg:mx-auto ${wide ? 'lg:max-w-[100rem]' : 'lg:max-w-2xl'}`}
+                      >
+                        {showBack ? (
+                          <button
+                            type="button"
+                            aria-label="Back"
+                            onClick={goBack}
+                            className={`${ICON_BUTTON} -ml-2`}
+                          >
+                            <ArrowLeft aria-hidden="true" className="size-6" />
+                          </button>
+                        ) : (
+                          <button
+                            ref={menuButton}
+                            type="button"
+                            {...(isDesktop
+                              ? {
+                                  'aria-label': sidebarHidden ? 'Show sidebar' : 'Hide sidebar',
+                                  'aria-expanded': !sidebarHidden,
+                                  'aria-controls': 'sidebar',
+                                  onClick: toggleSidebar,
+                                }
+                              : {
+                                  'aria-label': 'Open navigation',
+                                  'aria-haspopup': 'dialog' as const,
+                                  'aria-expanded': open,
+                                  'aria-controls': 'nav-drawer',
+                                  onClick: openDrawer,
+                                })}
+                            className={`${ICON_BUTTON} -ml-2`}
+                          >
+                            <Menu aria-hidden="true" className="size-6" />
+                          </button>
+                        )}
+                        <h1
+                          ref={heading}
+                          tabIndex={-1}
+                          {...(title.heading === null
+                            ? { 'aria-busy': true, 'aria-label': 'Loading' }
+                            : {})}
+                          className="min-w-0 flex-1 line-clamp-2 break-words text-lg font-semibold text-fg"
+                        >
+                          {title.heading === 'All articles' ? (
+                            // Owner, 2026-11-21: the home list shows the logo; the heading text stays for
+                            // screen readers.
+                            <>
+                              <span className="sr-only">All articles</span>
+                              <span
+                                aria-hidden="true"
+                                data-testid="header-logo"
+                                className="flex items-center"
+                              >
+                                <Lockup />
+                              </span>
+                            </>
+                          ) : (
+                            (title.heading ?? (
+                              <span
+                                aria-hidden="true"
+                                className="block h-6 w-32 animate-skeleton rounded-md bg-sunken"
+                              />
+                            ))
+                          )}
+                        </h1>
+                        <div ref={setHeaderActionsEl} className="flex items-center gap-2" />
+                      </div>
+                    </header>
+                    <OfflineBanner />
+                  </div>
+                  <main
+                    ref={mainRef}
+                    id={covered ? undefined : 'main'}
+                    tabIndex={-1}
+                    data-testid="main-scroll"
+                    className="relative min-h-0 flex-1 pl-[max(1rem,env(safe-area-inset-left))] pr-[max(1rem,env(safe-area-inset-right))]"
+                  >
+                    <div
+                      className={`mx-auto max-w-2xl py-4 pb-[max(1rem,env(safe-area-inset-bottom))] ${wide ? 'lg:max-w-[100rem]' : ''}`}
+                    >
+                      <PasskeyBanner />
+                      <Outlet />
+                    </div>
+                  </main>
+                  <div
+                    id={covered ? undefined : 'bottom-bar'}
+                    ref={setBottomBarEl}
+                    className="fixed inset-x-0 bottom-0 shrink-0 lg:sticky lg:bottom-0 z-20 border-t border-line bg-surface pb-[env(safe-area-inset-bottom)] pl-[max(1rem,env(safe-area-inset-left))] pr-[max(1rem,env(safe-area-inset-right))] empty:hidden"
+                  />
+                </div>
+                {/* The shade over the page card: dims it in step with the reveal, and its visible
+                    strip is the tap target that closes the panel (it replaces the old scrim). It is
+                    always rendered, hidden when nothing is revealed, so a panel's layout effects
+                    find it in the same commit that detaches the page. */}
+                <div
+                  ref={shadeRef}
+                  aria-hidden="true"
+                  data-testid={side === 'right' ? 'filter-scrim' : 'drawer-scrim'}
+                  onClick={() => (side === 'left' ? closeDrawer() : panelTap.current?.())}
+                  className={`absolute inset-0 z-40 bg-scrim opacity-0 ${
+                    side === null
+                      ? 'hidden'
+                      : (side === 'left' ? open : panel === 'open')
+                        ? ''
+                        : 'pointer-events-none'
+                  }`}
+                />
+              </div>
             </div>
           </div>
-        </div>
-        <div ref={setLayerEl} className="max-lg:overflow-x-clip" />
-        {(open || peeking || closing) && (
-          <Drawer
-            key={drawerGen}
-            onClose={closeDrawer}
-            peeking={(peeking || closing) && !open}
-            closing={closing && !open}
-            control={drawerControl}
-          />
-        )}
+          <div ref={setLayerEl} className="max-lg:overflow-x-clip" />
+          {drawerShown && (
+            <Drawer
+              key={drawerGen}
+              onClose={closeDrawer}
+              page={pageRef}
+              shade={shadeRef}
+              peeking={(peeking || closing) && !open}
+              closing={closing && !open}
+              control={drawerControl}
+            />
+          )}
+        </RevealContext.Provider>
       </LayerContext.Provider>
     </ShellSlotsContext.Provider>
   );

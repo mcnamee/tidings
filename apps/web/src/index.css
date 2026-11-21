@@ -32,8 +32,10 @@
   --c-toast-fg: #f4f3ef;
   --c-toast-action: #a9c2ff;
   --c-scrim: rgb(20 19 17 / 0.45);
+  --c-glass: rgb(255 255 255 / 0.75);
   --sh-2: 0 8px 24px rgb(29 28 26 / 0.14), 0 2px 6px rgb(29 28 26 / 0.08);
   --sh-3: 0 16px 40px rgb(29 28 26 / 0.2), 0 4px 10px rgb(29 28 26 / 0.1);
+  --sh-reveal: 0 0 36px rgb(29 28 26 / 0.22);
   --img-filter: none;
 }
 [data-theme='dark'] {
@@ -63,8 +65,10 @@
   --c-toast-fg: #e8e7e3;
   --c-toast-action: #9db8ff;
   --c-scrim: rgb(0 0 0 / 0.6);
+  --c-glass: rgb(27 28 32 / 0.75);
   --sh-2: 0 8px 24px rgb(0 0 0 / 0.5);
   --sh-3: 0 16px 40px rgb(0 0 0 / 0.6);
+  --sh-reveal: 0 0 36px rgb(0 0 0 / 0.7);
   --img-filter: brightness(0.9);
 }
 
@@ -341,9 +345,6 @@ html.scroll-locked {
 .noscript {
   padding: 1rem;
 }
-.drawer-panel {
-  animation: drawer-in 200ms var(--ease-standard);
-}
 .filter-panel {
   animation: filter-in 200ms var(--ease-standard);
 }
@@ -352,11 +353,6 @@ html.scroll-locked {
 }
 .toast-item {
   animation: toast-in 200ms var(--ease-standard);
-}
-@keyframes drawer-in {
-  from {
-    transform: translateX(-100%);
-  }
 }
 @keyframes filter-in {
   from {
@@ -372,6 +368,27 @@ html.scroll-locked {
   from {
     transform: translateY(0.75rem);
     opacity: 0;
+  }
+}
+
+/* Reveal drawers (TID-075, shell/reveal.ts): below lg the page is a card that slides aside over a
+   panel fixed underneath. Position, transform, radius and the shade are set from code; this is the
+   card's lift off the panel. */
+.reveal-card {
+  box-shadow: var(--sh-reveal);
+}
+
+/* Translucent bars (TID-075): the header (and the article's) lets the content scroll blurred
+   underneath it. Solid surface where backdrop-filter is not supported. The text on it keeps
+   AA contrast over the busiest image in both themes (docs/ux/DESIGN_SYSTEM.md, glass). */
+.glass-bar {
+  background-color: var(--c-surface);
+}
+@supports ((-webkit-backdrop-filter: blur(1px)) or (backdrop-filter: blur(1px))) {
+  .glass-bar {
+    background-color: var(--c-glass);
+    -webkit-backdrop-filter: blur(24px) saturate(1.6);
+    backdrop-filter: blur(24px) saturate(1.6);
   }
 }
 

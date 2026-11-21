@@ -136,6 +136,8 @@ test.describe('TID-069: a list switch starts at the top', () => {
     await expect(
       page.getByRole('heading', { level: 2, name: 'B Row 1', exact: true }),
     ).toBeVisible();
+    // TID-075: the page is a frozen card until the drawer's slide-out ends; then it scrolls again.
+    await expect(page.locator('#nav-drawer')).toHaveCount(0);
     expect(await scrollY(page)).toBe(0);
 
     // Scrolled again, then All articles: also at the top.
@@ -145,6 +147,7 @@ test.describe('TID-069: a list switch starts at the top', () => {
     await drawer.getByRole('link', { name: 'All articles' }).click();
     await expect(page.getByRole('heading', { level: 1, name: 'All articles' })).toBeVisible();
     await expect(page.getByRole('heading', { level: 2 }).first()).toBeVisible();
+    await expect(page.locator('#nav-drawer')).toHaveCount(0);
     expect(await scrollY(page)).toBe(0);
   });
 });

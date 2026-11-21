@@ -23,6 +23,8 @@ export interface SeedEntry {
   summary?: string;
   author?: string;
   url?: string;
+  /** The article's preview image (TID-075 screenshots, intercepted in the browser). */
+  imageUrl?: string;
   /** Raw feed HTML, as stored (TID-019). */
   contentHtml?: string;
   publishedAt: number;
@@ -49,7 +51,7 @@ export function seedListData(data: {
   }
   for (const e of data.entries ?? []) {
     sql.push(
-      `INSERT INTO entries (id, feed_id, guid_hash, url, title, author, summary, content_html, published_at, fetched_at) VALUES (${e.id}, ${e.feedId}, ${q(`e2e-guid-${e.id}`)}, ${e.url ? q(e.url) : 'NULL'}, ${q(e.title)}, ${e.author ? q(e.author) : 'NULL'}, ${e.summary ? q(e.summary) : 'NULL'}, ${e.contentHtml ? q(e.contentHtml) : 'NULL'}, ${e.publishedAt}, ${e.publishedAt});`,
+      `INSERT INTO entries (id, feed_id, guid_hash, url, title, author, summary, content_html, image_url, published_at, fetched_at) VALUES (${e.id}, ${e.feedId}, ${q(`e2e-guid-${e.id}`)}, ${e.url ? q(e.url) : 'NULL'}, ${q(e.title)}, ${e.author ? q(e.author) : 'NULL'}, ${e.summary ? q(e.summary) : 'NULL'}, ${e.contentHtml ? q(e.contentHtml) : 'NULL'}, ${e.imageUrl ? q(e.imageUrl) : 'NULL'}, ${e.publishedAt}, ${e.publishedAt});`,
       `INSERT INTO user_entries (user_id, entry_id, feed_id, published_at, is_read) VALUES (${q(SEED_USER_ID)}, ${e.id}, ${e.feedId}, ${e.publishedAt}, ${e.isRead ? 1 : 0});`,
     );
   }

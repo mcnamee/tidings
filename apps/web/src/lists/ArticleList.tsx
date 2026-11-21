@@ -1,4 +1,12 @@
-import { useCallback, useEffect, useLayoutEffect, useRef, useState, type ReactNode } from 'react';
+import {
+  useCallback,
+  useContext,
+  useEffect,
+  useLayoutEffect,
+  useRef,
+  useState,
+  type ReactNode,
+} from 'react';
 import { Link, useSearchParams } from 'react-router';
 import { useQueryClient } from '@tanstack/react-query';
 import { ArrowUp, Check, CheckCheck, Loader2, SlidersHorizontal } from 'lucide-react';
@@ -25,7 +33,7 @@ import { useMarkReadOnScroll } from '../lib/readOnScroll';
 import { isStandalone, prefersReducedMotion } from '../lib/useSwipe';
 import { usePullToRefresh } from '../lib/usePullToRefresh';
 import { SHEET_BUTTON, Sheet } from '../manage/Sheet';
-import { HeaderActions } from '../shell/slots';
+import { HeaderActions, RevealContext, ShellSlotsContext } from '../shell/slots';
 import { ArticleRow, LIST_GRID } from './ArticleRow';
 import { CaughtUpArt } from './CaughtUpArt';
 import { FilterPanel } from './FilterPanel';
@@ -197,17 +205,28 @@ export function ArticleList({
   const updateSettings = useUpdateSettings();
   const key = entriesKey(view, id, state, sort);
 
+  // TID-075: while a drawer is revealed under the page it is a frozen card; it neither pulls nor marks rows read.
+  const { revealed = false } = useContext(ShellSlotsContext);
+
   // TID-074: the filter panel is local state (no history entry), so an edge swipe cannot leave it.
   const [filtersOpen, setFiltersOpen] = useState(false);
   const [panelRefreshing, setPanelRefreshing] = useState(false);
   const filterButton = useRef<HTMLButtonElement>(null);
   const closeFilters = useCallback(() => setFiltersOpen(false), []);
-  // Focus returns to the button once the page is no longer inert (the panel's cleanup runs first).
+  // Focus returns to the button once the page is no longer inert: from lg the panel's cleanup
+  // lifts it first; below lg (TID-075) the shell does, one render after the panel starts closing.
   const wasOpen = useRef(false);
+  const returnFocus = useRef(false);
+  const pageInert = useContext(RevealContext)?.pageInert ?? false;
   useEffect(() => {
-    if (wasOpen.current && !filtersOpen) filterButton.current?.focus();
+    if (wasOpen.current && !filtersOpen) returnFocus.current = true;
+    if (filtersOpen) returnFocus.current = false;
     wasOpen.current = filtersOpen;
-  }, [filtersOpen]);
+    if (returnFocus.current && !pageInert) {
+      returnFocus.current = false;
+      filterButton.current?.focus();
+    }
+  }, [filtersOpen, pageInert]);
   // A dot on the button while the list is not in the state the person starts lists in.
   const nonDefault = state !== (unreadOnlyDefault(session.data?.user?.settings) ? 'unread' : 'all');
 
@@ -246,7 +265,7 @@ export function ArticleList({
   }
   const stretchRef = useRef<HTMLDivElement>(null);
   // TID-069: the window is the scroller on every layout (the header and bottom bar are fixed).
-  const { state: pull, native } = usePullToRefresh(refresh, !covered, stretchRef);
+  const { state: pull, native } = usePullToRefresh(refresh, !covered && !revealed, stretchRef);
   // The indicator waits above the list content and is uncovered as the content is pulled down, by
   // the browser's own bounce or by our transform. It shows in the flow instead with reduced motion
   // (nothing stretches), and while a native pull refreshes (the bounce has settled back to the top).
@@ -277,7 +296,7 @@ export function ArticleList({
     client,
     listRef,
     items,
-    !covered && markReadOnScroll(session.data?.user?.settings),
+    !covered && !revealed && markReadOnScroll(session.data?.user?.settings),
   );
 
   const sentinel = useRef<HTMLDivElement>(null);

@@ -388,7 +388,8 @@ test.describe('TID-006 theming extras', () => {
     await page.emulateMedia({ colorScheme: 'dark' });
     await page.goto('/all');
     await expect(page.locator('body')).toHaveCSS('background-color', 'rgb(246, 245, 241)');
-    await expect(page.locator('header')).toHaveCSS('background-color', 'rgb(255, 255, 255)');
+    // TID-075: the header is the surface at 75% (glass), blurred behind.
+    await expect(page.locator('header')).toHaveCSS('background-color', 'rgba(255, 255, 255, 0.75)');
   });
 });
 
@@ -461,6 +462,8 @@ test.describe('TID-006 drawer stress (mobile)', () => {
     await page.goto('/all');
     await menu(page).dblclick();
     await expect(dialog(page)).toHaveCount(1);
+    // The Escape listener attaches with the focus move (one flaky run pressed it a beat early).
+    await expect(page.getByRole('button', { name: 'Close navigation' })).toBeFocused();
     await page.keyboard.press('Escape');
     await expect(dialog(page)).toBeHidden();
     await expect(page).toHaveURL(/\/all$/);
