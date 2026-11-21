@@ -1,5 +1,6 @@
 import { expectNoSeriousA11yViolations } from '../support/axe.ts';
 import { clearListData, seedListData } from '../support/list-data.ts';
+import { setUnreadOnly } from '../support/filters.ts';
 import { expect, signedInTest as test } from '../support/test.ts';
 
 // TID-018 article lists, against the real Worker and a seeded D1. Projects: mobile-light,
@@ -45,7 +46,7 @@ test('AC1: the three views show their own articles, newest first', async ({ page
   await page.goto('/feeds/s2');
   await expect(page.getByRole('heading', { level: 1, name: 'Loose Feed' })).toBeVisible();
   await expect(page.getByText('All caught up')).toBeVisible();
-  await page.getByRole('button', { name: 'Unread only' }).click();
+  await setUnreadOnly(page, false);
   await expect(rows).toHaveText(['Already read']);
 });
 

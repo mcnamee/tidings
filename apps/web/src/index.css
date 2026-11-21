@@ -397,6 +397,9 @@ html.scroll-locked {
 .drawer-panel {
   animation: drawer-in 200ms var(--ease-standard);
 }
+.filter-panel {
+  animation: filter-in 200ms var(--ease-standard);
+}
 .drawer-scrim {
   animation: fade-in 200ms var(--ease-standard);
 }
@@ -406,6 +409,11 @@ html.scroll-locked {
 @keyframes drawer-in {
   from {
     transform: translateX(-100%);
+  }
+}
+@keyframes filter-in {
+  from {
+    transform: translateX(100%);
   }
 }
 @keyframes fade-in {

@@ -1,7 +1,7 @@
-import { useEffect, useLayoutEffect, useRef, useState, type ReactNode } from 'react';
+import { useCallback, useEffect, useLayoutEffect, useRef, useState, type ReactNode } from 'react';
 import { Link, useSearchParams } from 'react-router';
 import { useQueryClient } from '@tanstack/react-query';
-import { ArrowUp, Check, CheckCheck, Filter, Loader2, RefreshCw, Sparkles } from 'lucide-react';
+import { ArrowUp, Check, CheckCheck, Loader2, SlidersHorizontal } from 'lucide-react';
 import {
   MARK_ALL_CONFIRM_OVER,
   type EntryListState,
@@ -25,12 +25,17 @@ import { useMarkReadOnScroll } from '../lib/readOnScroll';
 import { isStandalone, prefersReducedMotion } from '../lib/useSwipe';
 import { usePullToRefresh } from '../lib/usePullToRefresh';
 import { SHEET_BUTTON, Sheet } from '../manage/Sheet';
-import { BottomBar, HeaderActions } from '../shell/slots';
+import { HeaderActions } from '../shell/slots';
 import { ArticleRow, LIST_GRID } from './ArticleRow';
 import { CaughtUpArt } from './CaughtUpArt';
+import { FilterPanel } from './FilterPanel';
 
 const COUNT_FORMAT = new Intl.NumberFormat('en-US');
 const formatCount = (n: number) => COUNT_FORMAT.format(n);
+
+/** A 44px icon button in the header's right-hand slot. */
+const HEADER_ICON =
+  'inline-flex size-11 shrink-0 items-center justify-center rounded-md text-fg active:bg-sunken disabled:text-fg-muted';
 
 const BUTTON =
   'inline-flex min-h-11 items-center justify-center gap-2 rounded-md border border-line-strong bg-surface px-4 text-base font-medium text-fg active:bg-sunken';
@@ -191,6 +196,20 @@ export function ArticleList({
   const sort = effectiveSort(session.data?.user?.settings, state);
   const updateSettings = useUpdateSettings();
   const key = entriesKey(view, id, state, sort);
+
+  // TID-074: the filter panel is local state (no history entry), so an edge swipe cannot leave it.
+  const [filtersOpen, setFiltersOpen] = useState(false);
+  const [panelRefreshing, setPanelRefreshing] = useState(false);
+  const filterButton = useRef<HTMLButtonElement>(null);
+  const closeFilters = useCallback(() => setFiltersOpen(false), []);
+  // Focus returns to the button once the page is no longer inert (the panel's cleanup runs first).
+  const wasOpen = useRef(false);
+  useEffect(() => {
+    if (wasOpen.current && !filtersOpen) filterButton.current?.focus();
+    wasOpen.current = filtersOpen;
+  }, [filtersOpen]);
+  // A dot on the button while the list is not in the state the person starts lists in.
+  const nonDefault = state !== (unreadOnlyDefault(session.data?.user?.settings) ? 'unread' : 'all');
 
   // An article opens as a layer above this list, which stays mounted: Back finds the loaded
   // pages, the rows read meanwhile (shown as read, FR-RD-4) and the scroll position as they were.
@@ -389,57 +408,49 @@ export function ArticleList({
   return (
     <div>
       <HeaderActions>
-        <button
-          type="button"
-          aria-pressed={state === 'unread'}
-          onClick={() => setState(state === 'unread' ? 'all' : 'unread')}
-          className="inline-flex min-h-11 items-center gap-2 rounded-md px-3 text-base font-medium text-fg active:bg-sunken aria-pressed:bg-accent-subtle aria-pressed:text-accent-subtle-fg"
-        >
-          {state === 'unread' ? (
-            <Check aria-hidden="true" className="size-5" strokeWidth={2.25} />
-          ) : (
-            <Filter aria-hidden="true" className="size-5" strokeWidth={1.75} />
-          )}
-          Unread only
-        </button>
-        {state === 'unread' && (
+        {!isEmpty && (
           <button
             type="button"
-            aria-pressed={sort === 'recommended'}
-            onClick={() =>
-              void updateSettings({ listSort: sort === 'recommended' ? 'newest' : 'recommended' })
-            }
-            title="Recommended order"
-            className="inline-flex min-h-11 min-w-11 items-center justify-center gap-2 rounded-md px-2 text-base font-medium text-fg active:bg-sunken aria-pressed:bg-accent-subtle aria-pressed:text-accent-subtle-fg sm:px-3"
-          >
-            <Sparkles aria-hidden="true" className="size-5" strokeWidth={1.75} />
-            {/* Icon only at 375 px, where the title needs the room; the name is always there for assistive tech. */}
-            <span className="sr-only sm:not-sr-only">Recommended</span>
-          </button>
-        )}
-      </HeaderActions>
-      {!isEmpty && (
-        <BottomBar>
-          <button
-            type="button"
+            aria-label="Mark all as read"
             onClick={() => (toMark > MARK_ALL_CONFIRM_OVER ? setConfirming(true) : markAll())}
             disabled={!asOf || toMark === 0}
-            className="inline-flex min-h-11 items-center gap-2 rounded-md px-3 text-base font-medium text-fg active:bg-sunken disabled:text-fg-muted"
+            className={HEADER_ICON}
           >
-            <CheckCheck aria-hidden="true" className="size-5" strokeWidth={1.75} />
-            Mark all as read
+            <CheckCheck aria-hidden="true" className="size-6" strokeWidth={1.75} />
           </button>
-          <button
-            type="button"
-            onClick={() => void refresh()}
-            disabled={pull === 'refreshing'}
-            className="inline-flex min-h-11 items-center gap-2 rounded-md px-3 text-base font-medium text-fg active:bg-sunken disabled:text-fg-muted"
-          >
-            <RefreshCw aria-hidden="true" className="size-5" strokeWidth={1.75} />
-            Refresh
-          </button>
-        </BottomBar>
-      )}
+        )}
+        <button
+          ref={filterButton}
+          type="button"
+          aria-label="Filters"
+          aria-haspopup="dialog"
+          aria-expanded={filtersOpen}
+          onClick={() => setFiltersOpen(true)}
+          className={`${HEADER_ICON} relative -mr-2`}
+        >
+          <SlidersHorizontal aria-hidden="true" className="size-6" strokeWidth={1.75} />
+          {nonDefault && (
+            <span
+              data-testid="filter-dot"
+              aria-hidden="true"
+              className="absolute right-2 top-2 size-2 rounded-full bg-accent"
+            />
+          )}
+        </button>
+      </HeaderActions>
+      <FilterPanel
+        open={filtersOpen}
+        onClose={closeFilters}
+        unreadOnly={state === 'unread'}
+        onUnreadOnly={(on) => setState(on ? 'unread' : 'all')}
+        recommended={state === 'unread' ? sort === 'recommended' : null}
+        onRecommended={(on) => void updateSettings({ listSort: on ? 'recommended' : 'newest' })}
+        refreshing={pull === 'refreshing' || panelRefreshing}
+        onRefresh={() => {
+          setPanelRefreshing(true);
+          void refresh().finally(() => setPanelRefreshing(false));
+        }}
+      />
       {confirming && (
         <Sheet
           title={`Mark ${formatCount(toMark)} articles as read?`}
