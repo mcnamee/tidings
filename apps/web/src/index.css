@@ -385,8 +385,16 @@ html.scroll-locked {
   background-color: var(--c-bg);
 }
 @supports ((-webkit-backdrop-filter: blur(1px)) or (backdrop-filter: blur(1px))) {
+  /* Solid canvas at the top edge, so the bar runs on from the status bar strip (theme-color is
+     the canvas) without a seam, easing to the translucent glass at the bottom. */
   .glass-bar {
-    background-color: var(--c-glass);
+    background-color: transparent;
+    background-image: linear-gradient(
+      to bottom,
+      var(--c-bg) 0%,
+      var(--c-bg) 10%,
+      var(--c-glass) 100%
+    );
     -webkit-backdrop-filter: blur(24px) saturate(1.6);
     backdrop-filter: blur(24px) saturate(1.6);
   }
