@@ -144,6 +144,16 @@ describe('routing placeholders (spec 11.1)', () => {
     },
   );
 
+  it('All articles shows the Tidings logo in the header, keeping the heading name; other lists keep their title', async () => {
+    renderApp(['/all']);
+    expect(
+      await screen.findByRole('heading', { level: 1, name: 'All articles' }),
+    ).toBeInTheDocument();
+    expect(await screen.findByTestId('header-logo')).toHaveTextContent('Tidings');
+    renderApp(['/manage']);
+    expect(await screen.findAllByTestId('header-logo')).toHaveLength(1);
+  });
+
   it('shows Menu on top-level screens and Back on sub-pages and articles', () => {
     renderApp(['/manage']);
     expect(screen.getByRole('button', { name: 'Open navigation' })).toBeInTheDocument();

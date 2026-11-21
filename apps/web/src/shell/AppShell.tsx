@@ -331,11 +331,22 @@ export function AppShell() {
                         : {})}
                       className="min-w-0 flex-1 line-clamp-2 break-words text-lg font-semibold text-fg"
                     >
-                      {title.heading ?? (
-                        <span
-                          aria-hidden="true"
-                          className="block h-6 w-32 animate-skeleton rounded-md bg-sunken"
-                        />
+                      {title.heading === 'All articles' ? (
+                        // Owner, 2026-11-21: the home list shows the logo; the heading text stays for
+                        // screen readers.
+                        <>
+                          <span className="sr-only">All articles</span>
+                          <span aria-hidden="true" data-testid="header-logo">
+                            <Lockup />
+                          </span>
+                        </>
+                      ) : (
+                        (title.heading ?? (
+                          <span
+                            aria-hidden="true"
+                            className="block h-6 w-32 animate-skeleton rounded-md bg-sunken"
+                          />
+                        ))
                       )}
                     </h1>
                     <div ref={setHeaderActionsEl} className="flex items-center gap-2" />
