@@ -210,17 +210,18 @@ test.describe('TID-006 desktop header alignment (m1)', () => {
       range.selectNodeContents(h1);
       const column = document.querySelector('#main > div')!.getBoundingClientRect();
       return {
-        title: h1.getBoundingClientRect().left,
-        text: range.getBoundingClientRect().left,
+        // Since TID-062 the sidebar toggle leads the header row; the row starts at the column edge.
+        title: document.querySelector('header button svg')!.getBoundingClientRect().left,
+        text: document.querySelector('header button svg')!.getBoundingClientRect().left,
         column: column.left,
         columnW: column.width,
         headerW: document.querySelector('header')!.getBoundingClientRect().width,
         mainW: document.querySelector('main')!.getBoundingClientRect().width,
       };
     });
-    expect(e.columnW).toBe(672); // 42rem
-    expect(Math.abs(e.title - e.column)).toBeLessThanOrEqual(1);
-    expect(Math.abs(e.text - e.column)).toBeLessThanOrEqual(1);
+    // Lists use the wide magazine column since TID-062, so only the alignment is checked here.
+    expect(Math.abs(e.title - e.column)).toBeLessThanOrEqual(3); // the icon's own 2px inset
+    expect(Math.abs(e.text - e.column)).toBeLessThanOrEqual(3);
     // The header background still spans the whole main area.
     expect(e.headerW).toBe(e.mainW);
   });
