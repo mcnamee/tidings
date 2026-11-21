@@ -336,7 +336,11 @@ export function AppShell() {
                         // screen readers.
                         <>
                           <span className="sr-only">All articles</span>
-                          <span aria-hidden="true" data-testid="header-logo">
+                          <span
+                            aria-hidden="true"
+                            data-testid="header-logo"
+                            className="flex items-center"
+                          >
                             <Lockup />
                           </span>
                         </>
