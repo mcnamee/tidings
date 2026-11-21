@@ -29,7 +29,7 @@ Authenticated routes are inside the shell. Auth routes are not.
 | Route | Header left | Header title (`h1`) | Right-hand actions (slot) | Bottom bar (slot) |
 |---|---|---|---|---|
 | `/setup`, `/login`, `/recover` | no shell: centred auth layout, no header, no drawer | | | |
-| `/all` | Menu | All articles | Unread/All filter, overflow | Mark all as read, refresh |
+| `/all` | Menu | All articles | Mark all as read (tick), Filters (TID-074) | none (TID-074) |
 | `/folders/:id` | Menu | Folder name | same | same |
 | `/feeds/:id` | Menu | Feed title (custom title if set) | same, plus feed overflow | same |
 | `/*/a/:entryId` | Back | Feed title | Open original | Previous, Mark read/unread, Next |
@@ -51,12 +51,13 @@ The right-hand and bottom slots are provided by the shell and filled by each scr
 | Failing feed marker | Feed tree row, a warning icon with text label for screen readers | FR-FH-2 |
 | Add feed | Drawer footer (primary button) and Manage header | |
 | Manage, Settings | Drawer footer | |
-| Unread-only / All toggle | List header right slot | FR-RD-4 |
-| Recommended sort toggle (TID-067) | List header right slot, beside Unread only, unread lists only. A pressed-state button with a sparkles icon: icon only below 640 px (44 px target, name "Recommended" for assistive tech, so the title keeps its room at 375 px), icon and label from 640 px. Pressed = Recommended, saved as the setting `listSort` and mirrored by a switch in Settings. When it cannot apply yet, a muted line above the list: "Recommended gets better as you read. Showing newest first for now." (under 20 signals) or "Recommended isn't available right now. Showing newest first." | FR-RD-3 |
-| Mark all as read | List bottom bar | FR-RD-9. Bottom, because it is a frequent one-handed action. |
-| Refresh | Pull to refresh on lists. Also in the bottom bar for non-touch users. | Refetches cached server data only (FR-RD-11) |
+| Unread-only / All toggle | Filters panel (TID-074): an "Unread only" switch. A small accent dot on the Filters button shows while the list is not in the state this person starts lists in (the setting `unreadOnly`). | FR-RD-4 |
+| Recommended sort toggle (TID-067) | Filters panel (TID-074): a "Recommended order" switch, shown only while Unread only is on. Saved as the setting `listSort` and mirrored by a switch in Settings. When it cannot apply yet there is no note (owner, 2026-11-19): the list shows newest first. | FR-RD-3 |
+| Mark all as read | Tick button (lucide `CheckCheck`, name "Mark all as read", 44 px) in the list header, left of Filters. Hidden on an empty list, disabled when nothing is left to mark. | FR-RD-9 |
+| Filters | List header, far right: a 44 px icon button (lucide `SlidersHorizontal`, name "Filters") that opens the filter panel (below). Always shown, including on an empty list, so Unread only can be switched off. | TID-074 |
+| Refresh | Pull to refresh on touch. The "Refresh" button in the filter panel for desktop. The list-end "Scroll to top" also refreshes. Lists have no bottom bar (TID-074). | Refetches cached server data only (FR-RD-11) |
 | Offline state | A banner directly under the header, on every screen | |
-| Toasts (undo, errors) | Bottom of the screen, above the bottom bar | |
+| Toasts (undo, errors) | Bottom of the screen (above the article bottom bar when one is showing) | |
 
 ### 1.5 Drawer behaviour (summary; full rules in `screens/app-shell.md`)
 
@@ -65,6 +66,16 @@ The right-hand and bottom slots are provided by the shell and filled by each scr
 - Swipe the open drawer left to close it (TID-035, all modes). Swipe from the left edge to open it only in the installed (standalone) app: in Safari the edge belongs to the browser's back gesture. In the installed app, an edge swipe on the article view goes back (TID-055). Every gesture has a button or key equivalent.
 - Swipes continue from the finger. An edge swipe that opens the drawer keeps the same panel and finishes sliding to open with no second entrance animation; a swipe-close slides straight out. An article is a full-screen layer above the list it was opened from (the list stays mounted underneath, inert and hidden from assistive tech): dragging the article right shows the list moving in from 30% to the left while the dim fades; releasing past 35% (or a flick) finishes the slide and the list is there at the same scroll position, otherwise the article slides back. From 1024px the layer covers only the content column, the sidebar stays (no swipe on desktop).
 
+
+### 1.5a Filter panel (TID-074)
+
+The mirror of the drawer, on the right, on every screen width (desktop included).
+
+- Opened by the Filters button at the right of the list header. A modal sheet `min(86vw, 20rem)` wide, with a scrim, titled "Filters" with a Close button (focus moves to Close; Tab is trapped; the page behind is inert and the document does not scroll).
+- Contents, top to bottom: "Unread only" switch; "Recommended order" switch (only while Unread only is on); "Refresh" button (full width, spinner while refreshing; the panel stays open). Switches apply at once, there is no Apply button.
+- Closes with Escape, the scrim, the Close button or a swipe right on the panel (it follows the finger and, past 40% or on a flick, slides the rest of the way out; short of that it springs back). Every close slides out (200 ms, scrim fading); with reduced motion there is no animation. Focus returns to the Filters button.
+- Local state only: it never pushes a history entry, in the browser or the installed app, so Back and iOS's edge swipe-back have nothing of the panel's to step through. A route change cannot happen while it is open (it is modal). Motion is CSS classes and CSSOM only (the CSP forbids style attributes).
+- Header at 375 px: Menu, the title (takes the remaining width and truncates to two lines), the tick, Filters. Each button is 44 px.
 ### 1.6 Back behaviour
 
 | From | Back (header button, browser back, Android back) goes to | Rule |
@@ -188,7 +199,7 @@ Decision recorded here for the list spec: in Unread-only mode a row that has jus
 ### 2.7 Mark as read
 
 - **One article**: automatic on open, or the Mark as read/unread button in the article bottom bar and on a list row's overflow. Optimistic within 100 ms; on failure the state rolls back and a toast says "Couldn't update that article. Try again."
-- **Mark all as read**: list bottom bar, "Mark all as read".
+- **Mark all as read**: the tick button in the list header, "Mark all as read" (TID-074; it was in the list bottom bar).
   - 20 or fewer articles: happens immediately, with a toast "Marked 14 as read" and an Undo button for 5 seconds.
   - More than 20: confirm sheet in the lower half: "Mark 84 articles as read?" with "Mark 84 as read" and "Cancel", then the same toast with Undo.
   - More than 1,000: the confirm step applies, and the toast has no Undo (spec FR-RD-9).
@@ -214,6 +225,7 @@ Decision recorded here for the list spec: in Unread-only mode a row that has jus
 - **Opening an article:** the article slides in from the right (300 ms, iOS ease) while the list shifts left by 30% and dims; the Back button plays the reverse; the edge swipe-back finishes the same slide. Next/Previous slide the body 32 px with a fade (180 ms). No animation on a direct link, a reload, reduced motion, or at desktop width.
 
 - **Bottom bounce (TID-063, superseded by TID-064):** the JS bottom stretch is gone; the native container bounces at the end.
+- **No list bottom bar (TID-074):** the list screens no longer fill the bottom bar slot, so `--bar-h` is 0 on them and the bar element is hidden; the descriptions below that mention the bottom bar now apply to the article view only.
 - **End of list (TID-063, TID-069):** once no more pages can load, space as tall as the viewport minus the fixed header and bottom bar (`calc(100dvh - --header-h - --bar-h)`; 10 rem on desktop) follows the last row so the last articles can scroll fully out of view at the top and be marked read. The note is vertically and horizontally centred in that space: check icon and "You're all caught up" when everything above is read, otherwise "End of list". None while more pages load or on empty states.
 - **Scroll root (TID-069, replaces the TID-064 scrolling `main`):** mark-read-on-scroll and the infinite-scroll sentinel observe the viewport (rows count once they pass the header's bottom edge, via `rootMargin`).
 - **Article scroll (TID-069):** below `lg` the open article is the document scroller (a status-bar tap scrolls it to the top), with its own fixed header and bottom bar. The list underneath is frozen: taken out of the flow (`position: fixed`) with its content shifted up by the scroll it had (`top: -scrollY`), and Back, the Back button and the swipe-back all put it back and restore that scroll exactly. The slide-in/out and the swipe-back move the layer's content, header and bar together (a transform on a shared parent would make the fixed bars scroll away); the list underneath still shifts from -30% and the scrim fades. From `lg` the article layer is a fixed box beside the sidebar with its own scroller, as before.

@@ -101,6 +101,15 @@ function renderApp(path: string, settings: Record<string, unknown> = {}) {
 }
 
 const entryCalls = () => api.calls.filter((c) => c.path.startsWith('/api/entries'));
+// TID-074: the list's filters and Refresh live in a slide-out panel opened from the header.
+const openFilters = async () => {
+  await userEvent.click(screen.getByRole('button', { name: 'Filters' }));
+  return within(await screen.findByRole('dialog', { name: 'Filters' }));
+};
+const closeFilters = async () => {
+  await userEvent.keyboard('{Escape}');
+  await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument());
+};
 const row = (title: string) => screen.getByRole('heading', { level: 2, name: title }).closest('li');
 
 beforeEach(() => {
@@ -207,28 +216,28 @@ describe('AC2: unread only and the setting', () => {
     api.set(ENTRIES('all', 'all'), page([entry(1), entry(2, { isRead: true })]));
     renderApp('/all');
     await screen.findByText('Title 1');
-    const toggle = screen.getByRole('button', { name: 'Unread only' });
-    expect(toggle).toHaveAttribute('aria-pressed', 'true');
     expect(screen.queryByText('Title 2')).not.toBeInTheDocument();
 
-    await userEvent.click(toggle);
+    const panel = await openFilters();
+    expect(panel.getByRole('switch', { name: 'Unread only' })).toBeChecked();
+    await userEvent.click(panel.getByRole('switch', { name: 'Unread only' }));
+    // Applies at once, with the panel still open.
     expect(await screen.findByText('Title 2')).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'Unread only' })).toHaveAttribute(
-      'aria-pressed',
-      'false',
-    );
-    await userEvent.click(screen.getByRole('button', { name: 'Unread only' }));
+    expect(panel.getByRole('switch', { name: 'Unread only' })).not.toBeChecked();
+    expect(screen.getByTestId('filter-dot')).toBeInTheDocument();
+    await userEvent.click(panel.getByRole('switch', { name: 'Unread only' }));
     await waitFor(() => expect(screen.queryByText('Title 2')).not.toBeInTheDocument());
+    expect(screen.queryByTestId('filter-dot')).not.toBeInTheDocument();
   });
 
   it('starts as All articles when the setting unreadOnly is false', async () => {
     api.set(ENTRIES('all', 'all'), page([entry(2, { isRead: true })]));
     renderApp('/all', { unreadOnly: false });
     expect(await screen.findByText('Title 2')).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'Unread only' })).toHaveAttribute(
-      'aria-pressed',
-      'false',
-    );
+    const panel = await openFilters();
+    expect(panel.getByRole('switch', { name: 'Unread only' })).not.toBeChecked();
+    // All articles is what this person starts lists in, so it is not flagged as a filter.
+    expect(screen.queryByTestId('filter-dot')).not.toBeInTheDocument();
   });
 
   it('read rows look read and unread rows look unread', async () => {
@@ -405,8 +414,11 @@ describe('AC7: empty states', () => {
     expect(screen.queryByText('No unread articles here.')).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Show all articles' })).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: /Mark all as read/ })).not.toBeInTheDocument();
-    await userEvent.click(screen.getByRole('button', { name: 'Unread only' }));
+    // The filter button stays, so Unread only can be switched off here.
+    const panel = await openFilters();
+    await userEvent.click(panel.getByRole('switch', { name: 'Unread only' }));
     expect(await screen.findByText('Title 5')).toBeInTheDocument();
+    await closeFilters();
     expect(screen.getByRole('button', { name: /Mark all as read/ })).toBeInTheDocument();
   });
 
@@ -513,12 +525,15 @@ describe('AC9: pull to refresh', () => {
     expect(entryCalls()).toHaveLength(before);
   });
 
-  it('the Refresh button does the same for non-touch users', async () => {
+  it('the Refresh button in the filter panel does the same for non-touch users; the list has no bottom bar', async () => {
     api.set(ENTRIES('all', 'unread'), page([entry(1)]));
     renderApp('/all');
     await screen.findByText('Title 1');
+    expect(screen.queryByRole('button', { name: 'Refresh' })).not.toBeInTheDocument();
+    expect(document.getElementById('bottom-bar')).toBeEmptyDOMElement();
     api.set(ENTRIES('all', 'unread'), page([entry(1), entry(8)]));
-    await userEvent.click(screen.getByRole('button', { name: 'Refresh' }));
+    const panel = await openFilters();
+    await userEvent.click(panel.getByRole('button', { name: 'Refresh' }));
     expect(await screen.findByText('Title 8')).toBeInTheDocument();
     expect(api.calls.some((c) => c.method === 'POST')).toBe(false);
   });
@@ -637,13 +652,14 @@ describe('AC12: the offline banner follows failed requests', () => {
         throw new TypeError('Failed to fetch');
       }),
     );
-    await userEvent.click(screen.getByRole('button', { name: 'Refresh' }));
+    const panel = await openFilters();
+    await userEvent.click(panel.getByRole('button', { name: 'Refresh' }));
     expect(
       await screen.findByText(/You're offline/, undefined, { timeout: 1000 }),
     ).toBeInTheDocument();
 
     vi.stubGlobal('fetch', ok);
-    await userEvent.click(screen.getByRole('button', { name: 'Refresh' }));
+    await userEvent.click(panel.getByRole('button', { name: 'Refresh' }));
     await waitFor(() => expect(screen.queryByText(/You're offline/)).not.toBeInTheDocument());
   });
 
@@ -745,17 +761,19 @@ describe('TID-067: the Recommended sort control', () => {
       ...(note ? { sortNote: note } : {}),
     },
   });
-  const pressed = (on: boolean) =>
-    expect(screen.getByRole('button', { name: 'Recommended' })).toHaveAttribute(
-      'aria-pressed',
-      String(on),
-    );
+  const pressed = async (on: boolean) => {
+    const panel = await openFilters();
+    const sw = panel.getByRole('switch', { name: 'Recommended order' });
+    if (on) expect(sw).toBeChecked();
+    else expect(sw).not.toBeChecked();
+    await closeFilters();
+  };
 
-  it('is off by default, asks for the default order, and is a pressed-state button in the header', async () => {
+  it('is off by default, asks for the default order, and is a switch in the filter panel', async () => {
     api.set(ENTRIES('all', 'unread'), page([entry(1)]));
     renderApp('/all');
     await screen.findByText('Title 1');
-    pressed(false);
+    await pressed(false);
     expect(entryCalls().every((c) => !c.path.includes('sort='))).toBe(true);
     expect(screen.queryByTestId('sort-note')).not.toBeInTheDocument();
   });
@@ -766,8 +784,11 @@ describe('TID-067: the Recommended sort control', () => {
     api.set('PATCH /api/me', (body) => ({ body: { id: 'u1', ...(body as object) } }));
     renderApp('/all');
     await screen.findByText('Title 1');
-    await userEvent.click(screen.getByRole('button', { name: 'Recommended' }));
-    await waitFor(() => pressed(true));
+    const panel = await openFilters();
+    await userEvent.click(panel.getByRole('switch', { name: 'Recommended order' }));
+    await waitFor(() =>
+      expect(panel.getByRole('switch', { name: 'Recommended order' })).toBeChecked(),
+    );
     await waitFor(() =>
       expect(entryCalls().some((c) => c.path.includes('sort=recommended'))).toBe(true),
     );
@@ -783,7 +804,7 @@ describe('TID-067: the Recommended sort control', () => {
     api.set(RECOMMENDED(), withSort([entry(1)], 'cold_start'));
     renderApp('/all', { listSort: 'recommended' });
     await screen.findByText('Title 1');
-    pressed(true);
+    await pressed(true);
     expect(screen.queryByTestId('sort-note')).not.toBeInTheDocument();
   });
 
@@ -805,7 +826,9 @@ describe('TID-067: the Recommended sort control', () => {
     api.set(ENTRIES('all', 'all'), page([entry(2, { isRead: true })]));
     renderApp('/all', { unreadOnly: false, listSort: 'recommended' });
     await screen.findByText('Title 2');
-    expect(screen.queryByRole('button', { name: 'Recommended' })).not.toBeInTheDocument();
+    const panel = await openFilters();
+    expect(panel.getByRole('switch', { name: 'Unread only' })).toBeInTheDocument();
+    expect(panel.queryByRole('switch', { name: 'Recommended order' })).not.toBeInTheDocument();
     expect(entryCalls().every((c) => !c.path.includes('sort='))).toBe(true);
   });
 
@@ -815,8 +838,11 @@ describe('TID-067: the Recommended sort control', () => {
     api.set('PATCH /api/me', (body) => ({ body: { id: 'u1', ...(body as object) } }));
     renderApp('/all', { listSort: 'recommended' });
     await screen.findByText('Title 1');
-    await userEvent.click(screen.getByRole('button', { name: 'Recommended' }));
-    await waitFor(() => pressed(false));
+    const panel = await openFilters();
+    await userEvent.click(panel.getByRole('switch', { name: 'Recommended order' }));
+    await waitFor(() =>
+      expect(panel.getByRole('switch', { name: 'Recommended order' })).not.toBeChecked(),
+    );
     const patch = api.calls.filter((c) => c.path === '/api/me').at(-1);
     expect(patch?.body).toEqual({ settings: { listSort: 'newest' } });
   });

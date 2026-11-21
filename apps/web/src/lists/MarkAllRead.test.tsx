@@ -11,7 +11,7 @@ import { toast, toastStore } from '../lib/toast';
 import { installFakeApi, type FakeApi } from '../test-api';
 import { installMatchMedia } from '../test-utils';
 
-// TID-020: mark all as read from the list bottom bar, through the whole app against a fake API.
+// TID-020: mark all as read from the list header (the tick button, TID-074; it was the bottom bar), through the whole app against a fake API.
 // The server side is tested in apps/worker/test/mark-all-read.test.ts.
 
 const NOW = Date.parse('2026-11-17T12:00:00Z');
@@ -102,6 +102,28 @@ afterEach(() => {
   toast.dismiss();
   vi.restoreAllMocks();
   vi.unstubAllGlobals();
+});
+
+describe('TID-074: the tick button', () => {
+  it('is an icon button in the header with a 44px target, and the list has no bottom bar', async () => {
+    api.set(ENTRIES('all'), page([entry(1)]));
+    renderApp('/all');
+    await screen.findByText('Title 1');
+    const tick = markAllButton();
+    expect(tick.closest('header')).not.toBeNull();
+    expect(tick).toHaveClass('size-11');
+    expect(tick).toBeEnabled();
+    expect(document.getElementById('bottom-bar')).toBeEmptyDOMElement();
+    expect(screen.queryByRole('button', { name: 'Refresh' })).not.toBeInTheDocument();
+  });
+
+  it('is disabled when nothing is left to mark', async () => {
+    api.set(ENTRIES('all'), page([entry(1, { isRead: true })]));
+    api.set('GET /api/counts', counts(0));
+    renderApp('/all');
+    await screen.findByText('Title 1');
+    expect(markAllButton()).toBeDisabled();
+  });
 });
 
 describe('AC1, AC3, AC4: 20 or fewer entries', () => {

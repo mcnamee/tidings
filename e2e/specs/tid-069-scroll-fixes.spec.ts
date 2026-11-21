@@ -63,7 +63,7 @@ const headerTop = (page: Page) =>
     .evaluate((el) => el.parentElement!.getBoundingClientRect().top);
 
 test.describe('TID-069: the document scrolls, the bars stay put', () => {
-  test('window.scrollY changes, the header stays at top 0 and the bottom bar at the bottom', async ({
+  test('window.scrollY changes, the header stays at top 0 and the list has no bottom bar', async ({
     page,
   }, testInfo) => {
     mobileOnly(testInfo.project.name);
@@ -75,11 +75,8 @@ test.describe('TID-069: the document scrolls, the bars stay put', () => {
     await scrollTo(page, 800);
     expect(await scrollY(page)).toBeGreaterThan(400);
     expect(await headerTop(page)).toBe(0);
-    const bar = await page.locator('#bottom-bar').evaluate((el) => {
-      const r = el.getBoundingClientRect();
-      return { bottom: r.bottom, vh: window.innerHeight };
-    });
-    expect(bar.bottom).toBe(bar.vh);
+    // TID-074: lists have no bottom bar any more (the article view keeps its own).
+    await expect(page.locator('#bottom-bar')).toBeEmpty();
     // No inner scroller any more.
     expect(
       await page.getByTestId('main-scroll').evaluate((el) => getComputedStyle(el).overflowY),
