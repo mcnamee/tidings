@@ -35,7 +35,6 @@
   --c-glass: rgb(246 245 241 / 0.75);
   --sh-2: 0 8px 24px rgb(29 28 26 / 0.14), 0 2px 6px rgb(29 28 26 / 0.08);
   --sh-3: 0 16px 40px rgb(29 28 26 / 0.2), 0 4px 10px rgb(29 28 26 / 0.1);
-  --sh-reveal: 0 0 36px rgb(29 28 26 / 0.22);
   --img-filter: none;
 }
 [data-theme='dark'] {
@@ -68,7 +67,6 @@
   --c-glass: rgb(19 20 23 / 0.75);
   --sh-2: 0 8px 24px rgb(0 0 0 / 0.5);
   --sh-3: 0 16px 40px rgb(0 0 0 / 0.6);
-  --sh-reveal: 0 0 36px rgb(0 0 0 / 0.7);
   --img-filter: brightness(0.9);
 }
 
@@ -369,13 +367,6 @@ html.scroll-locked {
     transform: translateY(0.75rem);
     opacity: 0;
   }
-}
-
-/* Reveal drawers (TID-075, shell/reveal.ts): below lg the page is a card that slides aside over a
-   panel fixed underneath. Position, transform, radius and the shade are set from code; this is the
-   card's lift off the panel. */
-.reveal-card {
-  box-shadow: var(--sh-reveal);
 }
 
 /* Translucent bars (TID-075): the header (and the article's) lets the content scroll blurred

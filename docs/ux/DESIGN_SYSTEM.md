@@ -92,7 +92,6 @@ These two blocks are the single source of truth. `docs/ux/check-contrast.mjs` re
   --c-glass: rgb(246 245 241 / 0.75);
   --sh-2: 0 8px 24px rgb(29 28 26 / 0.14), 0 2px 6px rgb(29 28 26 / 0.08);
   --sh-3: 0 16px 40px rgb(29 28 26 / 0.2), 0 4px 10px rgb(29 28 26 / 0.1);
-  --sh-reveal: 0 0 36px rgb(29 28 26 / 0.22);
   --img-filter: none;
 }
 [data-theme='dark'] {
@@ -125,7 +124,6 @@ These two blocks are the single source of truth. `docs/ux/check-contrast.mjs` re
   --c-glass: rgb(19 20 23 / 0.75);
   --sh-2: 0 8px 24px rgb(0 0 0 / 0.5);
   --sh-3: 0 16px 40px rgb(0 0 0 / 0.6);
-  --sh-reveal: 0 0 36px rgb(0 0 0 / 0.7);
   --img-filter: brightness(0.9);
 }
 ```
@@ -467,7 +465,7 @@ Motion explains where something came from; it is never decoration. Nothing anima
 Specific behaviours:
 
 - Drawer and Filters panel (TID-075, reveal style, below lg): the page card translates by the panel's width (right for the drawer, left for Filters) over 300 ms with `--ease-ios`, rounding its revealing corners to 28 px, a shade fading to 0.7 and the fixed panel underneath parallaxing from 30% of its width; close is the reverse, same time and ease. From lg the Filters overlay keeps `translateX(100%)` to `0`, 200 ms, with the scrim fading 0 to 1, and its close is the reverse.
-- Glass (TID-075): `--c-glass` is the canvas (`--c-bg`) at 75% alpha, so the header, the status bar strip (theme-color) and the list read as one colour; header bars use the `glass-bar` class, a gradient from solid canvas at the top edge (so it runs on from the status bar without a seam) to `--c-glass` at the bottom, with `backdrop-filter: blur(24px) saturate(1.6)`, and a solid `--c-bg` where it is unsupported. `--sh-reveal` is the lift of the page card off the panel.
+- Glass (TID-075): `--c-glass` is the canvas (`--c-bg`) at 75% alpha, so the header, the status bar strip (theme-color) and the list read as one colour; header bars use the `glass-bar` class, a gradient from solid canvas at the top edge (so it runs on from the status bar without a seam) to `--c-glass` at the bottom, with `backdrop-filter: blur(24px) saturate(1.6)`, and a solid `--c-bg` where it is unsupported. The page card has no shadow when revealed (owner request): the shade and rounded corners separate it from the panel.
 - Reveal panels (TID-075 follow-up): the drawer and the Filters panel use `bg-canvas`, matching the status bar strip and the page, so an open sidebar reads as one colour.
 - Toast: slides up 12px and fades in over 200 ms; fades out over 150 ms.
 - Skeletons: opacity pulse (`animate-skeleton`), not a travelling shimmer. They are `bg-sunken`.
