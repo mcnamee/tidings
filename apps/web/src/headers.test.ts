@@ -49,7 +49,7 @@ describe('index.html', () => {
     expect(indexHtml).toContain('viewport-fit=cover');
     expect(indexHtml).not.toMatch(/user-scalable|maximum-scale/);
     expect(indexHtml).toContain('<meta name="color-scheme" content="light dark" />');
-    expect(indexHtml).toContain('<meta name="theme-color" content="#ffffff" />');
+    expect(indexHtml).toContain('<meta name="theme-color" content="#f6f5f1" />');
     expect(indexHtml).toContain('Tidings needs JavaScript to run. Turn it on and reload.');
   });
 });

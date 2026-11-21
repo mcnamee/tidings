@@ -31,14 +31,14 @@ describe('theme-init.js', () => {
     run();
     expect(root).toHaveAttribute('data-theme', 'dark');
     expect(root).toHaveAttribute('data-theme-pref', 'system');
-    expect(meta.content).toBe('#1b1c20');
+    expect(meta.content).toBe('#131417');
   });
 
   it('follows a light OS when nothing is stored', () => {
     media = installMatchMedia({ [DARK]: false });
     run();
     expect(root).toHaveAttribute('data-theme', 'light');
-    expect(meta.content).toBe('#ffffff');
+    expect(meta.content).toBe('#f6f5f1');
   });
 
   it('lets a stored override beat the OS (AC2)', () => {
@@ -47,7 +47,7 @@ describe('theme-init.js', () => {
     run();
     expect(root).toHaveAttribute('data-theme', 'light');
     expect(root).toHaveAttribute('data-theme-pref', 'light');
-    expect(meta.content).toBe('#ffffff');
+    expect(meta.content).toBe('#f6f5f1');
   });
 
   it('treats any other stored value as system', () => {

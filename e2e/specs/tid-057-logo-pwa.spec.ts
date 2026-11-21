@@ -57,7 +57,7 @@ test.describe('TID-057 installable app files', () => {
     await page.goto('/login');
     await expect(page.locator('meta[name=theme-color]')).toHaveAttribute(
       'content',
-      dark ? '#1b1c20' : '#ffffff',
+      dark ? '#131417' : '#f6f5f1',
     );
   });
 

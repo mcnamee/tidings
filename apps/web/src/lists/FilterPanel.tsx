@@ -318,7 +318,7 @@ export function FilterPanel({
         aria-labelledby={titleId}
         aria-hidden={closing || undefined}
         inert={closing}
-        className="fixed inset-y-0 right-0 z-0 flex w-[min(86vw,20rem)] touch-pan-y flex-col bg-raised pb-[env(safe-area-inset-bottom)] pr-[env(safe-area-inset-right)] pt-[env(safe-area-inset-top)]"
+        className="fixed inset-y-0 right-0 z-0 flex w-[min(86vw,20rem)] touch-pan-y flex-col bg-canvas pb-[env(safe-area-inset-bottom)] pr-[env(safe-area-inset-right)] pt-[env(safe-area-inset-top)]"
       >
         {content}
       </div>,

@@ -32,7 +32,7 @@
   --c-toast-fg: #f4f3ef;
   --c-toast-action: #a9c2ff;
   --c-scrim: rgb(20 19 17 / 0.45);
-  --c-glass: rgb(255 255 255 / 0.75);
+  --c-glass: rgb(246 245 241 / 0.75);
   --sh-2: 0 8px 24px rgb(29 28 26 / 0.14), 0 2px 6px rgb(29 28 26 / 0.08);
   --sh-3: 0 16px 40px rgb(29 28 26 / 0.2), 0 4px 10px rgb(29 28 26 / 0.1);
   --sh-reveal: 0 0 36px rgb(29 28 26 / 0.22);
@@ -65,7 +65,7 @@
   --c-toast-fg: #e8e7e3;
   --c-toast-action: #9db8ff;
   --c-scrim: rgb(0 0 0 / 0.6);
-  --c-glass: rgb(27 28 32 / 0.75);
+  --c-glass: rgb(19 20 23 / 0.75);
   --sh-2: 0 8px 24px rgb(0 0 0 / 0.5);
   --sh-3: 0 16px 40px rgb(0 0 0 / 0.6);
   --sh-reveal: 0 0 36px rgb(0 0 0 / 0.7);
@@ -382,7 +382,7 @@ html.scroll-locked {
    underneath it. Solid surface where backdrop-filter is not supported. The text on it keeps
    AA contrast over the busiest image in both themes (docs/ux/DESIGN_SYSTEM.md, glass). */
 .glass-bar {
-  background-color: var(--c-surface);
+  background-color: var(--c-bg);
 }
 @supports ((-webkit-backdrop-filter: blur(1px)) or (backdrop-filter: blur(1px))) {
   .glass-bar {

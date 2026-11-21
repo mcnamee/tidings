@@ -2,7 +2,7 @@
 (function () {
   var KEY = 'tidings.theme';
   var SIZE_KEY = 'tidings.textSize';
-  var BAR = { light: '#ffffff', dark: '#1b1c20' }; // keep equal to --c-surface in both themes
+  var BAR = { light: '#f6f5f1', dark: '#131417' }; // keep equal to --c-bg in both themes
   var root = document.documentElement;
   var mq = window.matchMedia('(prefers-color-scheme: dark)');
 

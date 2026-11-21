@@ -144,7 +144,7 @@ export function Drawer({
       aria-label="Navigation"
       aria-hidden={closing || undefined}
       inert={closing}
-      className={`fixed inset-y-0 left-0 z-0 flex w-[min(86vw,20rem)] touch-pan-y flex-col bg-raised pb-0 pl-[env(safe-area-inset-left)] pt-[env(safe-area-inset-top)] ${peeking ? 'pointer-events-none' : ''}`}
+      className={`fixed inset-y-0 left-0 z-0 flex w-[min(86vw,20rem)] touch-pan-y flex-col bg-canvas pb-0 pl-[env(safe-area-inset-left)] pt-[env(safe-area-inset-top)] ${peeking ? 'pointer-events-none' : ''}`}
     >
       <div className="flex min-h-14 items-center justify-between pl-4 pr-1">
         <Lockup />
