@@ -996,7 +996,7 @@ All rows: the gate is **zero `exceededCpu`** plus the p95 shown; p99 is recorded
 3. **Requests/day** (callee invocations count, verified 2026-11-16): 16% at baseline, 31% heavy; capped at ≈ 38% per dispatcher cron. Only adding dispatcher crons could exhaust it (§9.3).
 4. Everything else is at or under 40% in both scenarios (D1 reads are 20% / 40% after TID-012's measurements). KV and Queues are unused.
 
-**Monitoring:** the maintenance job logs daily counts; the README (TID-021) documents where to see D1 and Workers usage in the dashboard. If writes exceed 70% on 3 days in a week, the PM opens an ADR (options: longer interval, adaptive scheduling, Workers Paid at $5/month: Q6).
+**Monitoring:** the maintenance job logs daily counts; the deployment guide, `docs/DEPLOYMENT.md` (TID-021), documents where to see D1 and Workers usage in the dashboard. If writes exceed 70% on 3 days in a week, the PM opens an ADR (options: longer interval, adaptive scheduling, Workers Paid at $5/month: Q6).
 
 ---
 
@@ -1021,7 +1021,7 @@ Parameters: `rpID = RP_ID` (the production hostname), expected origin `APP_ORIGI
 
 **Email sign-in links (ADR 0016):** 32-byte random token (256 bits), base64url, stored only as SHA-256 in `magic_links`. Expires in 15 minutes, single use (atomic conditional `UPDATE`), and at most one live link per user. The link is `APP_ORIGIN/login/email#token=…`. The token sits in the fragment, so a GET (including corporate mail scanners) never sends it to the server or consumes it. The landing page strips the fragment and consumes the token only on a POST from the "Sign in" button. The request endpoint answers `202 {}` whatever the address, and it sends after the response so the timing doesn't reveal a match. Recipient: the `MAGIC_LINK_EMAIL` secret only. Sent with one `fetch` to Resend's API (`Authorization: Bearer RESEND_API_KEY`, a Workers secret; plain text, fixed subject, one link). Resend sees the owner's address and the link. The sending domain `tidings.mcn.am` is verified in Resend with DNS records under that subdomain only; nothing is added to the `mcn.am` apex (Google Workspace MX), and Cloudflare Email Routing is not used.
 
-**Break-glass:** if the owner loses every passkey and code, they run a documented `wrangler d1 execute` command (README) that deletes their passkeys; setup is then *not* re-opened (a user exists), so the runbook instead inserts a one-time recovery code hash generated locally. Documented in the README (TID-024 AC2). The sign-in screens don't link to it (ADR 0010).
+**Break-glass:** if the owner loses every passkey and code, they run a documented `wrangler d1 execute` command (`docs/DEPLOYMENT.md`) that deletes their passkeys; setup is then *not* re-opened (a user exists), so the runbook instead inserts a one-time recovery code hash generated locally. Documented in `docs/DEPLOYMENT.md` (TID-024 AC2). The sign-in screens don't link to it (ADR 0010).
 
 ### 10.2 Sessions
 
