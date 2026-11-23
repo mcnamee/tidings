@@ -5,8 +5,10 @@ import { BrowserRouter } from 'react-router';
 import { App } from './App';
 import './index.css';
 import { installInputModality } from './lib/inputModality';
+import { installNoPinchZoom } from './lib/noPinchZoom';
 
 installInputModality();
+installNoPinchZoom();
 
 const queryClient = new QueryClient();
 const root = document.getElementById('root');

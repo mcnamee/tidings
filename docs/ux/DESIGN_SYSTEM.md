@@ -281,7 +281,8 @@ System stacks only (CSP, privacy, bundle). UI is sans. Article body is sans (own
 ### 4.2 Respecting the user's size
 
 - `html` keeps the browser default (`font-size: 100%`). All sizes are `rem`, so the OS and browser font-size settings and text zoom just work.
-- Never use `px` for text, and never set `maximum-scale` or `user-scalable=no`.
+- Never use `px` for text, and never set `maximum-scale` or `user-scalable=no` (iOS ignores them and axe flags them).
+- No pinch or double-tap zoom (owner request 2026-11-23, like a native app): `touch-action: pan-x pan-y` on `html` and `lib/noPinchZoom.ts` for iOS. Text still scales with the OS setting and the in-app S / M / L setting.
 - The in-app setting (FR-ST-2, S / M / L) scales article text only, on top of the browser setting.
 - Interactive minimum sizes are in `rem` too (`size-11` = 2.75rem = 44px at the default), so they grow with text zoom.
 - At 200% text zoom at 375 px there must be no horizontal scroll (NFR-9). Headers and rows wrap or truncate; they never have fixed pixel heights.

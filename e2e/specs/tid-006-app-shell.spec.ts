@@ -43,7 +43,7 @@ test.describe('TID-006 theming', () => {
     expect(dcl).toEqual([scheme, 'system', 'm']);
     await expect(page.locator('meta[name=theme-color]')).toHaveAttribute(
       'content',
-      scheme === 'dark' ? '#1b1c20' : '#ffffff',
+      scheme === 'dark' ? '#131417' : '#f6f5f1',
     );
   });
 

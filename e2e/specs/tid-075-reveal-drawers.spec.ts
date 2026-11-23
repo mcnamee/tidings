@@ -255,15 +255,21 @@ test.describe('translucent header', () => {
     const header = page.getByRole('banner').first();
     const css = await header.evaluate((e) => {
       const s = getComputedStyle(e);
-      return { filter: s.backdropFilter, bg: s.backgroundColor };
+      return { filter: s.backdropFilter, image: s.backgroundImage };
     });
     expect(css.filter).toContain('blur(24px)');
     expect(css.filter).toContain('saturate(1.6)');
-    const alpha = Number(
-      /\/\s*([\d.]+)\)/.exec(css.bg)?.[1] ?? /,\s*([\d.]+)\)$/.exec(css.bg)?.[1],
-    );
-    expect(alpha).toBeGreaterThan(0.5);
-    expect(alpha).toBeLessThan(1);
+    // A gradient from the solid canvas at the top edge (runs on from the status bar) to the
+    // translucent glass at the bottom.
+    expect(css.image).toContain('linear-gradient');
+    const alphas = [...css.image.matchAll(/rgba?\(([^)]*)\)/g)].map((m) => {
+      const parts = m[1]!.split(/[\s,/]+/).filter(Boolean);
+      return parts.length === 4 ? Number(parts[3]) : 1;
+    });
+    expect(alphas[0]).toBe(1);
+    const last = alphas[alphas.length - 1]!;
+    expect(last).toBeGreaterThan(0.5);
+    expect(last).toBeLessThan(1);
 
     // At rest the first row starts below the header's bottom edge (not hidden under it).
     const bottom = (await headerBox(page)).y + (await headerBox(page)).height;

@@ -347,9 +347,9 @@ test.describe('TID-006 theming extras', () => {
     await page.goto('/all');
     const meta = page.locator('meta[name=theme-color]');
     await page.emulateMedia({ colorScheme: 'dark' });
-    await expect(meta).toHaveAttribute('content', '#1b1c20');
+    await expect(meta).toHaveAttribute('content', '#131417');
     await page.emulateMedia({ colorScheme: 'light' });
-    await expect(meta).toHaveAttribute('content', '#ffffff');
+    await expect(meta).toHaveAttribute('content', '#f6f5f1');
   });
 
   test('AC2/AC3: a theme chosen in another tab applies here without reload and can be cleared', async ({
@@ -388,8 +388,11 @@ test.describe('TID-006 theming extras', () => {
     await page.emulateMedia({ colorScheme: 'dark' });
     await page.goto('/all');
     await expect(page.locator('body')).toHaveCSS('background-color', 'rgb(246, 245, 241)');
-    // TID-075: the header is the surface at 75% (glass), blurred behind.
-    await expect(page.locator('header')).toHaveCSS('background-color', 'rgba(255, 255, 255, 0.75)');
+    // TID-075: the header glass runs from the light canvas to the canvas at 75%, blurred behind.
+    await expect(page.locator('header')).toHaveCSS(
+      'background-image',
+      /linear-gradient\(rgb\(246, 245, 241\).*rgba\(246, 245, 241, 0\.75\)/,
+    );
   });
 });
 

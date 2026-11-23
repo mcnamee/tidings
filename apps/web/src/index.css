@@ -391,7 +391,11 @@ html.scroll-locked {
   }
 }
 
-/* Swipe gestures (useSwipe): the browser keeps vertical pans and pinch-zoom, we get the rest. */
+/* No pinch or double-tap zoom, like a native app (lib/noPinchZoom.ts covers iOS). */
+html {
+  touch-action: pan-x pan-y;
+}
+/* Swipe gestures (useSwipe): the browser keeps vertical pans, we get the rest. */
 html.swipe-nav {
-  touch-action: pan-y pinch-zoom;
+  touch-action: pan-y;
 }
