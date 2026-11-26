@@ -829,6 +829,7 @@ describe('AC15 the entrypoint, its log line and the CPU of a 20-entry fallback r
         'tagFallback',
         'tagModel',
         'untagged',
+        'upgraded',
       ].sort(),
     );
     expect(logged.neuronsCharged).toBe(Math.ceil(tagNeurons(900, 12)));
@@ -868,5 +869,55 @@ describe('AC15 the entrypoint, its log line and the CPU of a 20-entry fallback r
       `tag step CPU, 20 entries, fallback maths: median ${median.toFixed(2)} ms, max ${samples[6]?.toFixed(2)} ms`,
     );
     expect(median).toBeLessThan(2);
+  });
+});
+
+describe('upgrade pass: fallback tags are replaced by the model when the cap has room', () => {
+  it('re-tags recent fallback-tagged entries with the model, newest first, and leaves model tags alone', async () => {
+    await only([]);
+    await run(
+      'UPDATE entries SET topics = ? WHERE id IN (498, 499)',
+      packTopics([5], SOURCE_EMBEDDING),
+    );
+    await run('UPDATE entries SET topics = ? WHERE id = 500', packTopics([6], SOURCE_MODEL));
+    const calls: Call[] = [];
+    const tagger = fakeTagger((p) => everyone(p, '12; 13'), undefined, calls);
+    const summary = await runTagPending(deps(tagger));
+    expect(summary.entries).toBe(0);
+    expect(summary.upgraded).toBe(2);
+    expect(calls).toHaveLength(1);
+    const rows = await env.DB.prepare(
+      'SELECT id, topics FROM entries WHERE id IN (498, 499, 500) ORDER BY id',
+    ).all<{ id: number; topics: number }>();
+    expect(rows.results.map((r) => r.topics)).toEqual([
+      packTopics([12, 13], SOURCE_MODEL),
+      packTopics([12, 13], SOURCE_MODEL),
+      packTopics([6], SOURCE_MODEL),
+    ]);
+  });
+
+  it('does not upgrade when the cap has no room, or when the call fails', async () => {
+    await only([]);
+    await run('UPDATE entries SET topics = ? WHERE id = 499', packTopics([5], SOURCE_EMBEDDING));
+    await run(
+      'INSERT OR REPLACE INTO rate_limits (key, window_start, count) VALUES (?, ?, ?)',
+      'ai:tag',
+      Math.floor(Math.floor(NOW_MS / 1000) / 86400) * 86400,
+      TAG_DAILY_NEURON_CAP - 10,
+    );
+    const calls: Call[] = [];
+    expect((await runTagPending(deps(fakeTagger(() => '1: 12', undefined, calls)))).upgraded).toBe(
+      0,
+    );
+    expect(calls).toHaveLength(0);
+    await env.DB.exec("DELETE FROM rate_limits WHERE key = 'ai:tag'");
+    const failing = vi.fn(async () => {
+      throw new Error('boom');
+    });
+    expect((await runTagPending(deps(failing))).upgraded).toBe(0);
+    const row = await env.DB.prepare('SELECT topics FROM entries WHERE id = 499').first<{
+      topics: number;
+    }>();
+    expect(row?.topics).toBe(packTopics([5], SOURCE_EMBEDDING));
   });
 });

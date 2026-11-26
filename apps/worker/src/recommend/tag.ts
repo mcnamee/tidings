@@ -36,6 +36,8 @@ export const TAG_MODEL = '@cf/meta/llama-3.3-70b-instruct-fp8-fast';
 export const TAG_BATCH = 20;
 /** Calls (and so batches of 20) one run may make: 200 articles. Keeps a run under the 50-query limit. */
 export const TAG_MAX_BATCHES = 10;
+/** Neurons that must be left under the cap before an upgrade pass starts (about one batch). */
+export const TAG_UPGRADE_MIN_ROOM = 100;
 /** How far back the work list looks: the newest this many entry IDs (IDs are dense: about 2 days at 400 a day). */
 export const TAG_LOOKBACK_IDS = 1_000;
 /** UTC minute of the hourly run, clear of the :17 maintenance run. */
@@ -131,6 +133,8 @@ export interface TagSummary {
   more: boolean;
   rowsWritten: number;
   rowsRead: number;
+  /** Fallback tags replaced by the model's in the upgrade pass. */
+  upgraded: number;
 }
 
 export interface TagDeps {
@@ -142,6 +146,8 @@ export interface TagDeps {
   clock: () => number;
   /** Resolves after `ms`; tests pass a fake. Default `setTimeout`. */
   sleep?: (ms: number) => Promise<void>;
+  /** False turns the upgrade pass off (tests of the new-entry path). Default on. */
+  upgrade?: boolean;
 }
 
 const written = (m: Meta): number => Number(m.rows_written ?? 0);
@@ -183,6 +189,27 @@ export async function findUntagged(db: Db, limit: number) {
         ORDER BY e.id DESC LIMIT ?2`,
       TAG_LOOKBACK_IDS,
       limit,
+    ),
+  );
+}
+
+/**
+ * Recent entries tagged only by the embedding fallback (source 2), newest first: the upgrade pass
+ * re-tags them with the model when the day's cap has room left after new entries. Same bounded
+ * primary-key range as {@link findUntagged}.
+ */
+export async function findFallbackTagged(db: Db, limit: number) {
+  return db.all<Candidate>(
+    sql(
+      `SELECT e.id, e.title, e.summary FROM entries e
+        WHERE e.id > (SELECT MAX(id) FROM entries) - ?1
+          AND e.topics IS NOT NULL AND ((e.topics >> 24) & 3) = ?3 AND e.purged_at IS NULL
+          AND (COALESCE(e.title, '') <> '' OR COALESCE(e.summary, '') <> '')
+          AND EXISTS (SELECT 1 FROM user_entries ue WHERE ue.entry_id = e.id)
+        ORDER BY e.id DESC LIMIT ?2`,
+      TAG_LOOKBACK_IDS,
+      limit,
+      SOURCE_EMBEDDING,
     ),
   );
 }
@@ -305,6 +332,7 @@ export async function runTagPending(deps: TagDeps): Promise<TagSummary> {
     more: false,
     rowsWritten: 0,
     rowsRead: 0,
+    upgraded: 0,
   };
 
   const limit = TAG_BATCH * TAG_MAX_BATCHES;
@@ -314,16 +342,24 @@ export async function runTagPending(deps: TagDeps): Promise<TagSummary> {
   out.entries = candidates.length;
   out.more = found.rows.length > limit;
 
-  if (candidates.length > 0) {
-    const spentRow = await db.first<{ count: number; window_start: number }>(
-      sql('SELECT count, window_start FROM rate_limits WHERE key = ?', TAG_SPEND_KEY),
-    );
-    let spent = spentRow && spentRow.window_start === dayStart(now) ? spentRow.count : 0;
-    let modelWorks = true;
-    let vectors: TopicVectors | null | undefined;
+  const spentRow =
+    candidates.length > 0 || deps.upgrade !== false
+      ? await db.first<{ count: number; window_start: number }>(
+          sql('SELECT count, window_start FROM rate_limits WHERE key = ?', TAG_SPEND_KEY),
+        )
+      : null;
+  let spent = spentRow && spentRow.window_start === dayStart(now) ? spentRow.count : 0;
+  let modelWorks = true;
+  let vectors: TopicVectors | null | undefined;
 
-    for (let b = 0; b < candidates.length; b += TAG_BATCH) {
-      const chunk = candidates.slice(b, b + TAG_BATCH);
+  /**
+   * Tags `list` in batches of TAG_BATCH. New entries (`upgrade` false) fall back to the embedding
+   * when the model is unavailable; an upgrade only ever replaces a fallback tag with the model's,
+   * and stops at the first batch the cap can't cover.
+   */
+  async function tagChunks(list: Candidate[], upgrade: boolean): Promise<void> {
+    for (let b = 0; b < list.length; b += TAG_BATCH) {
+      const chunk = list.slice(b, b + TAG_BATCH);
       const prompt = buildTagPrompt(chunk);
       let answers = new Map<number, number[]>();
       let charge = 0;
@@ -341,6 +377,8 @@ export async function runTagPending(deps: TagDeps): Promise<TagSummary> {
           modelWorks = false;
           charge = err instanceof TagTimeout ? tagUpperBound(prompt) : 0;
         }
+      } else if (upgrade) {
+        return;
       }
 
       // Entries with no valid line (or no call at all) get one topic from the embedding, if any.
@@ -348,10 +386,12 @@ export async function runTagPending(deps: TagDeps): Promise<TagSummary> {
       const needFallback: Candidate[] = [];
       chunk.forEach((c, i) => {
         const ids = answers.get(i + 1);
-        if (ids === undefined) needFallback.push(c);
-        else {
+        if (ids === undefined) {
+          if (!upgrade) needFallback.push(c);
+        } else {
           updates.push([c.id, packTopics(ids, SOURCE_MODEL)]);
-          out.tagModel++;
+          if (upgrade) out.upgraded++;
+          else out.tagModel++;
         }
       });
       if (needFallback.length > 0) {
@@ -379,13 +419,18 @@ export async function runTagPending(deps: TagDeps): Promise<TagSummary> {
 
       const statements: Statement[] = [];
       if (updates.length > 0) {
-        // `topics IS NULL` makes an overlapping run harmless: the second write changes nothing.
+        // The guard makes an overlapping run harmless: a new entry is only written while it is
+        // still untagged, and an upgrade only while it still holds a fallback tag.
         statements.push(
           sql(
             `UPDATE entries SET topics = j.v
                FROM (SELECT json_extract(value, '$[0]') AS id, json_extract(value, '$[1]') AS v
                        FROM json_each(?)) j
-              WHERE entries.id = j.id AND entries.topics IS NULL`,
+              WHERE entries.id = j.id AND ${
+                upgrade
+                  ? `entries.topics IS NOT NULL AND ((entries.topics >> 24) & 3) = ${SOURCE_EMBEDDING}`
+                  : 'entries.topics IS NULL'
+              }`,
             JSON.stringify(updates),
           ),
         );
@@ -400,6 +445,22 @@ export async function runTagPending(deps: TagDeps): Promise<TagSummary> {
         out.rowsWritten += results.reduce((n, r) => n + written(r.meta), 0);
       }
     }
+  }
+
+  await tagChunks(candidates, false);
+
+  // Upgrade pass: with no backlog of new entries and room under the cap for at least one batch,
+  // replace recent fallback tags with the model's, newest first, up to one run's worth.
+  if (
+    deps.upgrade !== false &&
+    !out.more &&
+    out.tagFallback === 0 &&
+    modelWorks &&
+    spent + TAG_UPGRADE_MIN_ROOM <= TAG_DAILY_NEURON_CAP
+  ) {
+    const fallback = await findFallbackTagged(db, limit);
+    out.rowsRead += readRows(fallback.meta);
+    await tagChunks(fallback.rows, true);
   }
 
   // Remember whether work is waiting, so the next minute's tick runs again (written only on a change).

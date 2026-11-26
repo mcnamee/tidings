@@ -241,3 +241,7 @@ Written by the software engineer from the build; the PM confirms at acceptance. 
 - **Mark all as read with a topic** uses `EXISTS (SELECT 1 FROM entries WHERE id = user_entries.entry_id AND <topic match>)`, so it looks each unread row's entry up by primary key (about 2 reads per unread article) and never scans `entries`.
 - **The SPA treats `?topic=` as valid only when it is one of the chosen chips** (a deep link to a known topic that is not chosen is "All"). The server accepts any active slug.
 
+
+## Amendment 3 (2026-11-26): upgrading fallback tags
+
+The launch catch-up spent the first day's cap, so 367 of the first 971 tags came from the embedding fallback (about 72% first-tag accuracy against 90%+ for the model). Fallback tags were never revisited. Now, at the end of a run that left no backlog of new entries, made no fallback tags itself and has at least `TAG_UPGRADE_MIN_ROOM = 100` neurons left under the cap, the tag step re-tags recent fallback-tagged entries (source 2, same 1,000-ID range, newest first, up to 200 a run) with the model. New entries always come first; an upgrade only replaces a fallback tag (guarded `UPDATE`) and stops at the first batch the cap can't cover. Cost: the leftover cap only (never more than the 2,500 neurons a day), one extra bounded range read (about 1,000 rows) on runs with room, and 1 row written per upgraded entry, which replaces the write the entry already had. The run summary and log line gain `upgraded`.

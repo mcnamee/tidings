@@ -729,6 +729,8 @@ Every new article that is linked to a user (read or unread) is tagged with **up 
 
 **The work list.** One query: `entries` with `id` in the newest `TAG_LOOKBACK_IDS = 1,000` IDs (a primary-key range; IDs are dense, so about 2 days at 400 articles a day), `topics IS NULL`, not purged, with a title or summary, and linked to at least one user, read or unread (`EXISTS` on `user_entries` through `ue_entry`), newest first. No index is added (a partial index on `topics IS NULL` would cost 2 rows written per article, which is what a queue costs). Entries already read are tagged too (owner decision 2026-11-26), so a topic filter with read articles shown still finds them; this is the volume the budget below already assumes (every new linked article).
 
+**Upgrading fallback tags** (ADR 0021 amendment 3). After a run that left no backlog of new entries and made no fallback tags, with at least 100 neurons left under the cap, the step re-tags recent entries whose tag came from the embedding fallback (same 1,000-ID range, newest first, up to 200 a run) with the model, so a day that hit the cap is corrected on later days from spare budget. An upgrade only replaces a fallback tag and never passes the cap.
+
 **A run:**
 
 1. Read up to **200** work entries (`TAG_MAX_BATCHES` 10 × `TAG_BATCH` 20), newest first.
