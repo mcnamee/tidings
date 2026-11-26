@@ -38,12 +38,12 @@ export const TAG_BATCH = 20;
 export const TAG_MAX_BATCHES = 10;
 /** Neurons that must be left under the cap before an upgrade pass starts (about one batch). */
 export const TAG_UPGRADE_MIN_ROOM = 100;
-/** How far back the work list looks: the newest this many entry IDs (IDs are dense: about 2 days at 400 a day). */
-export const TAG_LOOKBACK_IDS = 1_000;
+/** How far back the work list looks: the newest this many entry IDs (IDs are dense: about 11 days at 450 a day, all of what the owner keeps unpurged at first, so a backlog or a day past the cap is caught up). */
+export const TAG_LOOKBACK_IDS = 5_000;
 /** UTC minute of the hourly run, clear of the :17 maintenance run. */
 export const TAG_FLUSH_MINUTE = 41;
-/** Neurons per UTC day tagging may spend: 25% of the free 10,000. */
-export const TAG_DAILY_NEURON_CAP = 2_500;
+/** Neurons per UTC day tagging may spend: 80% of the free 10,000 (owner decision 2026-11-26; measured use is about 2,000 on a normal day, the cap matters for catch-ups). With the embed cap (1,500) the two stay under the 10,000 free. */
+export const TAG_DAILY_NEURON_CAP = 8_000;
 /** Workers AI price for the model: neurons per million input and output tokens (spec 9.1). */
 export const TAG_NEURONS_PER_M_INPUT = 26_668;
 export const TAG_NEURONS_PER_M_OUTPUT = 204_805;

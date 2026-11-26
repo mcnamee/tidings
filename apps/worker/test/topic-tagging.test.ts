@@ -319,10 +319,11 @@ describe('AC6 daily cap', () => {
     expect(await counter(TAG_SPEND_KEY)).toBe(expected + Math.ceil(ub));
   });
 
-  it('never passes 2,500 over a day of runs, with and without usage, and resets at 00:00 UTC', async () => {
+  it('never passes the daily cap over a day of runs, with and without usage, and resets at 00:00 UTC', async () => {
     await run('DELETE FROM rate_limits WHERE key = ?', TAG_SPEND_KEY);
     let calls = 0;
-    for (let r = 0; r < 60; r++) {
+    const RUNS = 150;
+    for (let r = 0; r < RUNS; r++) {
       await only(twenty);
       const withUsage = r % 3 === 0;
       await runTagPending(
@@ -339,7 +340,7 @@ describe('AC6 daily cap', () => {
       expect(await counter(TAG_SPEND_KEY)).toBeLessThanOrEqual(TAG_DAILY_NEURON_CAP);
     }
     expect(calls).toBeGreaterThan(5);
-    expect(calls).toBeLessThan(60);
+    expect(calls).toBeLessThan(RUNS);
     const spent = await counter(TAG_SPEND_KEY);
     expect(spent).toBeGreaterThan(TAG_DAILY_NEURON_CAP - 3 * tagUpperBound(promptOf(twenty)));
     // Next UTC day: the counter restarts.
@@ -518,7 +519,7 @@ describe('work list: what the step picks up, and how many reads it costs', () =>
   });
 
   it('only looks at the newest TAG_LOOKBACK_IDS entry IDs', async () => {
-    const top = 5000;
+    const top = TAG_LOOKBACK_IDS + 5000;
     const edge = top - TAG_LOOKBACK_IDS;
     for (const id of [edge, edge + 1, top]) {
       await run(

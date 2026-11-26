@@ -200,10 +200,10 @@ describe('embedding text and the budget', () => {
     expect(embeddingText('t', 'x'.repeat(1000))).toHaveLength(EMBED_TEXT_CHARS);
   });
 
-  it('prices tokens at 1,841 neurons per million and caps the day at 3,000 neurons', () => {
+  it('prices tokens at 1,841 neurons per million and caps the day at 1,500 neurons', () => {
     expect(neuronsFor(1_000_000)).toBe(1841);
-    expect(neuronsFor(DAILY_TOKEN_CAP)).toBeLessThanOrEqual(3000);
-    expect(neuronsFor(DAILY_TOKEN_CAP + 1000)).toBeGreaterThan(3000);
+    expect(neuronsFor(DAILY_TOKEN_CAP)).toBeLessThanOrEqual(1500);
+    expect(neuronsFor(DAILY_TOKEN_CAP + 1000)).toBeGreaterThan(1500);
     // A full 400-character entry is about 136 estimated tokens: a deliberate over-estimate.
     expect(estimateTokens(['x'.repeat(400)])).toBe(136);
   });

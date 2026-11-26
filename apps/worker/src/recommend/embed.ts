@@ -16,8 +16,8 @@ export const EMBED_TEXT_CHARS = 400;
 export const EMBED_MAX_TRIES = 3;
 /** Workers AI Free: 1,841 neurons per million input tokens (ADR 0018, measured by the owner). */
 export const NEURONS_PER_MILLION_TOKENS = 1_841;
-/** Neurons per UTC day this feature may spend: 30% of the 10,000 free (rest is headroom). */
-export const DAILY_NEURON_CAP = 3_000;
+/** Neurons per UTC day this feature may spend: 15% of the 10,000 free (real use is about 60; an OPML import about 460). With the tag cap (8,000) the two stay under the 10,000 free, so an embed call never fails for lack of allowance (three failures park an entry for good). */
+export const DAILY_NEURON_CAP = 1_500;
 /** Entries embedded per UTC day, which bounds D1 writes (3 rows each) rather than neurons. */
 export const DAILY_ENTRY_CAP = 3_000;
 const DAY = 86_400;
