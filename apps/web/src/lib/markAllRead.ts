@@ -25,13 +25,18 @@ import { toast } from './toast';
 
 export const MARK_ALL_ERROR = "Couldn't mark these as read. Try again.";
 export const UNDO_ERROR = "Couldn't undo. Your change was kept.";
-export const markedMessage = (n: number) => `Marked ${n} as read`;
+export const markedMessage = (n: number, topicName?: string) =>
+  topicName === undefined
+    ? `Marked ${n} as read`
+    : `Marked ${n} ${topicName} ${n === 1 ? 'article' : 'articles'} as read`;
 
 export interface MarkAllScope {
   view: EntryListView;
   id: string | null;
   /** The first page's `asOf`. */
   before: string;
+  /** TID-078: only this topic's entries (All articles). */
+  topic?: { slug: string; name: string } | null;
 }
 
 type Lists = InfiniteData<EntriesResponse, string | null>;
@@ -45,6 +50,7 @@ function folderOf(client: QueryClient, subscriptionId: string): string | null {
 
 function inScope(client: QueryClient, scope: MarkAllScope, item: EntrySummary): boolean {
   if (item.isRead || Date.parse(item.publishedAt) > Date.parse(scope.before)) return false;
+  if (scope.topic) return scope.view === 'all' && item.topics.includes(scope.topic.slug);
   if (scope.view === 'all') return true;
   if (scope.view === 'feed') return item.subscriptionId === scope.id;
   return folderOf(client, item.subscriptionId) === scope.id;
@@ -65,6 +71,8 @@ function applyToLists(client: QueryClient, scope: MarkAllScope): void {
 
 /** Zeroes the counts of every subscription in scope. The refetch after success corrects any entry that arrived after the watermark. */
 function applyToCounts(client: QueryClient, scope: MarkAllScope): void {
+  // There are no per-topic counts: the refetch after success gives the new totals.
+  if (scope.topic) return;
   const subs = client.getQueryData<Subscription[]>(SUBSCRIPTIONS_KEY) ?? [];
   client.setQueryData<Counts>(COUNTS_KEY, (old) => {
     if (!old) return old;
@@ -111,6 +119,7 @@ export async function markAllRead(client: QueryClient, scope: MarkAllScope): Pro
     view: scope.view,
     before: scope.before,
     ...(scope.id === null ? {} : { id: scope.id }),
+    ...(scope.topic ? { topic: scope.topic.slug } : {}),
   };
   let done: MarkAllReadResponse;
   try {
@@ -124,9 +133,9 @@ export async function markAllRead(client: QueryClient, scope: MarkAllScope): Pro
   refreshFromServer(client);
   const ids = done.entryIds;
   if (ids !== null && ids.length > 0 && ids.length <= MARK_ALL_UNDO_MAX) {
-    toast.undo(markedMessage(done.updated), () => void undoMarkAll(client, ids));
+    toast.undo(markedMessage(done.updated, scope.topic?.name), () => void undoMarkAll(client, ids));
   } else if (done.updated > 0) {
-    toast.success(markedMessage(done.updated));
+    toast.success(markedMessage(done.updated, scope.topic?.name));
   }
 }
 

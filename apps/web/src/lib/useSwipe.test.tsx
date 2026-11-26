@@ -299,4 +299,62 @@ describe('avoidEdgePx and ignoreWithin', () => {
     expect(s.onCommit).not.toHaveBeenCalled();
     pre.remove();
   });
+
+  // TID-078: the topic chip row scrolls sideways, so the menu swipe ignores it, except from the left edge.
+  it('ignoreExemptEdgePx: an ignored element still lets a swipe that starts in the edge zone through', () => {
+    const s = setup({
+      edgePx: undefined,
+      ignoreWithin: '[data-swipe-ignore]',
+      ignoreExemptEdgePx: 24,
+    });
+    const row = document.createElement('div');
+    row.dataset.swipeIgnore = '';
+    const chip = document.createElement('button');
+    row.append(chip);
+    document.body.append(row);
+
+    // From x = 10 (inside the edge zone) the drag opens the menu over the row.
+    fire('pointerdown', 10, 300, { target: chip });
+    for (const x of [40, 150, 300]) {
+      vi.advanceTimersByTime(100);
+      fire('pointermove', x);
+    }
+    fire('pointerup', 300);
+    expect(s.onCommit).toHaveBeenCalledTimes(1);
+
+    // From x = 100 the same drag belongs to the row (it scrolls the chips), so nothing happens.
+    s.onCommit.mockClear();
+    fire('pointerdown', 100, 300, { target: chip });
+    for (const x of [130, 250, 400]) {
+      vi.advanceTimersByTime(100);
+      fire('pointermove', x);
+    }
+    fire('pointerup', 400);
+    expect(s.onCommit).not.toHaveBeenCalled();
+    expect(s.onStart).toHaveBeenCalledTimes(1);
+
+    // Outside the row, from x = 100, the swipe still works as before.
+    fire('pointerdown', 100, 300);
+    for (const x of [130, 250, 400]) {
+      vi.advanceTimersByTime(100);
+      fire('pointermove', x);
+    }
+    fire('pointerup', 400);
+    expect(s.onCommit).toHaveBeenCalledTimes(1);
+    row.remove();
+  });
+
+  it('without ignoreExemptEdgePx an ignored element is ignored from the very edge too (article tables)', () => {
+    const s = setup({ edgePx: undefined, ignoreWithin: 'pre' });
+    const pre = document.createElement('pre');
+    document.body.append(pre);
+    fire('pointerdown', 10, 300, { target: pre });
+    for (const x of [40, 150, 300]) {
+      vi.advanceTimersByTime(100);
+      fire('pointermove', x);
+    }
+    fire('pointerup', 300);
+    expect(s.onCommit).not.toHaveBeenCalled();
+    pre.remove();
+  });
 });

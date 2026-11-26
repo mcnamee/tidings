@@ -26,6 +26,7 @@ export const ROUTES: RouteMeta[] = [
   { path: '/manage/add', title: 'Add a feed', kind: 'sub', parent: '/manage' },
   { path: '/manage/import', title: 'Import from OPML', kind: 'sub', parent: '/manage' },
   { path: '/settings', title: 'Settings', kind: 'top' },
+  { path: '/settings/topics', title: 'Topics', kind: 'sub', parent: '/settings' },
 ];
 
 export const NOT_FOUND: RouteMeta = { path: '*', title: 'Page not found', kind: 'top' };

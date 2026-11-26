@@ -399,3 +399,48 @@ html {
 html.swipe-nav {
   touch-action: pan-y;
 }
+
+/* A row that scrolls sideways with no visible scrollbar (TID-078, DESIGN_SYSTEM 12.2). Edge fades are
+   toggled by data attributes the row sets while it scrolls (classes only, no style attributes). */
+.scroll-row {
+  overflow-x: auto;
+  overscroll-behavior-x: contain;
+  scrollbar-width: none;
+}
+.scroll-row::-webkit-scrollbar {
+  display: none;
+}
+.scroll-row[data-fade-end='true'] {
+  -webkit-mask-image: linear-gradient(to right, #000 calc(100% - 1.5rem), transparent);
+  mask-image: linear-gradient(to right, #000 calc(100% - 1.5rem), transparent);
+}
+.scroll-row[data-fade-start='true'] {
+  -webkit-mask-image: linear-gradient(to left, #000 calc(100% - 1.5rem), transparent);
+  mask-image: linear-gradient(to left, #000 calc(100% - 1.5rem), transparent);
+}
+.scroll-row[data-fade-start='true'][data-fade-end='true'] {
+  -webkit-mask-image: linear-gradient(
+    to right,
+    transparent,
+    #000 1.5rem,
+    #000 calc(100% - 1.5rem),
+    transparent
+  );
+  mask-image: linear-gradient(
+    to right,
+    transparent,
+    #000 1.5rem,
+    #000 calc(100% - 1.5rem),
+    transparent
+  );
+}
+/* A chosen chip keeps its fill and label in forced-colours mode (a border alone would vanish). */
+@media (forced-colors: active) {
+  .topic-chip[aria-pressed='true'] {
+    forced-color-adjust: none;
+    background-color: Highlight;
+    color: HighlightText;
+    border-width: 2px;
+    border-color: Highlight;
+  }
+}

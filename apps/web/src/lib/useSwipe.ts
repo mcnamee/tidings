@@ -43,6 +43,11 @@ export interface SwipeOptions {
   avoidEdgePx?: number;
   /** Touches that start inside an element matching this selector are left alone (e.g. wide tables that scroll sideways). */
   ignoreWithin?: string;
+  /**
+   * With `ignoreWithin`: a touch that starts within this many px of the left edge is never ignored, so a
+   * deliberate edge swipe still works over a sideways-scrolling row (TID-078). Unset, the ignore is absolute.
+   */
+  ignoreExemptEdgePx?: number;
   /** Where to listen. The document when omitted. */
   target?: RefObject<HTMLElement | null>;
   /** The distance in px that counts as 100%. */
@@ -103,8 +108,10 @@ export function useSwipe(options: SwipeOptions): void {
       track = null;
     };
 
-    const ignored = (target: EventTarget | null) => {
+    const ignored = (target: EventTarget | null, x: number) => {
       const sel = opts.current.ignoreWithin;
+      const exempt = opts.current.ignoreExemptEdgePx;
+      if (exempt !== undefined && x <= exempt) return false;
       return !!sel && target instanceof Element && !!target.closest(sel);
     };
 
@@ -171,7 +178,7 @@ export function useSwipe(options: SwipeOptions): void {
         return;
       }
       if (e.isPrimary === false) return;
-      if (ignored(e.target)) return;
+      if (ignored(e.target, e.clientX)) return;
       begin(e.pointerId, 'pointer', e.clientX, e.clientY);
     }
     function pMove(e: PointerEvent) {
@@ -196,7 +203,7 @@ export function useSwipe(options: SwipeOptions): void {
         track.id = t.identifier;
         return;
       }
-      if (ignored(e.target)) return;
+      if (ignored(e.target, t.clientX)) return;
       begin(t.identifier, 'touch', t.clientX, t.clientY);
     }
     function tMove(ev: Event) {
