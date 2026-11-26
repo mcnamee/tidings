@@ -84,8 +84,9 @@ interface Track {
  * Pointer events (touch only) are the fallback. The direction locks after `SWIPE_LOCK_PX`: mostly
  * vertical, or the wrong way, and the gesture is dropped so the page scrolls as usual. With
  * `prefers-reduced-motion` nothing follows the finger: only the final commit is reported. While
- * enabled on the document it also sets `touch-action: pan-y` on <html> (index.css) for
- * browsers that honour it; an element target needs `touch-action: pan-y` (`touch-pan-y`) itself.
+ * enabled on the document it also adds `swipe-nav` to <html>. That must never narrow `touch-action` below
+ * `pan-x pan-y` (index.css): it intersects down the tree and would stop sideways scrollers (the topic
+ * chip row) panning. An element target needs `touch-action: pan-y` (`touch-pan-y`) itself.
  */
 export function useSwipe(options: SwipeOptions): void {
   const opts = useRef(options);
