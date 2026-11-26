@@ -1,4 +1,4 @@
-import type { SessionResponse, User } from '@tidings/shared';
+import { isTopicSlug, type SessionResponse, type User } from '@tidings/shared';
 import { Db, nowSeconds, sql, type Clock, type Statement } from '../db';
 import { randomToken, sha256Hex } from './crypto';
 
@@ -55,9 +55,13 @@ interface SessionUserRow {
 export function parseSettings(json: string): User['settings'] {
   try {
     const value: unknown = JSON.parse(json);
-    return value && typeof value === 'object' && !Array.isArray(value)
-      ? (value as User['settings'])
-      : {};
+    if (!value || typeof value !== 'object' || Array.isArray(value)) return {};
+    const settings = value as User['settings'];
+    // TID-078: a chip whose topic was retired since it was saved is dropped on read (spec 6.2).
+    if (Array.isArray(settings.topicChips)) {
+      settings.topicChips = settings.topicChips.filter(isTopicSlug);
+    }
+    return settings;
   } catch {
     return {};
   }

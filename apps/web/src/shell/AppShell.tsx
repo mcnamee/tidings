@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { flushSync } from 'react-dom';
-import { Outlet, useLocation, useNavigate, useNavigationType } from 'react-router';
+import { Outlet, useLocation, useNavigate, useNavigationType, useSearchParams } from 'react-router';
 import { ArrowLeft, Menu } from 'lucide-react';
 import { useSyncAppearance } from '../lib/appearance';
 import { DESKTOP_QUERY, useMediaQuery } from '../lib/hooks';
@@ -8,7 +8,8 @@ import { saveLastList } from '../lib/lastList';
 import { useSidebarHidden } from '../lib/sidebar';
 import { useCounts } from '../lib/queries';
 import { findRoute } from '../routes/table';
-import { isStandalone, prefersReducedMotion, useSwipe } from '../lib/useSwipe';
+import { useActiveTopic } from '../lib/topics';
+import { isStandalone, prefersReducedMotion, SWIPE_EDGE_PX, useSwipe } from '../lib/useSwipe';
 import { Drawer, drawerWidth, type DrawerControl } from './Drawer';
 import { Lockup } from './Logo';
 import { FeedNav } from './FeedNav';
@@ -50,8 +51,12 @@ export function AppShell() {
   // FR-ST-1: the account's theme and text size win over what this device remembered.
   useSyncAppearance();
   const route = findRoute(location.pathname);
+  // TID-078: the topic chosen on All articles shows in the header (the chip row scrolls away).
+  const [searchParams] = useSearchParams();
+  const onAll = location.pathname === '/all' || location.pathname.startsWith('/all/');
+  const topic = useActiveTopic(onAll ? 'all' : 'folder', searchParams);
   const title = useRouteTitle(route, location.pathname);
-  useDocumentTitle(title.documentTitle);
+  useDocumentTitle(topic ? `${topic.name} - ${title.documentTitle}` : title.documentTitle);
 
   const initialKey = useRef(location.key);
   // A drawer entry that survived a reload is stale: only entries pushed in this session count.
@@ -288,6 +293,10 @@ export function AppShell() {
       !covered &&
       route.kind !== 'auth',
     direction: 'right',
+    // The topic chip row scrolls sideways under the finger, so the menu swipe ignores it, except from the
+    // very left edge (TID-078): a rightward drag from the bezel still opens the menu over the row.
+    ignoreWithin: '[data-swipe-ignore]',
+    ignoreExemptEdgePx: SWIPE_EDGE_PX,
     extent: drawerWidth,
     commitAt: 0.4,
     onStart: () => flushSync(() => setPeeking(true)),
@@ -393,7 +402,18 @@ export function AppShell() {
                             : {})}
                           className="min-w-0 flex-1 line-clamp-2 break-words text-lg font-semibold text-fg"
                         >
-                          {title.heading === 'All articles' ? (
+                          {topic && title.heading === 'All articles' ? (
+                            // A kicker above the topic's name, both inside the one h1, so it reads
+                            // "All articles Formula 1" and the header does not grow.
+                            <>
+                              <span className="block text-xs font-normal leading-tight text-fg-muted">
+                                All articles
+                              </span>
+                              <span data-testid="header-topic" className="block leading-tight">
+                                {topic.name}
+                              </span>
+                            </>
+                          ) : title.heading === 'All articles' ? (
                             // Owner, 2026-11-21: the home list shows the logo; the heading text stays for
                             // screen readers.
                             <>

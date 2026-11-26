@@ -16,6 +16,7 @@ import { useEntries, useEntry } from '../lib/queries';
 import { setEntryRead } from '../lib/readState';
 import { useSession } from '../lib/session';
 import { effectiveSort, markReadOnOpen, unreadOnlyDefault } from '../lib/settings';
+import { topicChipsPref, topicFromParams } from '../lib/topics';
 import { toast } from '../lib/toast';
 import { BottomBar, HeaderActions } from '../shell/slots';
 import { ArticleContent } from './ArticleContent';
@@ -89,19 +90,22 @@ export function ArticleRoute() {
         ? 'unread'
         : 'all';
   // The list is only read here, never refetched on mount: Back must show the list as it was.
+  // TID-078: an article opened from a topic list steps through that topic's articles.
+  const topic = topicFromParams(search, view, topicChipsPref(session.data?.user?.settings));
   const list = useEntries(
     view,
     id,
     state,
     false,
     effectiveSort(session.data?.user?.settings, state),
+    topic,
   );
   const items = list.data?.pages.flatMap((p) => p.items) ?? [];
   const index = items.findIndex((i) => i.id === entryId);
   const [loadingMore, setLoadingMore] = useState(false);
 
   const go = (to: EntrySummary, step: -1 | 1) =>
-    navigate(`${base}/a/${to.id}?state=${state}`, {
+    navigate(`${base}/a/${to.id}?state=${state}${topic ? `&topic=${topic}` : ''}`, {
       replace: true,
       state: stepState(step),
     });

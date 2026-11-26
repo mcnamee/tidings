@@ -21,6 +21,7 @@ import { ArticleRoute } from './reader/ArticleView';
 import { AddFeed } from './manage/AddFeed';
 import { ImportOpml } from './manage/ImportOpml';
 import { Settings } from './settings/Settings';
+import { Topics } from './settings/Topics';
 import { Manage } from './manage/Manage';
 import { useFolders, useSubscriptions } from './lib/queries';
 import { Setup } from './auth/Setup';
@@ -168,6 +169,7 @@ function RootRedirect() {
 
 function screenFor(path: string) {
   if (path === '/settings') return <Settings />;
+  if (path === '/settings/topics') return <Topics />;
   if (path === '/manage') return <Manage />;
   if (path === '/manage/add') return <AddFeed />;
   if (path === '/manage/import') return <ImportOpml />;

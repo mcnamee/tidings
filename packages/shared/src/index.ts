@@ -56,6 +56,8 @@ export interface UserSettings {
   hideReadFeeds?: boolean;
   /** TID-067: the list order, default newest first. Remembered across devices. */
   listSort?: EntrySort;
+  /** TID-078: topic slugs shown as chips on All articles, in order. Known, active, unique, at most 28. */
+  topicChips?: string[];
 }
 
 export const THEMES = ['system', 'light', 'dark'] as const;
@@ -409,6 +411,8 @@ export interface MarkAllReadRequest {
   id?: string;
   /** The list's `asOf`: only entries published at or before it are marked. */
   before: string;
+  /** TID-078: only this topic's entries (`view=all` only). */
+  topic?: string;
 }
 export interface MarkAllReadResponse {
   updated: number;
@@ -450,7 +454,16 @@ export interface TopicsResponse {
   version: number;
 }
 
-export { TOPICS, TOPICS_VERSION, RETIRED_TOPIC_IDS, type SystemTopic } from './topics';
+export {
+  TOPICS,
+  TOPICS_VERSION,
+  RETIRED_TOPIC_IDS,
+  TOPIC_CHIPS_MAX,
+  TOPIC_SCAN_LIMIT,
+  isTopicSlug,
+  topicIdOfSlug,
+  type SystemTopic,
+} from './topics';
 
 export {
   feedErrorMessage,

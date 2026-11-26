@@ -28,6 +28,7 @@ import {
 import { markAllRead } from '../lib/markAllRead';
 import { useSession } from '../lib/session';
 import { effectiveSort, markReadOnScroll, unreadOnlyDefault } from '../lib/settings';
+import { topicChipsPref, topicFromParams, topicName, useTopics } from '../lib/topics';
 import { useUpdateSettings } from '../settings/useUpdateSettings';
 import { useMarkReadOnScroll } from '../lib/readOnScroll';
 import { isStandalone, prefersReducedMotion } from '../lib/useSwipe';
@@ -37,6 +38,7 @@ import { HeaderActions, RevealContext, ShellSlotsContext } from '../shell/slots'
 import { ArticleRow, LIST_GRID } from './ArticleRow';
 import { CaughtUpArt } from './CaughtUpArt';
 import { FilterPanel } from './FilterPanel';
+import { TopicChips, TopicChipsSkeleton } from './TopicChips';
 
 const COUNT_FORMAT = new Intl.NumberFormat('en-US');
 const formatCount = (n: number) => COUNT_FORMAT.format(n);
@@ -106,12 +108,38 @@ function Empty({
   state,
   subscription,
   noSubscriptions,
+  topic,
+  onShowRead,
+  onShowAll,
 }: {
   view: EntryListView;
   state: EntryListState;
   subscription: Subscription | undefined;
   noSubscriptions: boolean;
+  /** TID-078: the chosen topic on All articles. */
+  topic: { slug: string; name: string } | null;
+  onShowRead: () => void;
+  onShowAll: () => void;
 }) {
+  if (topic) {
+    // No picture and no "all caught up": an article tagged a little later may still arrive (UX 1.4a).
+    return state === 'unread' ? (
+      <State title={`Nothing unread in ${topic.name}`}>
+        <button type="button" onClick={onShowRead} className={BUTTON}>
+          Show read articles too
+        </button>
+        <button type="button" onClick={onShowAll} className={BUTTON}>
+          Show all topics
+        </button>
+      </State>
+    ) : (
+      <State title={`No articles about ${topic.name} yet`}>
+        <button type="button" onClick={onShowAll} className={BUTTON}>
+          Show all topics
+        </button>
+      </State>
+    );
+  }
   if (noSubscriptions) {
     return (
       <State title="No feeds yet">
@@ -203,7 +231,13 @@ export function ArticleList({
   // TID-067: the order is a setting kept across devices; Recommended applies to unread lists only.
   const sort = effectiveSort(session.data?.user?.settings, state);
   const updateSettings = useUpdateSettings();
-  const key = entriesKey(view, id, state, sort);
+  // TID-078: the topic chips (a setting) and the chosen one (`?topic=`, All articles only).
+  const chips = topicChipsPref(session.data?.user?.settings);
+  const topicSlug = topicFromParams(params, view, chips);
+  const topics = useTopics();
+  const topic =
+    topicSlug === null ? null : { slug: topicSlug, name: topicName(topicSlug, topics.data) };
+  const key = entriesKey(view, id, state, sort, topicSlug);
 
   // TID-075: while a drawer is revealed under the page it is a frozen card; it neither pulls nor marks rows read.
   const { revealed = false } = useContext(ShellSlotsContext);
@@ -238,7 +272,7 @@ export function ArticleList({
     if ('scrollRestoration' in window.history) window.history.scrollRestoration = 'manual';
   }, []);
 
-  const entries = useEntries(view, id, state, 'always', sort);
+  const entries = useEntries(view, id, state, 'always', sort, topicSlug);
   const subscriptions = useSubscriptions();
   const items = entries.data?.pages.flatMap((p) => p.items) ?? [];
 
@@ -283,11 +317,12 @@ export function ArticleList({
       : view === 'folder'
         ? counts.data?.folders[id ?? '']
         : counts.data?.subscriptions[id ?? ''];
-  const toMark = Math.max(known ?? 0, loadedUnread);
+  // There are no per-topic counts, so a topic's number is the unread rows loaded so far.
+  const toMark = topic ? loadedUnread : Math.max(known ?? 0, loadedUnread);
   function markAll() {
     if (!asOf) return;
     setConfirming(false);
-    void markAllRead(client, { view, id, before: asOf });
+    void markAllRead(client, { view, id, before: asOf, topic });
   }
 
   // TID-026: rows scrolled past are marked read (batched). Rows stay in an unread-only list.
@@ -302,6 +337,14 @@ export function ArticleList({
   const sentinel = useRef<HTMLDivElement>(null);
   const { hasNextPage, isFetchingNextPage, fetchNextPage } = entries;
   const canObserve = typeof IntersectionObserver !== 'undefined';
+  const pagesLoaded = entries.data?.pages.length ?? 0;
+  // A topic page can come back short or empty with a cursor (spec 8.6). With nothing to show yet the end of
+  // the list is already in view, so keep asking until a page has rows or the cursor is null (TID-078 AC4).
+  const keepLooking =
+    topicSlug !== null && items.length === 0 && !!hasNextPage && !entries.isFetchNextPageError;
+  useEffect(() => {
+    if (keepLooking && !isFetchingNextPage) void fetchNextPage();
+  }, [keepLooking, isFetchingNextPage, fetchNextPage, pagesLoaded]);
   useEffect(() => {
     const el = sentinel.current;
     if (!el || !hasNextPage || !canObserve) return;
@@ -313,13 +356,41 @@ export function ArticleList({
     );
     observer.observe(el);
     return () => observer.disconnect();
-  }, [hasNextPage, isFetchingNextPage, fetchNextPage, canObserve, items.length]);
+    // A page can come back with no new rows: the sentinel is still in view, so look again per page.
+  }, [hasNextPage, isFetchingNextPage, fetchNextPage, canObserve, items.length, pagesLoaded]);
 
   function setState(next: EntryListState) {
     const p = new URLSearchParams(params);
     p.set('state', next);
     setParams(p, { replace: true });
   }
+
+  // TID-078: a chip changes `?topic=` with replace (Back leaves All articles, not every chip) and starts the
+  // list at the top. The status line is read out because focus stays on the chip.
+  const [announce, setAnnounce] = useState('');
+  function chooseTopic(next: string | null) {
+    const p = new URLSearchParams(params);
+    if (next === null) p.delete('topic');
+    else p.set('topic', next);
+    setParams(p, { replace: true });
+    window.scrollTo({ top: 0, behavior: 'auto' });
+    setAnnounce(next === null ? 'Showing all articles' : `Showing ${topicName(next, topics.data)}`);
+  }
+  // An unknown, retired or no-longer-chosen topic, or any topic on a folder or feed, is "All": the
+  // parameter is dropped without an error (not while an article covers the list).
+  useEffect(() => {
+    if (covered || !params.has('topic') || topicSlug !== null) return;
+    const p = new URLSearchParams(params);
+    p.delete('topic');
+    setParams(p, { replace: true });
+  }, [covered, params, topicSlug, setParams]);
+  const chosenTopics = chips.flatMap((slug) => topics.data?.find((t) => t.id === slug) ?? []);
+  const chipRow =
+    view !== 'all' || chips.length === 0 ? null : topics.data ? (
+      <TopicChips topics={chosenTopics} selected={topicSlug} onSelect={chooseTopic} />
+    ) : topics.isPending && topics.fetchStatus === 'fetching' ? (
+      <TopicChipsSkeleton chosen={chips.length} />
+    ) : null;
 
   const notFound =
     entries.error instanceof ApiRequestError && entries.error.status === 404 && !entries.data;
@@ -346,6 +417,16 @@ export function ArticleList({
         </Link>
       </State>
     );
+  } else if (entries.isPending && !entries.isError && topic && entries.fetchStatus === 'paused') {
+    // Offline and this topic was never loaded here (UX 1.4a): say so instead of a skeleton that never ends.
+    body = (
+      <State title="This topic isn't saved on this device">
+        <p>Reconnect to load {topic.name}.</p>
+        <button type="button" onClick={() => chooseTopic(null)} className={BUTTON}>
+          Show all topics
+        </button>
+      </State>
+    );
   } else if (entries.isPending && !entries.isError) {
     body = <Skeleton />;
   } else if (entries.isError && !entries.data) {
@@ -363,6 +444,9 @@ export function ArticleList({
         state={state}
         subscription={subscription}
         noSubscriptions={view === 'all' && subscriptions.data?.length === 0}
+        topic={topic}
+        onShowRead={() => setState('all')}
+        onShowAll={() => chooseTopic(null)}
       />
     );
   } else {
@@ -370,12 +454,13 @@ export function ArticleList({
       <>
         {/* No note when Recommended falls back to newest first (owner, 2026-11-19): the list just
             shows newest first until there is enough to recommend. */}
+        {items.length === 0 && hasNextPage && <Skeleton />}
         <ul ref={listRef} data-testid="article-grid" className={LIST_GRID}>
           {items.map((entry, i) => (
             <ArticleRow
               key={entry.id}
               entry={entry}
-              to={`${base}/a/${entry.id}?state=${state}`}
+              to={`${base}/a/${entry.id}?state=${state}${topicSlug ? `&topic=${topicSlug}` : ''}`}
               now={now}
               prev={items[i - 1]}
             />
@@ -472,7 +557,11 @@ export function ArticleList({
       />
       {confirming && (
         <Sheet
-          title={`Mark ${formatCount(toMark)} articles as read?`}
+          title={
+            topic
+              ? `Mark ${formatCount(toMark)} ${topic.name} articles as read?`
+              : `Mark ${formatCount(toMark)} articles as read?`
+          }
           onClose={() => setConfirming(false)}
         >
           <div className="mt-4 space-y-2">
@@ -492,6 +581,9 @@ export function ArticleList({
       <div role="status" className="sr-only">
         {pull === 'refreshing' ? 'Refreshing' : ''}
       </div>
+      <div role="status" data-testid="topic-status" className="sr-only">
+        {announce}
+      </div>
       <div ref={stretchRef} className="relative">
         {pull !== 'idle' && (
           <p
@@ -507,6 +599,7 @@ export function ArticleList({
             )}
           </p>
         )}
+        {chipRow}
         {body}
       </div>
     </div>

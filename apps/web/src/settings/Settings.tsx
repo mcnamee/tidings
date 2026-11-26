@@ -1,6 +1,7 @@
 import { isStandalone } from '../lib/useSwipe';
 import { useEffect, useId, useState, type FormEvent } from 'react';
 import { Link } from 'react-router';
+import { ChevronRight } from 'lucide-react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { DISPLAY_NAME_MAX, TEXT_SIZES, THEMES, type UserSettings } from '@tidings/shared';
 import { fetchHealth } from '../api';
@@ -17,6 +18,7 @@ import {
   type ThemePref,
 } from '../lib/settings';
 import { signOut } from '../lib/signOut';
+import { topicChipsPref, topicName, useTopics } from '../lib/topics';
 import { SHEET_BUTTON, SHEET_DANGER, Sheet } from '../manage/Sheet';
 import { PasskeysSection } from './PasskeysSection';
 import { RecoveryCodesSection } from './RecoveryCodesSection';
@@ -109,6 +111,35 @@ function Toggle({
           className="mt-0.5 size-6 shrink-0 accent-accent"
         />
       </label>
+    </li>
+  );
+}
+
+/** TID-078: the link to the Topics screen, with a one-line summary of what is chosen. */
+function TopicsLink({ chips }: { chips: string[] }) {
+  const topics = useTopics();
+  const names = chips.map((slug) => topicName(slug, topics.data));
+  const summary =
+    names.length === 0 ? 'None chosen' : `${names.length} chosen: ${names.join(', ')}`;
+  return (
+    <li>
+      <Link
+        to="/settings/topics"
+        replace={isStandalone()}
+        className="flex min-h-14 items-center gap-3 py-2 active:bg-sunken"
+      >
+        <span className="min-w-0 flex-1">
+          <span className="block text-base text-fg">Topics</span>
+          <span data-testid="topics-summary" className="block truncate text-sm text-fg-muted">
+            {summary}
+          </span>
+        </span>
+        <ChevronRight
+          aria-hidden="true"
+          className="size-5 shrink-0 text-fg-muted"
+          strokeWidth={1.75}
+        />
+      </Link>
     </li>
   );
 }
@@ -350,6 +381,7 @@ export function Settings() {
             checked={hideReadFeeds(s)}
             onChange={(hideReadFeeds) => void update({ hideReadFeeds })}
           />
+          <TopicsLink chips={topicChipsPref(s)} />
         </ul>
       </section>
 

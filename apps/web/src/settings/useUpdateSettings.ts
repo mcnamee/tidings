@@ -7,7 +7,7 @@ import { toast } from '../lib/toast';
 
 const APPEARANCE_DEFAULTS: Record<string, string> = { theme: 'system', textSize: 'm' };
 
-function withUser(client: ReturnType<typeof useQueryClient>, change: (u: User) => User) {
+export function withUser(client: ReturnType<typeof useQueryClient>, change: (u: User) => User) {
   client.setQueryData<SessionResponse>(SESSION_KEY, (old) =>
     old?.user ? { ...old, user: change(old.user) } : old,
   );

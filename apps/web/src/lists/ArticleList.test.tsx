@@ -696,7 +696,7 @@ describe('AC13: a row read in unread-only mode stays until the list is left and 
     // What the article screen's optimistic update does (TID-019): mark the cached row read.
     act(() => {
       client.setQueryData<{ pages: Array<{ items: EntrySummary[] }>; pageParams: unknown[] }>(
-        ['entries', 'all', null, 'unread', 'newest'],
+        ['entries', 'all', null, 'unread', 'newest', null],
         (d) =>
           d && {
             ...d,

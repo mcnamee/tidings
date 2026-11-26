@@ -224,6 +224,7 @@ describe('AC2: mark as read when opened', () => {
       null,
       'unread',
       'newest',
+      null,
     ]);
     expect(list?.pages[0]?.items.map((i) => [i.id, i.isRead])).toEqual([
       ['1', false],
@@ -267,6 +268,7 @@ describe('AC3: a failed change rolls back', () => {
       null,
       'unread',
       'newest',
+      null,
     ]);
     expect(list?.pages[0]?.items.find((i) => i.id === '2')?.isRead).toBe(false);
   });

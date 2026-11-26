@@ -27,7 +27,8 @@ export const entriesKey = (
   id: string | null,
   state: EntryListState,
   sort: EntrySort = 'newest',
-) => ['entries', view, id, state, sort] as const;
+  topic: string | null = null,
+) => ['entries', view, id, state, sort, topic] as const;
 
 const SECOND = 1000;
 const MINUTE = 60 * SECOND;
@@ -89,14 +90,16 @@ export function useEntries(
   state: EntryListState,
   refetchOnMount: boolean | 'always',
   sort: EntrySort = 'newest',
+  topic: string | null = null,
 ) {
   return useInfiniteQuery({
-    queryKey: entriesKey(view, id, state, sort),
+    queryKey: entriesKey(view, id, state, sort, topic),
     initialPageParam: null as string | null,
     queryFn: ({ pageParam, signal }) => {
       const q = new URLSearchParams({ view, state, limit: String(ENTRIES_PAGE_SIZE) });
       if (sort !== 'newest') q.set('sort', sort);
       if (id !== null) q.set('id', id);
+      if (topic !== null) q.set('topic', topic);
       if (pageParam !== null) q.set('cursor', pageParam);
       return apiGet<EntriesResponse>(`/api/entries?${q.toString()}`, { signal });
     },

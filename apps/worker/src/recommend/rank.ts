@@ -7,6 +7,7 @@
  * boundary is an exact position `(score, id)` that does not move while the user scrolls, and an entry
  * marked read meanwhile only drops out. A cursor of phase 2 is an ordinary newest-first cursor.
  */
+import { TOPIC_SCAN_LIMIT } from '@tidings/shared';
 import {
   Db,
   decodeJsonCursor,
@@ -14,6 +15,8 @@ import {
   encodeJsonCursor,
   listEntries,
   sql,
+  TOPIC_MATCH,
+  topicIdFor,
   ValidationError,
   type EntryPage,
   type EntrySummaryRow,
@@ -97,41 +100,108 @@ export async function listRecommended(
   const cap = params.candidateLimit ?? CANDIDATE_LIMIT;
 
   // Candidates: unread rows of the view, newest first, with the embedding beside each.
-  const binds: SqlValue[] = [userId];
-  const index = view === 'feed' ? 'ue_unread_feed' : 'ue_unread_all';
-  let text =
-    'SELECT ue.entry_id AS id, ue.published_at AS p, ee.vec AS v FROM user_entries ue INDEXED BY ' +
-    index +
-    ' LEFT JOIN entry_embeddings ee ON ee.entry_id = ue.entry_id WHERE ue.user_id = ? AND ue.is_read = 0';
-  if (view === 'feed') {
-    text += ' AND ue.feed_id = ?';
-    binds.push(Number(params.id));
-  } else if (view === 'folder') {
-    text +=
-      ' AND ue.feed_id IN (SELECT feed_id FROM subscriptions WHERE user_id = ? AND folder_id = ?)';
-    binds.push(userId, String(params.id));
-  }
-  if (cursor) {
-    text += ' AND (ue.published_at, ue.entry_id) >= (?, ?)';
-    binds.push(cursor.bp, cursor.bi);
-  }
-  text += ' ORDER BY ue.published_at DESC, ue.entry_id DESC LIMIT ?';
-  binds.push(cursor ? cap + ARRIVAL_SLACK : cap + 1);
-
-  const { rows: cands, meta } = await db.all<{ id: number; p: number; v: string | null }>(
-    sql(text, ...binds),
-  );
-
+  let cands: { id: number; p: number; v: string | null }[];
+  let meta: EntryPage['meta'];
   let bp = cursor?.bp ?? 0;
   let bi = cursor?.bi ?? 0;
   let more: 0 | 1 = cursor?.x ?? 0;
-  let ranked = cands;
-  if (!cursor && cands.length > cap) {
-    ranked = cands.slice(0, cap);
-    const last = ranked[cap - 1] as { id: number; p: number };
-    bp = last.p;
-    bi = last.id;
-    more = 1;
+  let ranked: { id: number; p: number; v: string | null }[];
+
+  if (params.topic !== undefined) {
+    // TID-078 (ADR 0021 section 7): the matching entries among the newest TOPIC_SCAN_LIMIT unread rows
+    // are the candidates (at most `cap` of them). `entries.topics` is not indexed, so the scan is bounded
+    // and every scanned row comes back with a match flag; only matches read their embedding. When the
+    // ranked set stops short of the end of the scan, or the scan did not reach the end of the index, the
+    // boundary is the last row it covered, and phase 2 (the topic scan) carries on below it.
+    const topicId = topicIdFor(view, params.topic);
+    const match = TOPIC_MATCH('e.topics');
+    const binds: SqlValue[] = [userId];
+    let scan =
+      'SELECT entry_id, published_at FROM user_entries INDEXED BY ue_unread_all ' +
+      'WHERE user_id = ? AND is_read = 0';
+    if (cursor) {
+      scan += ' AND (published_at, entry_id) >= (?, ?)';
+      binds.push(cursor.bp, cursor.bi);
+    }
+    const scanLimit = cursor ? TOPIC_SCAN_LIMIT + ARRIVAL_SLACK : TOPIC_SCAN_LIMIT + 1;
+    scan += ' ORDER BY published_at DESC, entry_id DESC LIMIT ' + scanLimit;
+    const res = await db.all<{ id: number; p: number; m: number; v: string | null }>(
+      sql(
+        'SELECT k.entry_id AS id, k.published_at AS p, ' +
+          match +
+          ' AS m, ee.vec AS v FROM (' +
+          scan +
+          ') k JOIN entries e ON e.id = k.entry_id ' +
+          'LEFT JOIN entry_embeddings ee ON ee.entry_id = k.entry_id AND ' +
+          match +
+          ' ORDER BY k.published_at DESC, k.entry_id DESC',
+        // Positional: the flag in the select list, then the scan, then the join condition.
+        topicId,
+        topicId,
+        topicId,
+        ...binds,
+        topicId,
+        topicId,
+        topicId,
+      ),
+    );
+    meta = res.meta;
+    if (cursor) {
+      ranked = res.rows.filter((r) => r.m === 1);
+    } else {
+      const beyond = res.rows.length > TOPIC_SCAN_LIMIT;
+      const scanned = beyond ? res.rows.slice(0, TOPIC_SCAN_LIMIT) : res.rows;
+      const matches = scanned.filter((r) => r.m === 1);
+      if (matches.length > cap) {
+        ranked = matches.slice(0, cap);
+        const last = ranked[cap - 1] as { id: number; p: number };
+        bp = last.p;
+        bi = last.id;
+        more = 1;
+      } else {
+        ranked = matches;
+        const last = scanned[scanned.length - 1];
+        if (beyond && last) {
+          bp = last.p;
+          bi = last.id;
+          more = 1;
+        }
+      }
+    }
+    cands = ranked;
+  } else {
+    const binds: SqlValue[] = [userId];
+    const index = view === 'feed' ? 'ue_unread_feed' : 'ue_unread_all';
+    let text =
+      'SELECT ue.entry_id AS id, ue.published_at AS p, ee.vec AS v FROM user_entries ue INDEXED BY ' +
+      index +
+      ' LEFT JOIN entry_embeddings ee ON ee.entry_id = ue.entry_id WHERE ue.user_id = ? AND ue.is_read = 0';
+    if (view === 'feed') {
+      text += ' AND ue.feed_id = ?';
+      binds.push(Number(params.id));
+    } else if (view === 'folder') {
+      text +=
+        ' AND ue.feed_id IN (SELECT feed_id FROM subscriptions WHERE user_id = ? AND folder_id = ?)';
+      binds.push(userId, String(params.id));
+    }
+    if (cursor) {
+      text += ' AND (ue.published_at, ue.entry_id) >= (?, ?)';
+      binds.push(cursor.bp, cursor.bi);
+    }
+    text += ' ORDER BY ue.published_at DESC, ue.entry_id DESC LIMIT ?';
+    binds.push(cursor ? cap + ARRIVAL_SLACK : cap + 1);
+
+    const res = await db.all<{ id: number; p: number; v: string | null }>(sql(text, ...binds));
+    meta = res.meta;
+    cands = res.rows;
+    ranked = cands;
+    if (!cursor && cands.length > cap) {
+      ranked = cands.slice(0, cap);
+      const last = ranked[cap - 1] as { id: number; p: number };
+      bp = last.p;
+      bi = last.id;
+      more = 1;
+    }
   }
 
   const scored: { id: number; key: number }[] = [];

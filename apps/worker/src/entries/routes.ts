@@ -129,6 +129,7 @@ export function createEntryRoutes(deps?: Partial<EntryDeps>): Hono<AppEnv> {
         ...(id === undefined ? {} : { id }),
         limit: q.limit,
         cursor: q.cursor ?? null,
+        ...(q.topic === undefined ? {} : { topic: q.topic }),
       };
       page =
         sort === 'recommended' && profile
@@ -255,6 +256,7 @@ export function createEntryRoutes(deps?: Partial<EntryDeps>): Hono<AppEnv> {
       id,
       fromIso(body.before),
       nowSeconds(clock),
+      body.topic,
     );
     return c.json<MarkAllReadResponse>({
       updated: entryIds.length,
