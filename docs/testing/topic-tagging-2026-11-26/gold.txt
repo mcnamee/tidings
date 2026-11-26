@@ -1,0 +1,120 @@
+0 Formula 1
+1 Health;Climate and environment
+2 Sport
+3 AI;Science
+4 
+5 World news;Crime and justice
+6 US politics;Business and markets;Technology
+7 World news;Economy
+8 Economy;World news
+9 Ukraine and Russia
+10 Australian politics;Economy
+11 Deals
+12 World news;Crime and justice
+13 Formula 1
+14 US politics
+15 Sport
+16 Formula 1
+17 Gaming;Business and markets
+18 Canberra;Crime and justice
+19 Formula 1
+20 Cybersecurity;Crime and justice
+21 Crime and justice;World news
+22 US politics;Business and markets;Technology
+23 AI;Entertainment
+24 Economy;World news
+25 World news;Climate and environment
+26 Business and markets;Technology
+27 US politics
+28 Economy
+29 Business and markets
+30 Middle East;Entertainment
+31 World news
+32 Crime and justice;World news
+33 World news
+34 Public service;AI
+35 Australian politics;Economy
+36 Sport;Australian politics
+37 US politics;Business and markets
+38 Space;Science
+39 World news
+40 Deals
+41 Health
+42 Sport
+43 Crime and justice;World news
+44 Middle East;World news;Crime and justice
+45 Canberra;Crime and justice
+46 Formula 1
+47 Crime and justice
+48 Deals;Cars and transport
+49 Formula 1
+50 Space;AI;US politics
+51 Gaming
+52 Ukraine and Russia;Crime and justice
+53 US politics;Business and markets
+54 Defence and security;Australian politics
+55 Crime and justice;World news
+56 Ukraine and Russia
+57 Business and markets
+58 Crime and justice;World news
+59 Defence and security;World news
+60 Sport
+61 Australian politics
+62 World news;Middle East
+63 Australian politics;Defence and security
+64 
+65 World news
+66 Sport
+67 Entertainment
+68 World news
+69 World news
+70 Economy;World news
+71 Business and markets;Technology
+72 World news
+73 US politics
+74 US politics;Economy
+75 Business and markets
+76 Deals;Cars and transport
+77 World news
+78 Science
+79 Health;Climate and environment
+80 Ukraine and Russia;Defence and security
+81 AI
+82 Formula 1
+83 World news
+84 Deals
+85 Space;World news
+86 US politics;Crime and justice
+87 Middle East
+88 Health
+89 Middle East;Climate and environment
+90 Formula 1
+91 AI;World news
+92 Cybersecurity;Technology
+93 US politics
+94 Business and markets;Technology
+95 Ukraine and Russia
+96 Formula 1
+97 Climate and environment;Health
+98 Entertainment
+99 Health;Australian politics
+100 US politics;Economy
+101 Middle East
+102 Defence and security;Technology
+103 Deals
+104 Business and markets;Technology
+105 Business and markets;Technology
+106 Climate and environment
+107 Sport
+108 Formula 1
+109 Climate and environment
+110 Middle East
+111 Space
+112 Crime and justice
+113 Formula 1
+114 World news
+115 Cybersecurity;Defence and security
+116 World news
+117 Middle East
+118 US politics;Middle East
+119 Business and markets;AI
