@@ -8,6 +8,7 @@ import { FetchConfigError, resolveFetchPolicy } from '../fetch';
 import { runMaintenance } from '../maintenance';
 import type { Recommender } from '../recommend/entrypoint';
 import { EMBED_MAX_TRIES } from '../recommend/embed';
+import { tagStepDue } from '../recommend/tag';
 import { runDispatcher, type DispatcherDeps } from './dispatcher';
 import type { FeedRefresher } from './entrypoint';
 import type { ImageEnricher } from '../images/entrypoint';
@@ -15,8 +16,8 @@ import type { ImageEnricher } from '../images/entrypoint';
 /** Cron `17 * * * *` is the maintenance job (TID-021); everything else dispatches refreshes. */
 export const MAINTENANCE_CRON = '17 * * * *';
 
-/** The two Workers AI steps (TID-067). Tests pass fakes; production calls `ctx.exports.Recommender`. */
-export type RecommenderSteps = Pick<Recommender, 'embedPending' | 'buildProfiles'>;
+/** The Workers AI steps (TID-067, TID-077). Tests pass fakes; production calls `ctx.exports.Recommender`. */
+export type RecommenderSteps = Pick<Recommender, 'embedPending' | 'buildProfiles' | 'tagPending'>;
 
 /** The image step (TID-071). Tests pass a fake; production calls `ctx.exports.ImageEnricher`. */
 export type ImageSteps = Pick<ImageEnricher, 'enrichPending'>;
@@ -85,5 +86,15 @@ export async function handleScheduled(
     }
   } catch {
     console.warn(JSON.stringify({ level: 'warn', event: 'image_dispatch_failed' }));
+  }
+  // TID-077: tag recent untagged entries in their own invocation. It runs at minute 41 of each UTC
+  // hour, and every minute while the last run left a backlog (one point read). Never affects the
+  // refresh above. Last, because a run with a backlog can take a while.
+  if (env.AI) {
+    try {
+      if (await tagStepDue(db, controller.scheduledTime)) await steps?.tagPending();
+    } catch {
+      console.warn(JSON.stringify({ level: 'warn', event: 'tag_dispatch_failed' }));
+    }
   }
 }

@@ -2,6 +2,7 @@ import { Hono } from 'hono';
 import type { ApiError, HealthResponse } from '@tidings/shared';
 import { createAccountRoutes } from '../auth/account';
 import { createMeRoutes } from './me';
+import { createTopicRoutes } from './topics';
 import { createEmailRoutes } from '../auth/email-signin';
 import type { EmailSender } from '../auth/mail';
 import { createAuthRoutes, type AuthDeps } from '../auth/routes';
@@ -68,6 +69,7 @@ export function createApp(deps?: Partial<AppDeps>): Hono<AppEnv> {
   );
   app.route('/entries', createEntryRoutes({ clock: deps?.clock }));
   app.route('/counts', createCountsRoutes());
+  app.route('/topics', createTopicRoutes());
 
   app.get('/health', (c) => {
     const body: HealthResponse = { ok: true, version: APP_VERSION };

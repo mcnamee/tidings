@@ -368,6 +368,8 @@ export interface EntrySummary {
   publishedAt: string;
   isRead: boolean;
   isStarred: boolean;
+  /** TID-077: topic slugs, most relevant first, at most 3. `[]` when untagged or no topic fits. */
+  topics: string[];
 }
 
 /** `GET /api/entries/:id`. `contentHtml` is raw feed HTML: the client must sanitise it (spec 10.5). */
@@ -435,6 +437,20 @@ export interface Counts {
   folders: Record<string, number>;
   subscriptions: Record<string, number>;
 }
+
+/** A topic as the API shows it (TID-077). `id` is the slug for system topics; a string so user topics can follow. */
+export interface Topic {
+  id: string;
+  name: string;
+}
+
+/** `GET /api/topics`: the active system topics in display order. */
+export interface TopicsResponse {
+  items: Topic[];
+  version: number;
+}
+
+export { TOPICS, TOPICS_VERSION, RETIRED_TOPIC_IDS, type SystemTopic } from './topics';
 
 export {
   feedErrorMessage,

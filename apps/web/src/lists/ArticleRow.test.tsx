@@ -23,6 +23,7 @@ const make = (id: string, over: Partial<EntrySummary> = {}): EntrySummary => ({
   publishedAt: '2026-11-17T10:00:00.000Z',
   isRead: false,
   isStarred: false,
+  topics: [],
   ...over,
 });
 

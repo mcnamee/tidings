@@ -24,6 +24,7 @@ const entry = (id: number, imageUrl: string | null): EntrySummary => ({
   publishedAt: '2026-11-17T10:00:00.000Z',
   isRead: false,
   isStarred: false,
+  topics: [],
 });
 
 function renderApp(path = '/all') {

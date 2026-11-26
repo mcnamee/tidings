@@ -1,10 +1,10 @@
 # 0021. Topic tagging with Workers AI
 
-- Status: Accepted (owner approval 2026-11-26; the PM confirms the as-built details at acceptance)
+- Status: Accepted (owner approval 2026-11-26; the PM confirms the as-built details at acceptance). **Amended at the TID-077 build, see "Amendment 1" at the end: sections 2, 3 (cap unchanged), 6 and 9 are changed there.**
 - Date: 2026-11-26
 - Deciders: owner (second AI feature, model, budget, topic list, scope), product-manager (design, storage, caps)
 - Stories: TID-077 (tagging pipeline), TID-078 (topic chips and the Topics setting), TID-079 (hide rules, deferred). Builds on ADR 0018 (embeddings, the `Recommender` entrypoint, the AI budget rows), ADR 0003 (data store), ADR 0008 (list read budgets), ADR 0012 (isolation).
-- Evidence: `docs/testing/topic-tagging-2026-11-26/README.md` (owner-approved accuracy test, 118 hand-labelled articles).
+- Evidence: `docs/testing/topic-tagging-2026-11-26/README.md` (owner-approved accuracy test, 118 hand-labelled articles, and the TID-077 batch-of-20 rerun at the end of it).
 
 ## Context
 
@@ -109,7 +109,7 @@ At 400 articles a day the packed column costs **400 rows a day (0.4%)**. The tab
 
 **Open to user-defined topics later.** The packed column holds only **system** topics (IDs 1 to 255). User-defined topics would be per user, so they can't live on the shared `entries` row. They would need a per-user store and per-user tagging, at about 6 rows per subscriber per article, plus a new budget and ADR. The API is already shaped for them: topic IDs are strings in the API (§8), and system topics use slugs, so user topics could later use another form (for example `u:<uuid>`) without changing a field. Settings store an ordered list of these string IDs.
 
-### 6. How tagging fits the embed step (one step, not two)
+### 6. How tagging fits the embed step (one step, not two) (SUPERSEDED by Amendment 1: two steps)
 
 Tagging is **part of the TID-067 embed step** in the `Recommender` entrypoint. It isn't a separate step with its own queue. The step becomes the **embed-and-tag step**:
 
@@ -190,3 +190,44 @@ The tag lives on the `entries` row. It costs 8 bytes and **no extra write at any
 - **Tag at refresh time.** Rejected. A model call in the refresh would tie feed freshness to Workers AI latency, and a failed call would fail a refresh (the same reasoning as ADR 0018 §2).
 - **Vectorize or a KV index for topics.** No benefit at 28 topics. KV's 1,000 writes a day are scarcer still.
 - **Per-topic unread counts on chips.** Rejected for now on reads (§7).
+
+## Amendment 1 (2026-11-26, TID-077 build)
+
+Written by the software engineer from the build and the batch-of-20 test; the PM confirms at acceptance. It answers spec §16.1 Q18 (now removed) and records what the rerun of the accuracy test found.
+
+### A1. Embedding stays every minute, and tagging is its own hourly step (replaces section 6)
+
+Section 6 folded tagging into the embed step and batched both hourly, which delayed every new embedding (and the Recommended order for new articles) by up to 60 minutes. It is replaced by **two steps**:
+
+- **The embed step is unchanged from TID-067**: every minute while `embed_queue` has a ready row, 25 entries a run (`AI_BATCH` is not changed to 20), no tagging, no topic vectors. Recommended ordering is as fresh as before.
+- **The tag step is new** (`Recommender.tagPending`, `apps/worker/src/recommend/tag.ts`). It runs at minute 41 of each UTC hour, and every minute while the previous run flagged a backlog (`rate_limits` row `ai:tagmore`, one point read a minute). It finds its own work with **no queue rows**: entries in the newest `TAG_LOOKBACK_IDS = 1,000` IDs with `topics IS NULL`, not purged, with text, linked unread to at least one user, newest first. The read is a primary-key range (about 1 read per entry, 3 for an untagged one: measured 1,503 rows for 500 untagged entries), so 24,000 to 72,000 reads a day, against 0 rows written. It handles up to 200 entries a run (10 batches of 20).
+
+Writes: **1 row per tagged entry** (one `UPDATE entries SET topics = … FROM json_each(?) … WHERE topics IS NULL` per batch of 20; the guard makes an overlapping run harmless), 2 rows for the `ai:tag` counter the first time it is written in a day and 1 after, 2 per `ai:tagmore` flip. That is **fewer** rows than section 6 estimated: there is no backfill queue (migration 0013 queues nothing: the first runs tag the entries already stored, newest first, inside the cap, about 400 rows once instead of 1,200), and the embed step's rows are unchanged. The alternative the ADR rejected (a separate queue or a flag on `embed_queue`, +1 to +2 rows per article) is also unnecessary: reading finds the work for 0 rows.
+
+The rule "an entry linked only as already read is never tagged" is kept (the work list requires an unread link). An entry that is read before the next hourly run is not tagged either. An entry with no embedding is still tagged by the model (the model needs only its text); only the **fallback** needs an embedding, and an entry with neither stays NULL and is looked at again each run while it is inside the 1,000-ID window. Such entries don't keep the backlog flag set: it is set only when a run stopped at its limit and made progress.
+
+The topic vectors are embedded **lazily**, when a fallback is needed and a row is missing or below `TOPICS_VERSION` (one call of the 28 plain descriptions, 28 rows, counted in the embed budget `ai:tokens` and not in `ai:entries`). A run where the model answers every article never reads or embeds them. Embeddings of the entries are read only for the articles that need the fallback.
+
+Consequences against section 6: Q18 disappears (no delay to accept); `Recommender` invocations are the embed step's as before plus about 24 a day; import day writes about +1,000 rows for tagging, not +2,500, because the work list covers only the newest 1,000 IDs (older entries from a very large import stay untagged, which is acceptable: the chips matter for recent articles).
+
+### A2. The model answers by topic name, not number (replaces the answer format in section 2)
+
+Section 2 required the model's answer to be topic numbers and set a gate: at least 90% of first tags right at batches of 20, else `TAG_BATCH = 10`. The rerun (README, "TID-077 AC3 rerun", 280 neurons) gave:
+
+| Prompt | First tag right | Neurons per article |
+|---|---|---|
+| Numbers, batch 20 (articles 0 to 19) | 74% (14 of 19; 79% counting UK politics) | 3.7 |
+| Numbers, batch 10 (articles 0 to 9) | 67% (6 of 9): the same mistakes, so batch size is not the cause | 4.6 |
+| **Names, batch 20 (articles 0 to 39)** | **87% (34 of 39); 95% (37 of 39) counting UK politics picks on UK stories as right, since the gold labels predate that topic** | **4.0** |
+
+No batch had a misaligned item in any run. With numbers the model misread its own list (Colombian hostage stories answered "Middle East"). With names it did not, for 5% more neurons. So:
+
+- The prompt lists the topics as `- Name: description` and asks for `N: Topic; Topic` (or `None`). The parser maps each name back to its ID against the exact list, case-insensitively, and still accepts bare numbers. Strictness is unchanged: only exact names or numbers that are active topics count, in the model's order, at most 3, by article number. **Only IDs are stored; no model text is stored or logged.**
+- `TAG_BATCH` stays **20**. `max_tokens = 20 × articles + 20` (the answers use about 7 tokens an article; the larger bound only raises the pre-call estimate, which is about 180 neurons for a full batch against a real cost near 80, so the cap of 2,500 stops the model once about 2,300 are spent).
+- Cost is about **4.0 neurons per article** (the section 3 estimate was 3 to 4), so 450 articles a day is about 1,800 neurons, and the cap covers about 600 articles a day. Everything else in section 3 (cap 2,500, prices, the upper-bound rule) stands.
+- The test covers 39 of the 118 labelled articles because of the 300-neuron budget for it, and the gold labels come from one labeller. It supports "about 90%", not a precise figure. If the PM wants more confidence, the other 79 articles cost about 320 neurons more.
+
+### A3. Smaller points
+
+- **Timeout and charging.** A call that times out (30 s) is charged its upper bound (it may have run); one that throws is not charged. After either, the rest of that run uses the fallback.
+- **API.** `topics` is decoded from `entries.topics` in the row the list and entry queries already read (`e.topics` added to the three `SELECT`s), so it costs no extra reads (tested: the same `rows_read` for a 50-item page).

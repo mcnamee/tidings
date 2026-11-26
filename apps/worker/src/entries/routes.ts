@@ -51,6 +51,7 @@ import {
   type EntrySummaryRow,
   type FeedLabel,
 } from '../db';
+import { topicSlugs } from '../recommend/topics';
 
 export interface EntryDeps {
   clock: Clock;
@@ -69,6 +70,7 @@ function summaryOf(r: EntrySummaryRow, label: FeedLabel): EntrySummary {
     publishedAt: toIso(r.published_at),
     isRead: r.is_read === 1,
     isStarred: r.is_starred === 1,
+    topics: topicSlugs(r.topics),
   };
 }
 

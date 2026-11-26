@@ -20,7 +20,7 @@ export async function getEntry(db: Db, userId: string, entryId: number): Promise
   return db.first<EntryRow>(
     sql(
       'SELECT ue.entry_id, ue.feed_id, ue.published_at, ue.is_read, ue.is_starred, ' +
-        'e.title, e.author, e.url, e.summary, e.image_url, e.content_html ' +
+        'e.title, e.author, e.url, e.summary, e.image_url, e.topics, e.content_html ' +
         'FROM user_entries ue JOIN entries e ON e.id = ue.entry_id ' +
         'WHERE ue.user_id = ? AND ue.entry_id = ?',
       userId,

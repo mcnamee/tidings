@@ -32,4 +32,27 @@ Topic vectors were embedded with `@cf/baai/bge-small-en-v1.5` (the TID-067 model
 
 ## Reproduce
 
-Scripts expect the D1 query output (`rows*.json`) and the topic vectors (`topicvec.json`) in the working directory; both are produced with the D1 and Workers AI REST APIs and are not committed (they hold embeddings). `node score.mjs && node z.mjs 0 2.5 && node eval.mjs`, and `node llm.mjs <model>`.
+Scripts expect the D1 query output (`rows*.json`) and the topic vectors (`topicvec.json`) in the working directory; both are produced with the D1 and Workers AI REST APIs and are not committed (they hold embeddings). `node score.mjs && node z.mjs 0 2.5 && node eval.mjs`, and `node llm.mjs <model>`. The TID-077 rerun below needs nothing but the repository and the proxy: `START=0 node llm-batch20.mjs 2 20` (batches, size).
+
+## TID-077 AC3 rerun: the production prompt, batches of 20 (2026-11-26)
+
+Run by the software engineer on the TID-077 branch, against the real model through the Workers AI REST API (`llm-batch20.mjs`). The script bundles the Worker's own prompt builder and parser (`apps/worker/src/recommend/topics.ts`), so it tests the code that ships. Differences from the first test: the 28-topic list (UK politics added), no feed name in the prompt, 400 characters of title and summary instead of 200, batches of 20 instead of 10, `temperature` 0. Only 39 of the 118 labelled articles were run (`sample.json` articles 0 to 39), to stay under the 300-neuron budget: a full run of six batches costs about 450 to 500 neurons.
+
+| Prompt | Articles | First tag right | Misaligned | Neurons per article |
+|---|---|---|---|---|
+| Numeric answers (`1: 13,12`), batch 20 | 0 to 19 (19 labelled) | 14 of 19, 74% (79% counting UK politics) | none | 3.7 (1,854 in + 118 out tokens = 73.6) |
+| Numeric answers, batch 10 | 0 to 9 (9 labelled) | 6 of 9, 67% | none | 4.6 (45.7 per call) |
+| **Answers by topic name** (`1: AI; Technology`), batch 20 | 0 to 19 (19 labelled) | 16 of 19, 84% | none | 3.9 (1,817 in + 141 out = 77.3) |
+| **Answers by topic name**, batch 20 | 20 to 39 (20 labelled) | 18 of 20, 90% | none | 4.2 (1,734 in + 184 out = 83.9) |
+| **Answers by topic name, both batches** | **39 labelled** | **34 of 39, 87%** | **none** | **4.0** |
+
+Total spend: **280 neurons** (73.6 + 45.7 + 77.3 + 83.9). The raw answers are in `*.raw.txt` (topic numbers or names only, one line per article) and the parsed result of the name runs in `batch20-results.json`.
+
+**Reading the result**
+
+- **Misalignment: none.** Every run returned exactly one line per article, the parser mapped all of them by article number, and a prediction never matched the previous or next article's gold labels better than its own.
+- **Batch size is not the problem.** Batches of 10 made the same mistakes as batches of 20 (the Iowa explosives story as Middle East, the energy bills story as Climate). `TAG_BATCH` stays 20.
+- **Numeric answers are.** With numbers the model misread its own topic list: Colombian hostage stories were answered "Middle East", Iowa lead explosives "Middle East; Crime and justice". Asking for topic names instead gave 84% on the same 19 articles at **5% more neurons** (77.3 against 73.6 a call). The shipped prompt therefore asks for names, and the parser turns each name back into an ID against the exact list (it still accepts bare numbers too). Nothing the model writes is stored: only the IDs.
+- **The gold labels predate UK politics.** Three of the five misses with names are Andy Burnham and UK-EU stories that the model tagged UK politics, which is right now that the list has it, while the gold labels (written when there was no such topic) say World news. Counting those as right, **37 of 39, 95%**. The other two are Iowa lead explosives ("US politics; Health" against Health, Climate) and GB energy bills ("UK politics; Economy" against Economy, World news), both arguable.
+- **Verdict:** the shipped prompt (names, batches of 20) meets the 90% bar on first tag right once UK politics is counted (strict 87%, adjusted 95%), with no misaligned items. The sample is small (39 articles, one labeller), so treat it as evidence of "about 90%", not a precise rate. The numeric prompt in ADR 0021 section 2 would not have met it (74% to 79%).
+- **Cost:** about 4.0 neurons per article, so a 450-article day is about 1,800 neurons, inside the 2,500 cap (the cap covers about 600 articles a day).

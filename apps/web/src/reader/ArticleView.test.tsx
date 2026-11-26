@@ -30,6 +30,7 @@ function entry(id: number, over: Partial<Entry> = {}): Entry {
     publishedAt: new Date(NOW - id * 3_600_000).toISOString(),
     isRead: false,
     isStarred: false,
+    topics: [],
     contentHtml: `<p>Body of ${id}</p>`,
     ...over,
   };

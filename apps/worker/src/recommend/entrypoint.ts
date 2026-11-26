@@ -1,6 +1,6 @@
 /**
- * `Recommender`: RPC entrypoint for the two Workers AI steps of the recommended sort (TID-067,
- * ADR 0018). Like `FeedRefresher`, each call is its own invocation with its own CPU budget, so the
+ * `Recommender`: RPC entrypoint for the Workers AI steps: the two of the recommended sort (TID-067,
+ * ADR 0018) and the tag step (TID-077, ADR 0021). Like `FeedRefresher`, each call is its own invocation with its own CPU budget, so the
  * dispatcher and maintenance crons stay as small as before. Without the AI binding both steps do
  * nothing. A failure is logged as counts only and never reaches the caller as an exception.
  */
@@ -9,6 +9,7 @@ import type { Env } from '../../env';
 import { Db } from '../db';
 import { runEmbedPending, workersAiEmbedder, type EmbedSummary } from './embed';
 import { runProfiles, type ProfileSummary } from './profile';
+import { runTagPending, workersAiTagger, type TagSummary } from './tag';
 
 export class Recommender extends WorkerEntrypoint<Env> {
   async embedPending(): Promise<EmbedSummary | null> {
@@ -25,6 +26,24 @@ export class Recommender extends WorkerEntrypoint<Env> {
       return summary;
     } catch {
       console.warn(JSON.stringify({ level: 'warn', event: 'embed_pending_failed' }));
+      return null;
+    }
+  }
+
+  /** The hourly tag step (TID-077). Logs one counts-only `embed_tag` line; never stores or logs model text. */
+  async tagPending(): Promise<TagSummary | null> {
+    if (!this.env.AI) return null;
+    try {
+      const summary = await runTagPending({
+        db: new Db(this.env.DB),
+        tagger: workersAiTagger(this.env.AI),
+        embedder: workersAiEmbedder(this.env.AI),
+        clock: () => Date.now(),
+      });
+      console.log(JSON.stringify({ event: 'embed_tag', ...summary }));
+      return summary;
+    } catch {
+      console.warn(JSON.stringify({ level: 'warn', event: 'embed_tag_failed' }));
       return null;
     }
   }

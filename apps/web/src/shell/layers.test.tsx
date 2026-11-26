@@ -27,6 +27,7 @@ const entry = (id: number): Entry => ({
   publishedAt: new Date(NOW - id * 3_600_000).toISOString(),
   isRead: false,
   isStarred: false,
+  topics: [],
   contentHtml: `<p>Body ${id}</p>`,
 });
 const summary = (e: Entry): EntrySummary => {

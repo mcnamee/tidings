@@ -1,0 +1,20 @@
+1: Cybersecurity; Crime and justice; World news
+2: World news; Australian politics; Crime and justice
+3: US politics; Business and markets; Technology
+4: Entertainment; AI; Technology
+5: Economy; World news; 
+6: World news; Middle East; 
+7: Business and markets; Technology; US politics
+8: US politics; World news; 
+9: Economy; Australian politics; 
+10: Business and markets; Technology; World news
+11: Middle East; US politics; Entertainment
+12: World news; Middle East; 
+13: World news; Crime and justice; 
+14: UK politics; 
+15: Public service; Australian politics; 
+16: Australian politics; World news; 
+17: Australian politics; Sport; 
+18: US politics; Technology; 
+19: Science; Space; 
+20: UK politics; World news;

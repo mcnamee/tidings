@@ -24,6 +24,8 @@ export interface EntrySummaryRow {
   url: string | null;
   summary: string | null;
   image_url: string | null;
+  /** Packed `entries.topics` (TID-077); null when untagged. */
+  topics: number | null;
 }
 
 export interface EntryPage {
@@ -36,7 +38,7 @@ export const MAX_PAGE_LIMIT = 100;
 
 const SELECT =
   'SELECT ue.entry_id, ue.feed_id, ue.published_at, ue.is_read, ue.is_starred, ' +
-  'e.title, e.author, e.url, e.summary, e.image_url ';
+  'e.title, e.author, e.url, e.summary, e.image_url, e.topics ';
 
 // Static index names only (never user input). Partial indexes need `is_read = 0` in the WHERE.
 const INDEX_FOR: Record<EntryView, { unread: string | null; all: string | null }> = {

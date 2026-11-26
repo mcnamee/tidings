@@ -68,6 +68,8 @@ export const ROUTE_TABLE: readonly RouteRow[] = [
   session('POST', '/api/entries/read-state', 'body:entryIds'),
   session('POST', '/api/entries/mark-all-read', 'body:id'),
   session('GET', '/api/counts'),
+  // 8.5 Topics (TID-077)
+  session('GET', '/api/topics'),
   // 8.7 Import/export
   session('POST', '/api/import/opml'),
   session('GET', '/api/export/opml'),
