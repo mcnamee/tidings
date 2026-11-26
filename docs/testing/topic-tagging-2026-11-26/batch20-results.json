@@ -1,0 +1,372 @@
+{
+ "model": "@cf/meta/llama-3.3-70b-instruct-fp8-fast",
+ "size": 20,
+ "note": "Shipped prompt (answers by topic name), batches of 20 over sample.json articles 0-39. Predicted = topic IDs parsed by the Worker parser; null = no parsed line.",
+ "tokens": {
+  "in": 3551,
+  "out": 325
+ },
+ "results": [
+  {
+   "index": 0,
+   "batch": 1,
+   "position": 1,
+   "predicted": [
+    21,
+    22
+   ]
+  },
+  {
+   "index": 1,
+   "batch": 1,
+   "position": 2,
+   "predicted": [
+    4,
+    19
+   ]
+  },
+  {
+   "index": 2,
+   "batch": 1,
+   "position": 3,
+   "predicted": [
+    22
+   ]
+  },
+  {
+   "index": 3,
+   "batch": 1,
+   "position": 4,
+   "predicted": [
+    13,
+    17
+   ]
+  },
+  {
+   "index": 4,
+   "batch": 1,
+   "position": 5,
+   "predicted": [
+    5
+   ]
+  },
+  {
+   "index": 5,
+   "batch": 1,
+   "position": 6,
+   "predicted": [
+    9,
+    1
+   ]
+  },
+  {
+   "index": 6,
+   "batch": 1,
+   "position": 7,
+   "predicted": [
+    4,
+    11
+   ]
+  },
+  {
+   "index": 7,
+   "batch": 1,
+   "position": 8,
+   "predicted": [
+    28
+   ]
+  },
+  {
+   "index": 8,
+   "batch": 1,
+   "position": 9,
+   "predicted": [
+    28,
+    10
+   ]
+  },
+  {
+   "index": 9,
+   "batch": 1,
+   "position": 10,
+   "predicted": [
+    3,
+    1
+   ]
+  },
+  {
+   "index": 10,
+   "batch": 1,
+   "position": 11,
+   "predicted": [
+    5,
+    10
+   ]
+  },
+  {
+   "index": 11,
+   "batch": 1,
+   "position": 12,
+   "predicted": [
+    23
+   ]
+  },
+  {
+   "index": 12,
+   "batch": 1,
+   "position": 13,
+   "predicted": [
+    9,
+    1
+   ]
+  },
+  {
+   "index": 13,
+   "batch": 1,
+   "position": 14,
+   "predicted": [
+    21,
+    22
+   ]
+  },
+  {
+   "index": 14,
+   "batch": 1,
+   "position": 15,
+   "predicted": [
+    4
+   ]
+  },
+  {
+   "index": 15,
+   "batch": 1,
+   "position": 16,
+   "predicted": [
+    22,
+    5
+   ]
+  },
+  {
+   "index": 16,
+   "batch": 1,
+   "position": 17,
+   "predicted": [
+    21,
+    22
+   ]
+  },
+  {
+   "index": 17,
+   "batch": 1,
+   "position": 18,
+   "predicted": [
+    24,
+    11
+   ]
+  },
+  {
+   "index": 18,
+   "batch": 1,
+   "position": 19,
+   "predicted": [
+    9,
+    6
+   ]
+  },
+  {
+   "index": 19,
+   "batch": 1,
+   "position": 20,
+   "predicted": [
+    21,
+    22
+   ]
+  },
+  {
+   "index": 20,
+   "batch": 2,
+   "position": 1,
+   "predicted": [
+    16,
+    9,
+    1
+   ]
+  },
+  {
+   "index": 21,
+   "batch": 2,
+   "position": 2,
+   "predicted": [
+    1,
+    5,
+    9
+   ]
+  },
+  {
+   "index": 22,
+   "batch": 2,
+   "position": 3,
+   "predicted": [
+    4,
+    11,
+    12
+   ]
+  },
+  {
+   "index": 23,
+   "batch": 2,
+   "position": 4,
+   "predicted": [
+    25,
+    13,
+    12
+   ]
+  },
+  {
+   "index": 24,
+   "batch": 2,
+   "position": 5,
+   "predicted": [
+    10,
+    1
+   ]
+  },
+  {
+   "index": 25,
+   "batch": 2,
+   "position": 6,
+   "predicted": [
+    1,
+    2
+   ]
+  },
+  {
+   "index": 26,
+   "batch": 2,
+   "position": 7,
+   "predicted": [
+    11,
+    12,
+    4
+   ]
+  },
+  {
+   "index": 27,
+   "batch": 2,
+   "position": 8,
+   "predicted": [
+    4,
+    1
+   ]
+  },
+  {
+   "index": 28,
+   "batch": 2,
+   "position": 9,
+   "predicted": [
+    10,
+    5
+   ]
+  },
+  {
+   "index": 29,
+   "batch": 2,
+   "position": 10,
+   "predicted": [
+    11,
+    12,
+    1
+   ]
+  },
+  {
+   "index": 30,
+   "batch": 2,
+   "position": 11,
+   "predicted": [
+    2,
+    4,
+    25
+   ]
+  },
+  {
+   "index": 31,
+   "batch": 2,
+   "position": 12,
+   "predicted": [
+    1,
+    2
+   ]
+  },
+  {
+   "index": 32,
+   "batch": 2,
+   "position": 13,
+   "predicted": [
+    1,
+    9
+   ]
+  },
+  {
+   "index": 33,
+   "batch": 2,
+   "position": 14,
+   "predicted": [
+    28
+   ]
+  },
+  {
+   "index": 34,
+   "batch": 2,
+   "position": 15,
+   "predicted": [
+    7,
+    5
+   ]
+  },
+  {
+   "index": 35,
+   "batch": 2,
+   "position": 16,
+   "predicted": [
+    5,
+    1
+   ]
+  },
+  {
+   "index": 36,
+   "batch": 2,
+   "position": 17,
+   "predicted": [
+    5,
+    22
+   ]
+  },
+  {
+   "index": 37,
+   "batch": 2,
+   "position": 18,
+   "predicted": [
+    4,
+    12
+   ]
+  },
+  {
+   "index": 38,
+   "batch": 2,
+   "position": 19,
+   "predicted": [
+    17,
+    18
+   ]
+  },
+  {
+   "index": 39,
+   "batch": 2,
+   "position": 20,
+   "predicted": [
+    28,
+    1
+   ]
+  }
+ ]
+}

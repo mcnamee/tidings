@@ -1,0 +1,20 @@
+1: Formula 1; Sport
+2: US politics; Health
+3: Sport
+4: AI; Science
+5: Australian politics
+6: Crime and justice; World news
+7: US politics; Business and markets
+8: UK politics
+9: UK politics; Economy
+10: Ukraine and Russia; World news
+11: Australian politics; Economy
+12: Deals
+13: Crime and justice; World news
+14: Formula 1; Sport
+15: US politics
+16: Sport; Australian politics
+17: Formula 1; Sport
+18: Gaming; Business and markets
+19: Crime and justice; Canberra
+20: Formula 1; Sport
