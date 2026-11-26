@@ -4,7 +4,7 @@
 |---|---|
 | Status | Draft v1.4: decision round 4 applied (TID-008 and TID-012 accepted; ADR 0012 and ADR 0013) |
 | Owner | product-manager |
-| Last updated | 2026-11-17 |
+| Last updated | 2026-11-26 (topic tagging, ADR 0021) |
 | Cloudflare limits checked | **2026-11-16** against developers.cloudflare.com (see §9.1 for sources); spike measurements TID-002/TID-003 on 2026-11-16 |
 
 This document is the single source of truth for what we build. Stories live in `docs/BACKLOG.md`. Decisions live in `docs/decisions/`. If code and this spec disagree, the spec wins until the PM changes it.
@@ -35,7 +35,7 @@ The user pays for Inoreader to read a few hundred RSS/Atom feeds, mostly on a ph
 - Native iOS/Android apps. (The SPA is installable as a PWA.)
 - Social features, sharing, comments, public profiles.
 - Two-way sync with Inoreader or migration of Inoreader read state or starred items.
-- Full-text article extraction (readability), AI summaries, translations. (The one AI feature allowed is the owner-approved recommended sort, built from the owner's own engagement signals: ADR 0018, TID-066 and TID-067. Summaries, translations and any chat or generative feature stay out.)
+- Full-text article extraction (readability), AI summaries, translations. (Two AI features are allowed, both owner-approved: the recommended sort, built from the owner's own engagement signals (ADR 0018, TID-066, TID-067), and topic tagging, where a model picks up to three topics for each article from a fixed list (ADR 0021, TID-077, TID-078). The tagging model only chooses topic numbers. No generated text is stored or shown. Summaries, translations and any chat or generative feature stay out.)
 - Podcast playback beyond a link to the enclosure.
 - Server-rendered pages. (Hard constraint: SPA + JSON API.)
 
@@ -58,9 +58,11 @@ The user pays for Inoreader to read a few hundred RSS/Atom feeds, mostly on a ph
 | **R3** (about 2 weeks after MVP) | Polish and hardening | Persisted client cache and installable PWA shell; SSRF guard hardening; design-token and contrast check in CI; E2E harness stability; mark all as read skips backdated late arrivals (TID-051); deep-link heading focus (TID-052); recommended sort, stage 1 engagement signals (TID-066) and stage 2 ranking (TID-067, ADR 0018). |
 | **M2 Comfort** | Inoreader parity for daily use | Star / "Saved" view; mark-read-on-scroll; swipe to next/previous article; oldest-first sort; "mark older than X as read"; adaptive refresh interval (honour `ttl`, `sy:updatePeriod`, back off quiet feeds); feed favicons; desktop keyboard shortcuts; active sessions list; reorder folders. |
 | **M3 Later** | Nice to have | Offline reading of article bodies; full-text search (D1 FTS5, after a budget check); invite-only multi-user; multiple folders per feed (tags); filter rules; update-in-place for edited articles. |
-| **Won't do** | | Native apps, Inoreader API sync, social, readability extraction, AI features other than the recommended sort below, image proxying (see open question Q9). |
+| **Won't do** | | Native apps, Inoreader API sync, social, readability extraction, AI features other than the recommended sort and topic tagging below, image proxying (see open question Q9). |
 
 **Recommended sort (owner request 2026-11-19, ADR 0018).** The owner reversed "Won't do: AI features" for one feature, in two stages, both R3. **Stage 1, TID-066:** record engagement signals (opening an article 1 point, going through to the original website 2 points; marking read by scrolling or "Mark all as read" none) in the `engagement` table (§6.1), through `POST /api/entries/:id/engagement` (§8.5). It ranks nothing yet. **Stage 2, TID-067 (built):** embed new entries with Workers AI (`@cf/baai/bge-small-en-v1.5`, §7.7), build an interest profile from the signals, and add a "Recommended" sort next to newest-first (§8.5, §8.6, FR-RD-3). Without the AI binding, or under 20 signals, the list stays newest first and says so.
+
+**Topic tagging (owner approval 2026-11-26, ADR 0021), R3.** **TID-077:** tag every new article with up to 3 topics from a fixed system list of 28 (§7.9), most relevant first. Tagging uses Workers AI `@cf/meta/llama-3.3-70b-instruct-fp8-fast` in batches, under a daily neuron cap. Past the cap, or when the call fails, the article gets the closest topic by its TID-067 embedding. **TID-078:** a horizontally scrolling row of topic chips on All articles filters the list by topic, and a Topics setting chooses which chips show and in what order. **TID-079 (Later, not scheduled):** rules that hide articles by topic or keyword per feed or folder.
 
 The MVP, R2 and R3 together were previously "M1"; they were split on 2026-11-17 so the owner can use the product early (ADR 0014). The MVP is deliberately tight. Starring is M2 even though the `is_starred` column exists from the first migration, so adding it later is UI and API work only.
 
@@ -136,6 +138,7 @@ Full design in §7.
 - **FR-RD-9 Mark all as read.** Available on every list view. Marks only articles that were in the view when the user loaded it (`before` watermark, §8.5), with a confirm step when more than 20 articles would be affected. Shows "Undo" for 5 s (undo calls the batch mark-unread endpoint with the returned IDs; if more than 1,000 were affected, undo is not offered).
 - **FR-RD-10 Unread counts.** Shown for All, each folder and each feed. Refetched on app focus, after any read-state mutation (debounced 2 s), and every 5 minutes while the app is visible.
 - **FR-RD-11 Pull to refresh.** On a list, pull-to-refresh refetches the list and counts from the API (cached server data). It does not fetch feeds from origin.
+- **FR-RD-13 Topic chips (TID-078, ADR 0021).** The All articles list starts with a horizontally scrolling row of chips: "All" first, then the topics the user chose in Settings, in their order. Choosing a chip filters the list to articles tagged with that topic (any of an article's up to 3 tags). It works with Unread only and Recommended order. The chosen chip is in the URL (`?topic=<id>`). "Mark all as read" marks only that topic's articles. There is no row when no topics are chosen. There are no chips on folder or feed views.
 - **FR-RD-12 Empty states.** No subscriptions; no unread in this view ("All caught up"); feed never fetched yet; feed failing. Copy: UX.
 
 ### 3.7 Feed health (FH)
@@ -148,6 +151,7 @@ Full design in §7.
 - **FR-ST-1 Theme.** System (default), Light, Dark. Applies without a flash of the wrong theme on load. Stored on the server (follows the user across devices) and mirrored in `localStorage` for first paint.
 - **FR-ST-2 Reading.** "Show unread only by default" (on), "Mark as read when opened" (on), "Hide feeds with no unread" (off), article text size (S / M / L, default M). Text size is mirrored in `localStorage['tidings.textSize']` and applied before first paint like the theme (§11.2).
 - **FR-ST-3 Account.** Display name; passkeys (FR-AU-6); regenerate recovery codes (FR-AU-7); sign out; sign out everywhere.
+- **FR-ST-5 Topics (TID-078, ADR 0021).** A Topics screen lists all system topics. The user chooses which show as chips on All articles and drags them into order (with a keyboard and screen-reader alternative). Saved on the server as the setting `topicChips`. Every article is still tagged against the full list.
 - **FR-ST-4 Data.** Import OPML; export OPML; storage note ("Articles are kept for 30 days after you read them").
 
 ### 3.9 PWA and client cache (PW)
@@ -508,6 +512,16 @@ CREATE TABLE user_profiles (                  -- one row per user; vec is a unit
   signals     INTEGER NOT NULL,               -- signals that fed it; under 20 the list stays newest first
   computed_at INTEGER NOT NULL
 ) WITHOUT ROWID;
+
+-- ── Topic tagging (0013, TID-077, ADR 0021) ──────────────────
+ALTER TABLE entries ADD COLUMN topics INTEGER;  -- NOT indexed. NULL = not tagged. Packed: bits 0-7, 8-15, 16-23 =
+                                                -- topic IDs, most relevant first (0 = empty slot); bits 24-25 = source
+                                                -- (1 model, 2 embedding fallback). Source bits only = tagged, no topic.
+CREATE TABLE topic_vectors (                    -- the system topics' embeddings (TID-067 model, plain description)
+  topic_id INTEGER PRIMARY KEY,                 -- stable ID from packages/shared/src/topics.ts
+  version  INTEGER NOT NULL,                    -- TOPICS_VERSION it was computed for; lower = recompute
+  vec      TEXT NOT NULL                        -- same 388-byte base64 form as entry_embeddings.vec
+) WITHOUT ROWID;
 ```
 
 Points are derived, never stored: `opened_at` set = 1, `clicked_at` set = 2, so an article opened and then clicked through is 3. Each kind counts once per entry, however often it is repeated.
@@ -525,6 +539,8 @@ type UserSettings = {
   hideReadFeeds: boolean;                  // default false
   markReadOnScroll: boolean;               // default true (TID-026)
   listSort: 'newest' | 'recommended';      // default 'newest' (TID-067); kept across devices
+  topicChips: string[];                    // default [] (TID-078): topic IDs shown as chips on All articles, in order;
+                                           // unique, known active topics only, at most 28; retired IDs dropped on read
 };
 ```
 
@@ -571,6 +587,7 @@ Lower-case scheme and host; drop default ports (`:80` for http, `:443` for https
 - Hostile-input bounds: at most 64 nested XML elements (`MAX_DEPTH`). Past that the parser stops and returns the items closed so far, or `parse_error` if there are none. U+0000 is removed and lone surrogates are replaced with U+FFFD in every stored string (ADR 0009).
 - Atom is recognised only with the unprefixed namespace (`<feed xmlns="http://www.w3.org/2005/Atom">`). A prefixed root is `parse_error` (accepted for MVP).
 - Per-user limits: 1,000 subscriptions, 200 folders.
+- **Migration `0013_topic_tags.sql` (TID-077, ADR 0021):** adds `entries.topics` (no index, so `ADD COLUMN` writes nothing and tagging costs 1 row written per entry) and creates `topic_vectors` (§6.1). It also queues for tagging, once, the newest 400 unread entries published in the last 3 days (`INSERT OR IGNORE INTO embed_queue`, as 0009 did for images). Their existing embeddings are reused, so they cost tags only: about 1,200 rows written and up to about 1,300 neurons, once.
 - **Migration `0008_recommended_sort.sql` (TID-067):** creates `entry_embeddings`, `embed_queue` and `user_profiles`, adds `engagement.embedding` and the index `engagement_user_last` (§6.1). Existing rows are untouched (`ADD COLUMN` and creating empty tables write nothing; the new index covers the few existing signals). Entries that exist before it ship are never embedded unless they are linked later (a new subscription) or are engaged with (their stored title is embedded). Costs are in §9.4 to §9.7.
 - **Migration `0007_engagement.sql` (TID-066):** creates `engagement` (§6.1). It touches no existing table or row. Costs are in §9.4 and §9.5.
 - **Migration `0006_cross_feed_dedup.sql` (TID-061):** `entries` gains nullable `url_key` and `headline_key` and the partial indexes `entries_url_key` and `entries_headline_key` (§6.3). Costs are in §9.4 and §9.5.
@@ -664,7 +681,7 @@ SQLite `DELETE … LIMIT` isn't available by default, so chunked deletes use `WH
 
 Both steps run in their own invocation through the `Recommender` entrypoint (`ctx.exports.Recommender`, the same mechanism as `FeedRefresher`), so the dispatcher and maintenance crons keep their CPU budget. Both do nothing visible when they fail: refresh and reading carry on, and the work is retried on a later run. Without the `AI` binding (local dev, E2E, tests, or a deploy that lacks it) nothing is embedded and "Recommended" is newest first.
 
-**Embed step** (every minute, after the dispatcher, only when `embed_queue` has a row with `tries < 3`, so an idle minute costs one indexed read). It takes up to **25** queued entries (newest first), builds `title. summary` as plain text clipped to 400 characters (about 100 tokens), makes **one** `AI.run('@cf/baai/bge-small-en-v1.5', { text: [...] })` call (one subrequest), normalises each 384-dimension vector, quantises it to int8 with a float32 scale (388 bytes, stored as 520 base64 characters), and in one D1 batch inserts the vectors, deletes the queue rows and adds to two daily counters. A failed or malformed AI call increments `tries` (three parks the row) and writes nothing else. An entry with no title and no summary leaves the queue without an embedding. **Daily budget**, in `rate_limits` rows `ai:tokens` and `ai:entries` (UTC-day windows): at most **3,000 neurons** (30% of the 10,000 free, estimated at 1,841 neurons per million input tokens and 3 characters a token, an over-estimate) and **3,000 entries** a day, whichever comes first; the step then idles until 00:00 UTC.
+**Embed step** (every minute, after the dispatcher, only when `embed_queue` has a row with `tries < 3`, so an idle minute costs one indexed read). **Since TID-077 this is the embed-and-tag step (§7.9):** it runs on a batch gate (20 ready rows, the hourly flush, or every minute once the day's tag budget is spent), takes up to 20 entries, and reuses an entry's existing embedding instead of embedding it again. The rest of this paragraph describes the embedding half. It takes up to **25** (20 since TID-077) queued entries (newest first), builds `title. summary` as plain text clipped to 400 characters (about 100 tokens), makes **one** `AI.run('@cf/baai/bge-small-en-v1.5', { text: [...] })` call (one subrequest), normalises each 384-dimension vector, quantises it to int8 with a float32 scale (388 bytes, stored as 520 base64 characters), and in one D1 batch inserts the vectors, deletes the queue rows and adds to two daily counters. A failed or malformed AI call increments `tries` (three parks the row) and writes nothing else. An entry with no title and no summary leaves the queue without an embedding. **Daily budget**, in `rate_limits` rows `ai:tokens` and `ai:entries` (UTC-day windows): at most **3,000 neurons** (30% of the 10,000 free, estimated at 1,841 neurons per million input tokens and 3 characters a token, an over-estimate) and **3,000 entries** a day, whichever comes first; the step then idles until 00:00 UTC.
 
 **Profile step** (hourly, after maintenance, up to 10 users). For each user with signals it reads their latest **500** signals by `last_at` (index `engagement_user_last`) and builds the profile: the mean of the signals' embeddings, each weighted by `points × 0.5^(age / 14 days)` (points: opened 1, clicked 2, both 3; age from `last_at`), scaled to unit length, stored in `user_profiles` with the number of signals that fed it. A signal's embedding is, in order: its own copy; the entry's embedding if the entry still exists (then copied onto the signal, up to 100 a run, so the profile survives the entry's purge); else the stored title embedded again (up to 100 a run, same daily budget). A signal with none of these is skipped. With no usable signal the profile row is deleted.
 
@@ -683,6 +700,60 @@ Some feeds carry no image in any item (Formula1.com, Al Jazeera, The Guardian F1
 **Write.** One batch per run: one `UPDATE entries SET image_url = ? WHERE id = ? AND image_url IS NULL` per found image (never overwrites an image that arrived meanwhile), one `DELETE` of every handled queue row, one daily-counter upsert. **Every handled entry leaves the queue whatever the outcome**, so a page is fetched at most once. Lists show the image on the next load like a feed-provided one (same `imageUrl`, `loading="lazy"`, `referrerpolicy="no-referrer"`; no change to the API).
 
 **Weak images (TID-072, ADR 0020).** `src/images/weak.ts` judges an image `junk` (icon, logo, favicon, avatar, sprite, placeholder, `topics/` or `icons/` directories, `.ico`/`.svg`, or the same URL used by at least 2 other entries of the feed), `small` (declared or URL-hinted size under 300 px on either side) or `good`. The refresh drops junk, keeps small images as a fallback, upgrades `http:` to `https:` on a short list of known hosts, and queues entries whose image is junk, small or missing. The step then tries the article page, and if that gives nothing good follows the entry's primary outbound link (first content link to another site, preferring the one wrapping the feed image) and reads that page's `og:image`. Both fetches count toward the 12-fetch run budget (at most 40 subrequests), the 3-per-host cap and the 600-a-day cap. An existing image is replaced only by a better one; a stored junk image is cleared when nothing better exists. `ParsedItem` carries `imageWidth` and `imageHeight` (spec 6.5 parser output). In lists an image that loads under 300 px wide renders as a small thumbnail at natural size, never as a hero or 2-column card. Migration 0010 queues up to 300 recent unread entries whose stored image looks weak by URL.
+
+### 7.9 Topic tagging: the tag half of the embed step (TID-077, ADR 0021)
+
+Every new article that is queued for an embedding (§7.7: linked as unread by a refresh or a new subscription) is also tagged with **up to 3 topics, most relevant first**, from the system list below. Tagging is part of the embed step in the `Recommender` entrypoint, so it has no queue of its own and adds one row written per article. Like the embed step, it never runs in a refresh or a user request, and a failure never fails either.
+
+**System topics** (`packages/shared/src/topics.ts`, `TOPICS_VERSION = 1`). IDs are stable and never reused, and the API uses the slug. Display order is as listed. Descriptions are those in `docs/testing/topic-tagging-2026-11-26/topics.json`, plus the one for UK politics in ADR 0021 §9.
+
+| ID | Slug | Name | | ID | Slug | Name |
+|---|---|---|---|---|---|---|
+| 1 | `world-news` | World news | | 15 | `programming` | Programming |
+| 2 | `middle-east` | Middle East | | 16 | `cybersecurity` | Cybersecurity |
+| 3 | `ukraine-russia` | Ukraine and Russia | | 17 | `science` | Science |
+| 4 | `us-politics` | US politics | | 18 | `space` | Space |
+| 28 | `uk-politics` | UK politics | | 19 | `health` | Health |
+| 5 | `australian-politics` | Australian politics | | 20 | `climate-environment` | Climate and environment |
+| 6 | `canberra` | Canberra | | 21 | `formula-1` | Formula 1 |
+| 7 | `public-service` | Public service | | 22 | `sport` | Sport |
+| 8 | `defence-security` | Defence and security | | 23 | `deals` | Deals |
+| 9 | `crime-justice` | Crime and justice | | 24 | `gaming` | Gaming |
+| 10 | `economy` | Economy | | 25 | `entertainment` | Entertainment |
+| 11 | `business-markets` | Business and markets | | 26 | `cars-transport` | Cars and transport |
+| 12 | `technology` | Technology | | 27 | `osint` | Open-source intelligence |
+| 13 | `ai` | AI | | | | |
+| 14 | `apple` | Apple | | | | |
+
+**Batch gate.** The step runs when **any** of these holds:
+
+- at least 20 ready rows (`tries < 3`) are queued. The probe reads at most 20 rows.
+- it is the **hourly flush**: the dispatcher tick at minute 41 of each UTC hour, with any ready row queued.
+- the day's tag budget can't cover a call, in which case it runs every minute with any ready row, tagging by the fallback.
+
+So an article is tagged, and embedded, within about 60 minutes of being linked (`TAG_FLUSH_MINUTES`).
+
+**A run:**
+
+1. Take up to **20** ready rows, newest first (`AI_BATCH`).
+2. Read the existing embeddings of those entries. Embed the rest in one call (§7.7). If that call fails, increment `tries` and stop.
+3. If `spent + upperBound ≤ TAG_DAILY_NEURON_CAP`, make **one** `AI.run('@cf/meta/llama-3.3-70b-instruct-fp8-fast', …)` call, with the numbered topics and their descriptions, and the numbered articles (title and summary, as embedded, clipped to 400 characters). Set `max_tokens = 10 × n + 20` and a 30 s timeout. The model answers `<article>: <topic>,<topic>,<topic>` (or `0`) per line.
+4. Parse by article number. Keep at most 3 distinct valid topic IDs in the model's order. An article with no valid line gets the fallback.
+5. **Fallback:** the topic whose stored vector (`topic_vectors`) has the highest cosine with the article's embedding, as a single tag with source 2. It applies when the call wasn't made (cap), failed, timed out or was malformed, or when the article had no valid line.
+6. One D1 batch writes the embedding inserts, `UPDATE entries SET topics = ? WHERE id = ?` for each entry, the queue deletes, and the counters (`ai:tokens`, `ai:entries`, and `ai:tag` when the model was called).
+
+An entry with no embedding (parked after 3 failed embed calls, or no title and no summary) stays untagged. With no `AI` binding nothing is tagged.
+
+**Budget.** At most **2,500 neurons per UTC day** for tagging (`TAG_DAILY_NEURON_CAP`, 25% of the free 10,000), counted in the `rate_limits` row `ai:tag`, separate from the embed step's 3,000-neuron cap.
+
+- **Before each call:** check an upper bound, prompt characters ÷ 3 as input tokens plus `max_tokens` as output tokens. Prices: 26,668 neurons per million input tokens and 204,805 per million output tokens (§9.1).
+- **After the call:** charge the response's `usage` when present, otherwise the upper bound.
+
+So the cap is never overshot. Topic vectors are computed when missing or older than `TOPICS_VERSION` (one embed call of 28 descriptions, about 2 neurons, in the embed budget).
+
+**Logging:** one counts-only line per run (`event: "embed_tag"`, entries, embedded, `tagModel`, `tagFallback`, `untagged`, `neuronsCharged`). No article text and no model output.
+
+**Topic list changes:** see ADR 0021 §9. Existing tags aren't rewritten unless a migration re-queues entries. Retired IDs are ignored on read.
 
 ## 8. API
 
@@ -735,11 +806,14 @@ type EntrySummary = {
   title: string | null; author: string | null; url: string | null;
   summary: string | null; imageUrl: string | null;
   publishedAt: string; isRead: boolean; isStarred: boolean;
+  topics: string[];             // TID-077: topic IDs, most relevant first, at most 3; [] when untagged or no topic fits
 };
 type Entry = EntrySummary & { contentHtml: string | null };   // raw; client MUST sanitise
 
 type Counts = { total: number; folders: Record<string, number>; subscriptions: Record<string, number> };
 type Passkey = { id: string; name: string; createdAt: string; lastUsedAt: string | null; backedUp: boolean };
+type Topic = { id: string; name: string };   // TID-077: system topics use the slug as id (§7.9); string so user topics can be added later
+
 ```
 
 ### 8.3 Auth and account
@@ -794,13 +868,14 @@ Rate limits for Public routes: 10 requests / 10 min per IP per route family (set
 
 | Method & path | Request | Response |
 |---|---|---|
-| `GET /api/entries` | Query: `view=all\|folder\|feed`, `id` (folder or subscription ID; required unless `view=all`), `state=unread\|all` (default from settings), `sort=newest\|recommended` (default `newest`, TID-067), `limit`, `cursor` | `200 { items: EntrySummary[], nextCursor: string \| null, asOf: string, sort: 'newest' \| 'recommended', sortNote?: 'cold_start' \| 'unavailable' }` |
+| `GET /api/entries` | Query: `view=all\|folder\|feed`, `id` (folder or subscription ID; required unless `view=all`), `state=unread\|all` (default from settings), `sort=newest\|recommended` (default `newest`, TID-067), `topic` (a topic ID, `view=all` only, TID-078), `limit`, `cursor` | `200 { items: EntrySummary[], nextCursor: string \| null, asOf: string, sort: 'newest' \| 'recommended', sortNote?: 'cold_start' \| 'unavailable' }` |
 | `GET /api/entries/:id` | – | `200 Entry` |
 | `PATCH /api/entries/:id` | `{ isRead?: boolean, isStarred?: boolean }` (`isStarred` accepted from M2) | `200 EntrySummary` |
 | `POST /api/entries/:id/engagement` | `{ kind: 'open' \| 'click' }` (strict) | `200 { recorded: boolean }` (`false` when that kind was already recorded) |
 | `POST /api/entries/read-state` | `{ entryIds: string[] (1–1000), isRead: boolean }` | `200 { updated: number }` (IDs not owned are ignored silently) |
-| `POST /api/entries/mark-all-read` | `{ view, id?, before: string (ISO, the list's asOf) }` | `200 { updated: number, entryIds: string[] \| null }` (`entryIds` only when `updated ≤ 1000`, for undo) |
+| `POST /api/entries/mark-all-read` | `{ view, id?, before: string (ISO, the list's asOf), topic?: string (view=all only, TID-078) }` | `200 { updated: number, entryIds: string[] \| null }` (`entryIds` only when `updated ≤ 1000`, for undo) |
 | `GET /api/counts` | – | `200 Counts` (unread only; folders aggregate their subscriptions) |
+| `GET /api/topics` | – | `200 { items: Topic[], version: number }`: the active system topics in display order (TID-077). No database access |
 
 `GET /api/entries` details (TID-018): `view` is required; `id` is required for `folder` and `feed` (the folder ID or the subscription ID), and ignored for `all`. A missing or invalid `view`, `id`, `state`, `limit` (1 to 100, default 50) or a malformed `cursor` is `400 validation_failed`. A folder or subscription that is not the caller's is `404 not_found`, the same as one that does not exist. `state` defaults to the user's `unreadOnly` setting (default unread). Items are newest first by `published_at`, then entry ID, unless `sort=recommended` applies (below). The route only reads cached data: it never fetches a feed (FR-RD-11). `GET /api/counts` returns the unread total, and a count for every subscription and for every folder that has a subscription (0 when nothing is unread); `total` equals the number of unread `user_entries`, and a folder's count is the sum of its subscriptions. It reads the unread index once plus the user's subscriptions (NFR-7: unread rows + subscriptions + 10).
 
@@ -810,7 +885,17 @@ Single-entry routes (TID-019): `GET /api/entries/:id` returns the `Entry` (raw `
 
 `sort=recommended` (TID-067, ADR 0018) is accepted for `view=all`, `folder` and `feed`. It applies only to an unread list (`state=unread`) for a user whose profile has at least 20 signals (§7.7); then `sort` in the response is `recommended` and the items are ranked. In every other case the list is newest first and `sort` is `newest`: with `sortNote: "cold_start"` when `recommended` was asked for but there is no profile yet or it has fewer than 20 signals, with `sortNote: "unavailable"` when there is no profile and the Worker has no `AI` binding, and with no note for `state=all` (always newest). An unknown `sort` is `400 validation_failed`. The preference itself is the setting `listSort` (`PATCH /api/me`, §6.2); the SPA passes it as `sort`, so the API default stays newest first. A cursor from one order is not valid in the other (`400 validation_failed`), except that a newest-first cursor continues a recommended list after its ranked part (§8.6). The route reads only cached data; ranking happens in the request but all embeddings and profiles are computed by background steps (§7.7). Every query is scoped to the caller's `user_id`, so another user's signals, profile or entries can never affect the result; there is no new ID input.
 
-`POST /api/entries/mark-all-read` (TID-020, FR-RD-9) takes exactly `{ view, id?, before }` (`id` required unless `view=all`; `before` an ISO timestamp, the list's `asOf`; anything else is `400 validation_failed`). A folder or subscription that is not the caller's is `404 not_found`, the same as one that does not exist. It runs one `UPDATE ... RETURNING entry_id` on `user_entries` scoped to `user_id`, the view, `is_read = 0` and `published_at <= before`, so only unread rows are written (at most about 3 rows written each, §9.4), entries published after the watermark stay unread, and a repeat changes and writes nothing. `updated` is the number changed. `entryIds` holds those IDs when `updated ≤ 1,000` and is `null` above that. Undo is `POST /api/entries/read-state` with those IDs and `isRead: false`. The route does not return a preview count: the SPA's confirm step (more than 20) uses the unread count it already holds for the view.
+**Topics (TID-077, TID-078, ADR 0021).**
+
+- **`topics` on every `EntrySummary` and `Entry`.** It is decoded from `entries.topics`, which is already in the row each list and entry query reads, so it costs no extra reads. IDs are slugs, most relevant first, at most 3. Retired IDs are left out, and it is `[]` when the article is untagged or tagged with no topic.
+- **`GET /api/topics`** returns the active system list. It needs a session like every route, and the SPA caches it for 24 hours.
+- **`topic` on `GET /api/entries`.** It is accepted only with `view=all`. With `folder` or `feed`, or with an unknown or retired ID, the response is `400 validation_failed`. It filters to entries with that topic in any of their 3 slots, works with both `state` values and both `sort` values, and is scoped to the caller like the rest of the query. Each page scans at most **1,000** of the caller's index rows (`TOPIC_SCAN_LIMIT`, §8.6), so a page can hold fewer than `limit` items, or none, while `nextCursor` is not null. Clients must keep paging until `nextCursor` is null before concluding there is nothing more.
+- **`topic` on `POST /api/entries/mark-all-read`.** It is optional, under the same rules, and marks only that topic's unread entries published at or before `before`.
+- **The chip setting** is `topicChips` in `PATCH /api/me` settings (§6.2): an array of known, active, unique topic IDs, at most 28, and anything else is `400 validation_failed`. The array replaces the stored one whole (`json_patch` replaces arrays), which is what reordering needs.
+
+There are no per-topic counts. A topic is a value from a fixed list, not an object ID, so there is no new isolation input, but a test checks that a topic list holds only the caller's entries.
+
+`POST /api/entries/mark-all-read` (TID-020, FR-RD-9) takes exactly `{ view, id?, before, topic? }` (`id` required unless `view=all`; `topic` only with `view=all`, TID-078; `before` an ISO timestamp, the list's `asOf`; anything else is `400 validation_failed`). A folder or subscription that is not the caller's is `404 not_found`, the same as one that does not exist. It runs one `UPDATE ... RETURNING entry_id` on `user_entries` scoped to `user_id`, the view, `is_read = 0` and `published_at <= before`, so only unread rows are written (at most about 3 rows written each, §9.4), entries published after the watermark stay unread, and a repeat changes and writes nothing. `updated` is the number changed. `entryIds` holds those IDs when `updated ≤ 1,000` and is `null` above that. Undo is `POST /api/entries/read-state` with those IDs and `isRead: false`. The route does not return a preview count: the SPA's confirm step (more than 20) uses the unread count it already holds for the view.
 
 `asOf` is the server time of the first page. The SPA keeps it and passes it as `before` to mark-all-read so that articles that arrive after the user loaded the list stay unread.
 
@@ -832,6 +917,14 @@ SELECT ue.entry_id, ue.feed_id, ue.published_at, ue.is_read, ue.is_starred,
 Feed views add `AND ue.feed_id = ?`. Folder views select the page's keys first, `SELECT feed_id, published_at, entry_id FROM user_entries INDEXED BY ue_unread_feed|ue_feed WHERE user_id = ?1 [AND is_read = 0] AND feed_id IN (SELECT feed_id FROM subscriptions WHERE user_id = ?1 AND folder_id = ?) [AND (published_at, entry_id) < (?, ?)] ORDER BY published_at DESC, entry_id DESC LIMIT limit + 1`, then join `user_entries` (primary key) and `entries` for those keys only. SQLite can't use the index order across an `IN` list, so the key step reads every matching key in the folder (≈ folder size, bounded by retention) from a covering index, but the row and entry lookups happen for one page only (TID-049, DEF-050). **Decision (ADR 0008, 2026-11-16): `folder_id` is not denormalised.** It would add writes (our scarcest quota) and can't represent M3 tags. The folder view has a stated ceiling (NFR-7) and a revisit trigger in ADR 0008.
 
 Continuation pages read the boundary rows that share the cursor's `published_at` (at least the cursor row) in addition to the page, so NFR-7 allows `+ T` for them (ADR 0008). `feedTitle` and `subscriptionId` are joined in from a per-request map of the user's subscriptions, not per row.
+
+**Topic filter (TID-078, ADR 0021 §7).** `entries.topics` is not indexed, so a topic page walks the same index as the unfiltered All list (`ue_unread_all`, or `ue_all` for `state=all`), reading at most `TOPIC_SCAN_LIMIT = 1,000` index rows after the cursor in a subquery. It joins each row to `entries` (primary key) and keeps those where `(topics & 255) = ?t OR ((topics >> 8) & 255) = ?t OR ((topics >> 16) & 255) = ?t`, up to `limit + 1`. The cursor keeps the ordinary `{p, i}` form:
+
+- When the page fills, the cursor is the last item served.
+- When the scan limit is reached first, the cursor is the last row **scanned**, and the page may be short or empty.
+- When the index is exhausted, the cursor is `null`.
+
+Rows read per page are at most about 2,000 plus the page rows. With `sort=recommended`, phase 1 ranks the matching entries among the newest 1,000 unread (at most 500 candidates), and phase 2 is this topic scan below the ranked set.
 
 **Recommended cursor (TID-067).** Phase 1 ranks the newest 500 unread entries of the view (`CANDIDATE_LIMIT`): one query reads their keys and embeddings from the unread index with a `LEFT JOIN entry_embeddings` (`ue_unread_all`, or `ue_unread_feed` for a feed; a folder filters `feed_id IN (the folder's subscriptions)`), scores them in the Worker (about 1 ms of CPU for 500, §9.7), sorts by `(score, entry id)` and looks up the page's rows. The score is compared as the integer `round(score × 10^6)`. The cursor is base64url of `{"m":"r","t","s","i","bp","bi","x"}`: `t` the clock frozen at the first page (so an entry's score does not drift while the user scrolls), `(s, i)` the last item served, `(bp, bi)` the `(published_at, entry id)` of the oldest ranked candidate, `x` 1 when older unread entries exist. A page returns the ranked entries below `(s, i)`, so an entry marked read mid-scroll only drops out and nothing repeats or shifts; later pages re-read the candidates at or above `(bp, bi)` (at most 700). When the ranked part is exhausted the next cursor is an ordinary newest-first cursor `{p: bp, i: bi}` (phase 2), so every unread entry is reachable and nothing is served twice. A new profile built mid-scroll (hourly) can reorder the ranked part for a reader in the middle of it; the worst case is a skipped or repeated row until the list is refreshed. Rows read per page: about `2 × 501 + 4 × limit` (measured 1,202 for 50 items, §9.5).
 
@@ -885,6 +978,7 @@ Sources: [Workers limits](https://developers.cloudflare.com/workers/platform/lim
 | `_headers` | 100 rules, 2,000 chars/line; not applied to Worker responses | Verified |
 | Resend HTTP API (`POST https://api.resend.com/emails`, from a Worker) | Free tier 3,000 emails/month and 100/day (our own cap is 10/day); one `fetch` subrequest per sign-in email, inside `ctx.waitUntil`, with a 5 s timeout; counts against the Worker's 50 subrequests, negligible | **Unverified** (vendor limits from the owner's research 2026-11-17); checked in production by TID-053 AC15. Replaces the `send_email` binding (ADR 0016 amendment) |
 | Workers AI (`env.AI`, `@cf/baai/bge-small-en-v1.5`, TID-067) | Free: **10,000 neurons / day** (resets 00:00 UTC); the owner measured 1,841 neurons per million input tokens (ADR 0018). The binding is remote-only: local dev and E2E run `wrangler dev --local` (no AI), tests use `remoteBindings: false`. Our own cap is 3,000 neurons and 3,000 entries a day (§7.7) | Price **measured by the owner** (ADR 0018); the cap is enforced in code and tested; the deployed call is first exercised after TID-024's deploy of this story |
+| Workers AI, `@cf/meta/llama-3.3-70b-instruct-fp8-fast` (topic tagging, TID-077, ADR 0021) | Same 10,000 neurons a day, shared with the embed step. Price **26,668 neurons per million input tokens, 204,805 per million output tokens** ($0.293 and $2.253 per million). Consistent with the owner's measurement on 2026-11-26: 1,270 input and about 100 output tokens = 53.5 neurons. Our own cap is 2,500 neurons a day (§7.9). Embed cap 3,000 + tag cap 2,500 = at most **5,500 a day (55%)** | Price **checked 2026-11-26** against the Workers AI pricing page via search results. A direct fetch of developers.cloudflare.com was blocked in that session, so re-read the page at TID-077 build. The cap is enforced in code from the response's `usage` |
 | PBKDF2 iterations in Workers | 100,000 max (workerd issue #1346, 2023) | Unverified for 2026 production; relevant only to the rejected password option |
 
 ### 9.2 Assumed load
@@ -914,6 +1008,8 @@ Sources: [Workers limits](https://developers.cloudflare.com/workers/platform/lim
 
 **TID-067** adds the `Recommender` invocations (§7.7): the embed step runs at most once a minute and only when entries are queued, the profile step once an hour. Typically about 100 + 24 a day (0.1%), at most 1,440 + 24 (1.5%).
 
+**TID-077** adds no invocation: tagging is part of the embed step, which now runs on a batch gate (20 queued, or hourly) instead of every minute while the queue has a row, so the `Recommender` invocations go down to about 30 to 50 a day (they go back to every minute only on a day the tag budget is spent).
+
 **TID-071** adds the `ImageEnricher` invocations (§7.8): at most one a minute and only while the queue has a row, about 50 to 150 a day typically (0.1%), at most 1,440 (1.4%).
 
 Ceiling: one dispatcher leasing a full batch every minute is 1,440 × (1 + 20) = **30,240 requests/day** for refresh alone (≈ 37,800 with heavy API use, 38%). Each additional dispatcher cron can add up to 30,240 more, so four full dispatchers (≈ 121,000) would exceed the quota. Extra crons need an ADR (ADR 0004).
@@ -938,6 +1034,8 @@ Ceiling: one dispatcher leasing a full batch every minute is 1,440 × (1 + 20) =
 
 **TID-067 (ADR 0018) adds about 1,850 rows a day in A (1.8%) and 3,850 in B (3.9%)**, one-time 7,500 for an OPML import of 250 feeds (7.5%). Per new linked unread entry: 1 row for the `embed_queue` insert (in the refresh batch), 1 for the `entry_embeddings` insert and 1 for the queue delete (embed step), and 1 when the embedding is deleted at purge: **4 rows**, at 400 and 800 entries a day (1,600 and 3,200). Entries are embedded once however many users link them, and an entry linked only as already read is not embedded. The rest: 4 rows a run for the two `rate_limits` counters (about 16 runs a day, 64), 1 row an hour per user for the profile (24, 72), and per signal 1 more row for the `engagement_user_last` index plus at most 1 to copy the embedding onto it (A 150, B 450). The embed step stops at 3,000 entries a day, which caps this at about 12,000 rows. Measured in `apps/worker/test/refresh-feed.test.ts` (+1 per linked entry), `test/recommended.test.ts` (embed run: 2 per entry + 4) and `test/engagement.test.ts` (2 per signal). Below the 10% line, so no owner decision is needed for writes.
 
+**TID-077 (ADR 0021) adds about 500 rows a day in A (0.5%) and 900 in B (0.9%)**, plus one-time 1,200 for migration 0013's backfill (400 entries × 3). Per tagged entry: **1 row**, the `UPDATE entries SET topics` (the column is not indexed, so no index row; to be measured in the test, `meta.rows_written` = 1). Nothing at purge: the value goes with the row. The `ai:tag` counter costs 2 rows per model call (about 30 calls a day in A, 45 in B). `topic_vectors` is 28 rows once per topic-list version. Why a packed column and not an `entry_topics` table: a table costs about 4.4 rows per article (2.2 tags, inserted and later deleted) and about 8.8 with the index a filter needs, so 1,800 to 3,500 a day in A instead of 400 (ADR 0021 §5). Why no tag queue: a queue (or a flag on `embed_queue`) costs 2 more rows per article. **Import day:** about 2,500 linked entries, +2,500 rows, so the import-day peak in A goes from about 90% (82% plus TID-067's 7,500) to about **92%**. Still the tightest day, and still bounded by the 250 first fetches a day (§9.8).
+
 **TID-071 (ADR 0019) adds about 700 rows a day in A (0.7%) and 1,300 in B (1.3%); at most 2,300 (2.3%)**, one-time 900 for the migration's backfill. Per new unread entry with a link and no feed image: 1 row for the `image_queue` insert (in the refresh batch), 1 for the `entries.image_url` UPDATE (`image_url` is not indexed, so no index row) and 1 for the queue delete: **3 rows**, 2 when the page gives no image or fails, 2 when the entry is skipped unfetched (read or too old). The daily counter costs 2 rows a run (measured, table plus index) at 12 pages a run. Assumed: half of new entries have no feed image (the owner's four feeds are all of them), so 200 and 400 entries a day. Why a queue and not a `image_tried_at` column: a column needs a partial index to find work, which costs the same 3 rows (insert, index removal, update) and writes into the big `entries` table; the queue is a small table that stays near empty. Ceiling: the 600-page cap bounds fetches, so 600 × 3 + 200 × 2 + 100 counter rows = 2,300 in B. Measured in `apps/worker/test/image-enrich.test.ts` (rows per run) and `test/refresh-feed.test.ts` (+1 per linked entry).
 
 **TID-061 (ADR 0017) adds +1,600 rows a day in A (5.7%) and +3,200 in B (4.3%)**: two key-index rows when an entry is inserted and two when it is deleted, at 400 and 800 new entries a day. That is under the 10% target. The rows a hidden duplicate does not write (6 per subscriber) are not subtracted. An OPML import adds 20 rows per feed (10 linked entries × 2), 5,000 for 250 feeds, one time.
@@ -961,6 +1059,16 @@ Ceiling: one dispatcher leasing a full batch every minute is 1,440 × (1 + 20) =
 
 **TID-071 (ADR 0019) adds about 4 reads per new entry in the refresh (the `image_queue` insert's probe, measured) and, per image step run, about 60 queue rows + 60 entries + their unread check ≈ 190 reads.** Runs happen only while the queue is non-empty, typically a few dozen a day (under 10,000 reads), at most 1,440 a day (≈ 270,000, 5.4%, only if the queue never empties). The idle check is 1 read a minute (1,440).
 
+**TID-077 and TID-078 (ADR 0021) add about 110,000 reads a day in A (2.2%) and 250,000 in B (5%).** The parts:
+
+- **Gate probe:** at most 20 rows a minute while the queue has a ready row, which is now most of the day, up to 28,800.
+- **Topic list pages:** at most about 2,000 rows each (1,000 index rows and their entries, plus the page). Assumed 30 a day per user: 60,000 in A, 180,000 in B.
+- **Mark all as read with a topic:** about 2 × unread, so 2,000. Assumed 5 a day per user: 10,000 in A, 30,000 in B.
+- **Topic vectors:** 28 rows in runs that use the fallback, under 5,000.
+- **Existing-embedding lookups:** about 20 a run.
+
+Ordinary list pages and `topics` on entries add nothing: the column is in the row already read. If topic pages turn out heavier than assumed, `TOPIC_SCAN_LIMIT` is one constant.
+
 **TID-067 (ADR 0018) adds about 200,000 reads a day in A (+3.9%) and about 590,000 in B (+11.8%, the worst case: three users who always read in Recommended)**, so B is above the 10% line and is raised with the owner (the owner is one user: A). Where it comes from: the biggest item is the **recommended list**, which reads 500 candidates and their embeddings to rank them: **1,202 rows for a 50-item page** (measured, `apps/worker/test/recommend-cpu.test.ts`), against about 150 for a newest-first page. At 150 pages a day that is +157,500 (A) and +472,500 (B) over the newest-first figure above. Then the hourly profile: 500 signals × 3 rows × 24 = 36,000 a user a day (108,000 in B). Then the refresh queue insert (+4 reads per new linked entry, measured: 1,600 and 3,200), the embed step (about 2 per entry plus one idle probe a minute, 2,400 and 4,000). Mitigation if it matters: the candidate cap is one constant (`CANDIDATE_LIMIT`, 500) and halving it halves the biggest item; ADR 0018 lists a precomputed-score alternative that was not chosen because its writes are scarcer than these reads.
 
 Updated 2026-11-17 from TID-012's measurements (ADR 0013). A 304 or an identical body reads 1 row and writes none.
@@ -970,6 +1078,8 @@ Updated 2026-11-17 from TID-012's measurements (ADR 0013). A 304 or an identical
 Average stored article ≈ 6 KB (content cap = 102,400 UTF-16 code units: ≈ 100 KB for Latin text, ≈ 300 KB worst case of UTF-8 for CJK text, well under D1's 2 MB row limit; it affects only the tail, not the average; many feeds are summary-only at 1–2 KB; full-content feeds are 10–30 KB; content capped at 100 KB). A: 400 × 6 KB × 30 days ≈ 72 MB content + ~20% indexes + 180 days of tombstones (≈ 7 MB) ≈ **95 MB (19% of 500 MB)**. A full-content-heavy mix at 25 KB average ≈ 360 MB (72%). B with 800/day at 6 KB ≈ 180 MB (36%). Mitigations: 100 KB content cap, 30-day content retention, hourly cleanup, daily size log, warning in Settings above 70% (M2).
 
 **TID-067 storage.** An embedding is 388 bytes, stored as 520 base64 characters in a `WITHOUT ROWID` row: about 0.55 KB with its key. They are deleted with the entry's content (about 33 days), so A holds about 13,000 (7 MB, 1.4%) and B about 26,000 (14 MB, 2.8%). Each signal keeps its own copy (so the profile survives the purge) for 180 days: 75 signals a day is 13,500 rows, 7 MB (A), up to 21 MB (B). `user_profiles` is 2 KB a user. Together about 14 MB (2.8%) in A and 35 MB (7%) in B.
+
+**TID-077 storage.** `entries.topics` is about 9 bytes per entry (13,000 to 26,000 live entries plus tombstones: under 1 MB). `topic_vectors` is 28 × about 0.55 KB = 15 KB. Negligible.
 
 ### 9.7 CPU per invocation
 
@@ -985,6 +1095,8 @@ Average stored article ≈ 6 KB (content cap = 102,400 UTF-16 code units: ≈ 10
 | Recommended list page (TID-067) | session + profile lookup, one query for 501 candidates with embeddings, scoring and sort in the Worker, one page lookup | Measured in workerd (`apps/worker/test/recommend-cpu.test.ts`, timer resolution 1 ms): **scoring and sorting 500 candidates about 1 ms; 1,000 about 2 ms median, 4 to 8 ms worst of 15**; parsing the 1,000 rows from D1 as text under 1 ms (as BLOB integer arrays 4 ms, which is why embeddings are text). The cap is 500 so a worst-case tail still leaves room for the rest of the request. Whole call locally about 4 ms including the simulator's I/O |
 | Embed step (TID-067) | encode 25 vectors (normalise, quantise, base64) + 3 statements; the AI call is I/O | 25 vectors encode in under 1 ms (own `Recommender` invocation) |
 | Image step (TID-071) | per run: 3 D1 calls, up to 12 page fetches (I/O), decode and scan up to 128 KB each, one batch | Measured in workerd (`apps/worker/test/image-cpu.test.ts`, 1 ms timer): **one 128 KB page about 0 to 1 ms (max 2); twelve pages about 4 ms median, 6 ms max**, under the 10 ms Free limit; subrequests at most 12 × 3 (page plus 2 redirects) + 4 = 40, under 50. Own `ImageEnricher` invocation |
+| Embed-and-tag step (TID-077) | as the embed step, plus building one prompt (about 6 KB of text), parsing about 20 short answer lines, and on fallback 20 × 28 cosines of 384 dimensions (about 215,000 multiply-adds); the model call is I/O (up to 30 s wall, not CPU) | under 2 ms (to be measured in workerd); own `Recommender` invocation; 2 to 3 subrequests (embed, tag, and topic vectors when stale) |
+| Topic list page (TID-078) | as a newest-first page; the scan and topic match run in D1, not in the Worker | p95 ≤ 5 ms, as any API request |
 | Profile step (TID-067) | 500 signals: decode about 1 ms + weighted mean about 2 ms, own invocation | ≈ 3 ms |
 
 All rows: the gate is **zero `exceededCpu`** plus the p95 shown; p99 is recorded for information. The spikes showed a GC/JIT tail of ≈ 10–13 ms even on tiny workloads, so a p99 ≤ 8 ms target can't be met by capping work (ADR 0006).
@@ -994,7 +1106,8 @@ All rows: the gate is **zero `exceededCpu`** plus the p95 shown; p99 is recorded
 1. **First limit overall: 10 ms CPU per invocation, on large or verbose feeds.** It's per invocation, not daily, so a few big feeds will fail individually long before any daily quota is stressed. Mitigations, in order: per-feed fan-out (one feed per invocation); conditional GET and body-hash skip (most fetches never parse); streaming parse that stops after 50 items and ignores unused elements; 1 MiB body cap; recording `cpu_limit` and backing off so a pathological feed costs one failed invocation per backoff period; showing the error in Manage. TID-002 measured it (2026-11-16): typical feeds parse at p95 4.4–6.9 ms with a GC/JIT tail at p99 of 10–13 ms and cold first parses of 13–23 ms. These finished `ok` because enforcement tolerates infrequent overruns. If Cloudflare enforced 10 ms strictly, roughly 1–2% of changed-feed refreshes would fail and retry after backoff. TID-012 re-measures the full refresh.
 2. **First daily quota: D1 rows written.** 30% at baseline (3× headroom), 78% in the heavy multi-user case (1.3×; TID-061 added 4 to 6 points). Mitigations: no index on `next_fetch_at`; no write on unchanged fetches; first-fetch cap of 10 items per new subscription; adaptive refresh intervals for quiet feeds (M2; halves lease writes for typical feed mixes); denormalisation only where it saves reads without adding writes. **An OPML import of 250 feeds costs about 57,250 extra writes** (52,250 plus 5,000 for TID-061's key-index rows on the 10 linked entries per feed) (corrected 2026-11-17, DEF-015): a first fetch stores up to 50 entries so that items 11-50 don't arrive as unread later, and links 10 (50 × 3 + 10 × 5 + 1 = 201 rows), plus about 8 rows for the feed, subscription and lease: about 209 per feed. Import day in scenario A peaks near **82%**. To keep larger files from exhausting the quota, imports schedule at most **250 first fetches per UTC day** and defer the rest to the next day (TID-016, ADR 0013). A feed with churning GUIDs is bounded at 200 new entries a day (≈ 1,600 rows, §6.3).
 3. **Requests/day** (callee invocations count, verified 2026-11-16): 16% at baseline, 31% heavy; capped at ≈ 38% per dispatcher cron. Only adding dispatcher crons could exhaust it (§9.3).
-4. Everything else is at or under 40% in both scenarios (D1 reads are 20% / 40% after TID-012's measurements). KV and Queues are unused.
+4. **Workers AI neurons** (TID-067 and TID-077): about 20% a day typically, at most 55% by our two caps (embed 3,000 + tag 2,500). The tag cap is meant to be reached on import and busy days. Past it, tags come from the embedding fallback instead of the model (ADR 0021).
+5. Everything else is at or under 40% in both scenarios (D1 reads are 20% / 40% after TID-012's measurements). KV and Queues are unused.
 
 **Monitoring:** the maintenance job logs daily counts; the deployment guide, `docs/DEPLOYMENT.md` (TID-021), documents where to see D1 and Workers usage in the dashboard. If writes exceed 70% on 3 days in a week, the PM opens an ADR (options: longer interval, adaptive scheduling, Workers Paid at $5/month: Q6).
 
@@ -1113,6 +1226,7 @@ For automated tests only, an `ALLOW_FETCH_HOSTS` var can allow the local fixture
 | `/manage/add` | Add a feed |
 | `/manage/import` | OPML import and progress |
 | `/settings` | Theme, reading, account, data |
+| `/settings/topics` | Topics: choose and order the chips on All articles (TID-078) |
 
 Unauthenticated users are redirected to `/login` (or `/setup`). The UX engineer owns layout, gestures and copy in `docs/ux/`.
 
@@ -1138,7 +1252,7 @@ Typography (ratified 2026-11-16): UI and titles are sans; the article body is se
 
 Device-local keys (UI hints only, never auth signals, no tokens or user data; ADR 0012): `localStorage['tidings.hasSession']` is `'1'` from sign-in until Sign out and decides whether a `401` shows the "Your session ended" banner. The persisted query cache (TID-023) uses the IndexedDB database **`tidings-cache`**, version 1; Sign out deletes it by that name.
 
-`['session']`, `['me']`, `['folders']`, `['subscriptions']`, `['counts']`, `['entries', view, id, state]` (infinite), `['entry', id]`. `staleTime`: 30 s for entries and counts, 5 min for folders and subscriptions. Mark-read mutations update the `entry` cache, every cached list containing the entry, and `counts` optimistically.
+`['session']`, `['me']`, `['folders']`, `['subscriptions']`, `['counts']`, `['entries', view, id, state, topic]` (infinite; `topic` is `null` when no chip is chosen), `['topics']` (`staleTime` 24 h), `['entry', id]`. `staleTime`: 30 s for entries and counts, 5 min for folders and subscriptions. Mark-read mutations update the `entry` cache, every cached list containing the entry, and `counts` optimistically.
 
 ---
 
@@ -1213,6 +1327,7 @@ On push to `main` after CI passes: `wrangler d1 migrations apply tidings --remot
 | R10 | Malformed or hostile feeds (billion-laughs entity expansion, huge attributes) | Medium | Low | htmlparser2 doesn't expand custom DTD entities; body cap; item cap; fuzz fixtures. |
 | R11 | Oldest-first feeds with more than 50 items never show new items (we parse the first 50 in document order) | Low | Low | Accepted for MVP (ADR 0006). Possible later fix: detect ascending dates and parse the tail instead. |
 | R12 | Before the owner exists, 30 failed setup attempts an hour from any IPs lock setup for everyone (griefing) | Low | Low | Exposed only between deploy and setup; the lock lasts ≤ 1 h; the runbook clears `rate_limits` (TID-024 AC8). Accepted (ADR 0011). |
+| R14 | Workers AI retires or reprices the tagging model, or its quality drifts | Low | Low | The cap is enforced from each response's `usage`, so a price rise only means more fallback tags. A failed call falls back to the embedding top-1. The gold-set test (`docs/testing/topic-tagging-2026-11-26/`) is rerun before any model change (ADR 0021). |
 | R13 | Someone who gets into the owner's mailbox can sign in by email link | Low | Medium | Accepted for a personal reader (ADR 0016). Email sessions can't change passkeys or recovery codes; every link is an email the owner sees; 15-min single-use links; kill switch: `wrangler secret delete MAGIC_LINK_EMAIL`. |
 
 ---
@@ -1236,6 +1351,7 @@ The user accepted every recommended default on 2026-11-16 and chose the hostname
 | Q11 | First fetch of a new feed: OK to bring in the 10 newest items, with items older than 7 days pre-marked read? | **Yes.** |
 | Q12 | TID-039 deployed CPU gate before production? | **Deferred** (user, 2026-11-17). Production deploys without it; CPU and budgets are checked against real use in TID-047 (R2). TID-039 runs only if that check shows trouble (ADR 0014). |
 | Q16 | Reverse "Won't do: AI features" for a recommended sort built from my own engagement signals? | **Yes, for this one feature** (owner, 2026-11-19, ADR 0018). Stage 1 (TID-066) records signals; stage 2 (TID-067) adds the sort. Other AI features (summaries, translation, chat) stay Won't do. |
+| Q17 | Tag articles by topic with Workers AI, and filter All articles by topic chips? | **Yes** (owner, 2026-11-26, ADR 0021). Model `@cf/meta/llama-3.3-70b-instruct-fp8-fast` in batches (93% of first tags right in the accuracy test), at about 15% to 25% of the daily free neurons with a cap in code. Past the cap, or when the call fails, the embedding top-1 is used. A fixed system list of 28 topics (the test's 27 plus UK politics). A Topics setting chooses and orders the chips. Hide rules by topic or keyword (TID-079) are deferred: "don't do the hidden articles filter yet". TID-077, TID-078. |
 | Q15 | Email sign-in for the work computer (no phone or password safe there)? | **Yes, as an extra method** (owner's request, 2026-11-17). Passkeys stay primary; recovery codes stay. Sent from `signin@tidings.mcn.am` through Resend's free tier (owner's decision 2026-11-17, replacing the `send_email` binding: Workers Free would have needed Email Routing on the apex, replacing Google Workspace MX). DNS records go on subdomains of `tidings.mcn.am` only. The recipient is the `MAGIC_LINK_EMAIL` secret and the key is the `RESEND_API_KEY` secret, both kept out of the repo. TID-053, ADR 0016. |
 
 ### 16.1 Open questions (pending the user)
@@ -1244,3 +1360,6 @@ The user accepted every recommended default on 2026-11-16 and chose the hostname
 |---|---|---|
 | Q13 | The folder view reads more D1 rows than NFR-7 promised (DEF-050). It is far inside the free quota either way (worst measured about 300 rows per page; fixed by TID-049, measured 244 to 300 rows per page on the seed folders, ADR 0008 amendment; 50 pages a day is about 15,000 of the 5,000,000 daily rows). Options: (a) rewrite the query and restate the bound, no migration; (b) add a denormalised folder index, a migration and extra writes on every new article; (c) keep today's query and raise the ceiling. | **(a)**, as TID-049 in R2. It does not block the MVP release (ADR 0015). |
 | Q14 | Approve the first production deploy (TID-024) to `tidings.mcn.am`, and do the one-time setup it needs: create the production D1 database, set `SETUP_TOKEN` with `wrangler secret`, add the custom domain route, and give CI a deploy token. | **Approve** when you are ready to set it up; nothing deploys until you say so. |
+| Q18 | Topic tagging is part of the embed step and runs in batches, so a new article gets its embedding up to 60 minutes later than today. Until then the Recommended order treats it as an average match, still boosted for being new. Keeping embeddings every minute and tagging separately costs about 400 more rows written a day (0.4%). (ADR 0021 §6.) | **Accept the delay** (the cheapest design in writes). Say if Recommended feels stale for new articles, and we split the steps. |
+| Q19 | Which topics show as chips before you choose any in Settings? | **None.** There is no chip row until you pick topics in Settings → Topics. |
+| Q20 | Show an article's topics anywhere else (on list rows, in the article view), or offer topic chips on folder and feed views? | **Not now.** The `topics` field is in the API, so either is a small UI story later. |
