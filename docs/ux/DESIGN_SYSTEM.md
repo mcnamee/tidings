@@ -17,6 +17,7 @@ Contents
 9. Theme behaviour and `theme-init.js`
 10. Focus, forced colours and other accessibility rules
 11. What the engineer must not do
+12. Topic chips and reorderable rows (TID-078)
 
 ---
 
@@ -657,3 +658,57 @@ The manifest can carry only one `theme_color` and `background_color`; use the li
 - No `px` font sizes.
 - No `user-scalable=no` or `maximum-scale`.
 - Do not use `hover:` as the only way to reveal or trigger anything.
+
+---
+
+## 12. Topic chips and reorderable rows (TID-078)
+
+Screen detail is in `screens/topics.md`. This section lists only what the system gains. **No new colour tokens.**
+
+### 12.1 Chip
+
+| Part | Classes |
+|---|---|
+| Hit area (button) | `min-h-11 min-w-11 inline-flex items-center justify-center` (44 px) |
+| Pill, default | `min-h-9 rounded-full border border-line-strong bg-surface px-4 text-sm font-medium text-fg whitespace-nowrap` |
+| Pill, pressed (`aria-pressed="true"`) | `border-accent bg-accent text-accent-fg` |
+| Spacing | `mx-1` on the pill: 8 px between pills, hit areas touch |
+| Focus | the global `:focus-visible` ring, offset 2 px (never negative; the ring against the accent fill is only 1.1:1, so it must sit on the page) |
+| Forced colours | pressed pill `border-2`, `forced-color-adjust: none`, `Highlight` / `HighlightText` |
+
+Computed pairs (light / dark): default text on surface 17.0 / 12.4; default border against page 3.6 / 4.6; pressed label on accent 6.9 / 8.2; pressed fill against page 6.4 / 8.5.
+
+### 12.2 Scrolling row utilities (add to `index.css`)
+
+```css
+/* A row that scrolls sideways with no visible scrollbar (touch). */
+.scroll-row {
+  overflow-x: auto;
+  overscroll-behavior-x: contain;
+  scrollbar-width: none;
+}
+.scroll-row::-webkit-scrollbar { display: none; }
+
+/* Edge fades, toggled by data attributes the row sets on scroll (classes only, no style attributes). */
+.scroll-row[data-fade-end='true'] {
+  -webkit-mask-image: linear-gradient(to right, #000 calc(100% - 1.5rem), transparent);
+  mask-image: linear-gradient(to right, #000 calc(100% - 1.5rem), transparent);
+}
+.scroll-row[data-fade-start='true'] {
+  -webkit-mask-image: linear-gradient(to left, #000 calc(100% - 1.5rem), transparent);
+  mask-image: linear-gradient(to left, #000 calc(100% - 1.5rem), transparent);
+}
+.scroll-row[data-fade-start='true'][data-fade-end='true'] {
+  -webkit-mask-image: linear-gradient(to right, transparent, #000 1.5rem, #000 calc(100% - 1.5rem), transparent);
+  mask-image: linear-gradient(to right, transparent, #000 1.5rem, #000 calc(100% - 1.5rem), transparent);
+}
+```
+
+The mask is a luminance-free alpha mask, so it works in both themes with no colour. Fades show only while the row can scroll that way, and only from 12 chips up at 375 px (shorter rows fit and need none).
+
+### 12.3 Reorder rows
+
+- Row: `min-h-14` (56 px), controls 44 x 44, `divide-y divide-line` inside a `rounded-lg border border-line bg-surface` card.
+- Lifted (dragging) row: `bg-raised shadow-raised border border-line-strong`, no scale, no tilt. Neighbours move with `transition-transform duration-150 ease-standard motion-reduce:transition-none`.
+- Grip: `touch-action: none` on the grip only. Never on the row, so the page still scrolls under a finger that starts elsewhere on it.
+- Motion tokens used: 150 ms (the DS "exit" step) for slot moves, instant under `prefers-reduced-motion`.

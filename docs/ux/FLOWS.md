@@ -1,6 +1,6 @@
 # Tidings navigation model and key flows
 
-Status: designed for TID-006 (navigation model and flow-level journeys). Screen-level detail for each step lives in `docs/ux/screens/`; the shell is in `screens/app-shell.md`. Visual tokens are in `DESIGN_SYSTEM.md`.
+Status: designed for TID-006 (navigation model and flow-level journeys); topic chips added for TID-078. Screen-level detail for each step lives in `docs/ux/screens/`; the shell is in `screens/app-shell.md`. Visual tokens are in `DESIGN_SYSTEM.md`.
 
 ---
 
@@ -29,7 +29,7 @@ Authenticated routes are inside the shell. Auth routes are not.
 | Route | Header left | Header title (`h1`) | Right-hand actions (slot) | Bottom bar (slot) |
 |---|---|---|---|---|
 | `/setup`, `/login`, `/recover` | no shell: centred auth layout, no header, no drawer | | | |
-| `/all` | Menu | All articles | Mark all as read (tick), Filters (TID-074) | none (TID-074) |
+| `/all` | Menu | All articles (with a topic chosen: kicker "All articles" above the topic name, TID-078) | Mark all as read (tick), Filters (TID-074) | none (TID-074) |
 | `/folders/:id` | Menu | Folder name | same | same |
 | `/feeds/:id` | Menu | Feed title (custom title if set) | same, plus feed overflow | same |
 | `/*/a/:entryId` | Back | Feed title | Open original | Previous, Mark read/unread, Next |
@@ -37,6 +37,7 @@ Authenticated routes are inside the shell. Auth routes are not.
 | `/manage/add` | Back | Add a feed | none | Primary action when keyboard is closed |
 | `/manage/import` | Back | Import from OPML | none | none |
 | `/settings` | Menu | Settings | none | none |
+| `/settings/topics` | Back | Topics (TID-078) | none | none |
 | unknown | Menu | Page not found | none | none |
 
 The right-hand and bottom slots are provided by the shell and filled by each screen; this table is the contract for those later screen specs. Top-level destinations use Menu, sub-pages use Back. A screen never shows both.
@@ -53,6 +54,8 @@ The right-hand and bottom slots are provided by the shell and filled by each scr
 | Manage, Settings | Drawer footer | |
 | Unread-only / All toggle | Filters panel (TID-074): an "Unread only" switch. A small accent dot on the Filters button shows while the list is not in the state this person starts lists in (the setting `unreadOnly`). | FR-RD-4 |
 | Recommended sort toggle (TID-067) | Filters panel (TID-074): a "Recommended order" switch, shown only while Unread only is on. Saved as the setting `listSort` and mirrored by a switch in Settings. When it cannot apply yet there is no note (owner, 2026-11-19): the list shows newest first. | FR-RD-3 |
+| Topic chips (TID-078) | A single sideways-scrolling row at the top of the All articles list (not folder or feed lists): "All", then the topics chosen in Settings, in order. It is the first thing in the list's content, so it scrolls away with the list and is not sticky (see `screens/topics.md`). No row when no topics are chosen. | FR-RD-13 |
+| Topics setting (TID-078) | Settings, Reading, a "Topics" row opening `/settings/topics`: add topics as chips, drag or use arrows to order them. | FR-ST-5 |
 | Mark all as read | Tick button (lucide `CheckCheck`, name "Mark all as read", 44 px) in the list header, left of Filters. Hidden on an empty list, disabled when nothing is left to mark. | FR-RD-9 |
 | Filters | List header, far right: a 44 px icon button (lucide `SlidersHorizontal`, name "Filters") that opens the filter panel (below). Always shown, including on an empty list, so Unread only can be switched off. | TID-074 |
 | Refresh | Pull to refresh on touch. The "Refresh" button in the filter panel for desktop. The list-end "Scroll to top" also refreshes. Lists have no bottom bar (TID-074). | Refetches cached server data only (FR-RD-11) |
@@ -63,6 +66,7 @@ The right-hand and bottom slots are provided by the shell and filled by each scr
 
 - Opens from the Menu button. Also closes on Escape, a tap on the visible strip of the page, choosing a destination, and browser/system Back. Open and close are in the TID-006 scope; the drawer pushes one history entry while open (spec 11.1).
 - Modal: focus is trapped and the page behind is inert.
+- The topic chip row (TID-078) scrolls sideways, so the drawer swipe ignores touches that start on it, except in the left 24 px edge zone, where a swipe still opens the menu (`screens/topics.md` 1.3).
 - Swipe the open drawer left to close it (TID-035, all modes). Swipe from the left edge to open it only in the installed (standalone) app: in Safari the edge belongs to the browser's back gesture. In the installed app, an edge swipe on the article view goes back (TID-055). Every gesture has a button or key equivalent.
 - **Reveal style (TID-075, below 1024 px):** the drawer is not an overlay. The panel is fixed underneath at its final position (`min(86vw, 20rem)` wide, 320 px at 375) and the **page itself** is a card that slides right by the panel's width to uncover it: header, list and any fixed bar move together, the card's left corners round (28 px at full), a shade dims it (scrim token, up to 0.7) and the panel parallaxes in from 30% of its width to the left. 300 ms, iOS ease (`--ease-ios`); the same easing both ways. The visible strip of the page (55 px at 375) is the tap target that closes the drawer (it replaces the scrim). The page's contents are inert while it is open; the strip is not. While it is up the page is frozen as a fixed card (the same freeze an open article uses, TID-069: content shifted up by the scroll it had), so the fixed header and bars move with the card, and a close restores that scroll exactly. Choosing a link to another list starts that list at the top, already under the card as it slides back. Pull to refresh and mark-read-on-scroll stand down while a drawer is revealed.
 - Swipes continue from the finger. An edge swipe that opens the drawer drags the page right with the finger (progress drives the page, shade, corners and panel) and finishes sliding to open with no second entrance animation; a swipe left anywhere (the strip or the panel) drags the page back, committing at 40% or on a flick, otherwise springing open again. Reopening during a slide-out starts from where the page is, not from closed. Reduced motion: no animation anywhere, the page jumps. An article is a full-screen layer above the list it was opened from (the list stays mounted underneath, inert and hidden from assistive tech): dragging the article right shows the list moving in from 30% to the left while the dim fades; releasing past 35% (or a flick) finishes the slide and the list is there at the same scroll position, otherwise the article slides back. From 1024px the layer covers only the content column, the sidebar stays (no swipe on desktop).
@@ -212,9 +216,29 @@ Decision recorded here for the list spec: in Unread-only mode a row that has jus
   - More than 20: confirm sheet in the lower half: "Mark 84 articles as read?" with "Mark 84 as read" and "Cancel", then the same toast with Undo.
   - More than 1,000: the confirm step applies, and the toast has no Undo (spec FR-RD-9).
   - Only articles that were in the view when it loaded are affected.
+  - With a topic chosen on All articles (TID-078) only that topic's unread articles are marked, and the confirm and toast copy name the topic ("Mark 84 Formula 1 articles as read?").
 - Counts in the feed tree update with the action and are reconciled by the next count refetch.
 
 ---
+
+### 2.8 Choose and order topic chips (TID-078)
+
+1. **[Settings]** -> Reading -> **Topics** row (shows "None chosen" at first) -> **[Topics]** `/settings/topics`.
+2. Under "Other topics", tap **Add** on AI, Formula 1 and UK politics. Each moves to "On the chips", at the end, and focus goes to its Move up button.
+3. Reorder: drag the grip at the right of a row, or press **Move up** / **Move down**. Each change shows on All articles at once and is saved after 500 ms; a failed save puts the order back with the toast "Couldn't save your topics. Try again."
+4. **Remove** (minus button) returns a topic to "Other topics".
+5. -> Back -> **[Settings]** or wherever the owner came from. The Topics row shows "3 chosen: AI, Formula 1, UK politics".
+   - (offline) the screen is read-only with the banner "You're offline. Changes can't be saved."
+
+### 2.9 Filter All articles by topic (TID-078)
+
+1. **[All articles]** shows the chip row under the header: All, AI, Formula 1, UK politics. (No chips chosen: no row.)
+2. -> tap **Formula 1**. The chip fills, the URL becomes `/all?topic=formula-1` (`replace`), the list scrolls to the top and shows that topic's articles, and the header title shows "All articles" above "Formula 1".
+   - (nothing in the topic) "Nothing unread in Formula 1" with **Show read articles too** and **Show all topics**.
+   - (offline, topic never opened) "This topic isn't saved on this device" with **Show all topics**.
+3. -> open an article -> Back: the same topic, the same scroll position.
+4. -> the tick marks only Formula 1 articles (confirm copy names the topic, Undo as usual). Other topics stay unread.
+5. -> tap **All** (or **Show all topics**) to clear the filter. The Filters panel's Unread only and Recommended order apply inside the chosen topic.
 
 ## 3. Cross-cutting states every flow must handle
 
