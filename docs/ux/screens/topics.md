@@ -295,3 +295,7 @@ Cards are `surface` on the `canvas` page, with `border-line` outlines (the same 
 - **Desktop scroll buttons** are shown only while the row can scroll that way on a fine pointer (`pointer-fine`), at the 44 px ends.
 - **Alt+Up and Alt+Down** on a row, mentioned nowhere above, were not built (the Move buttons are the keyboard path).
 - **Drag scroll** zones: 64 px at the bottom of the viewport and 48 px below the header, at most 12 px a frame.
+
+## Part 3: topics on the article view (owner request 2026-11-26)
+
+The article view lists the article's topics under the feed, author and date line, as small grey pills (`text-xs`, `text-fg-muted`, `border-line`, fully rounded), in stored order (most relevant first). They are plain text in a `<ul aria-label="Topics">`, not links or buttons. An untagged article shows nothing. Screenshots: `docs/ux/reviews/tid-078/375-{light,dark}-article-topics.png`.

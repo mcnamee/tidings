@@ -544,3 +544,22 @@ test('review screenshots', async ({ page }, testInfo) => {
   await page.waitForTimeout(200);
   await page.screenshot({ path: `${dir}/375-${theme}-chips-empty-topic.png` });
 });
+
+// Owner request 2026-11-26: the article view lists the article's topics as plain tags under the date.
+test('the article view shows its topics as plain tags under the date', async ({
+  page,
+}, testInfo) => {
+  await page.goto('/all?state=all');
+  await page.getByRole('link', { name: /UK story 1/ }).click();
+  const tags = page.getByRole('list', { name: 'Topics' });
+  await expect(tags.getByRole('listitem')).toHaveText(['UK politics', 'Formula 1']);
+  await expect(tags.getByRole('link')).toHaveCount(0);
+  const date = await page.getByRole('article').locator('time').first().boundingBox();
+  const box = await tags.boundingBox();
+  expect(box!.y).toBeGreaterThan(date!.y);
+  const dir = process.env.TID_078_SHOTS;
+  if (dir && testInfo.project.name.startsWith('mobile')) {
+    const theme = testInfo.project.name.endsWith('dark') ? 'dark' : 'light';
+    await page.screenshot({ path: `${dir}/375-${theme}-article-topics.png` });
+  }
+});

@@ -16,7 +16,7 @@ import { useEntries, useEntry } from '../lib/queries';
 import { setEntryRead } from '../lib/readState';
 import { useSession } from '../lib/session';
 import { effectiveSort, markReadOnOpen, unreadOnlyDefault } from '../lib/settings';
-import { topicChipsPref, topicFromParams } from '../lib/topics';
+import { topicChipsPref, topicFromParams, topicName, useTopics } from '../lib/topics';
 import { toast } from '../lib/toast';
 import { BottomBar, HeaderActions } from '../shell/slots';
 import { ArticleContent } from './ArticleContent';
@@ -167,6 +167,7 @@ function ArticleScreen({
 }) {
   const client = useQueryClient();
   const session = useSession();
+  const topics = useTopics();
   const detail = useEntry(entryId, () => fromList(items, entryId));
   const entry = detail.data;
   const loaded = !!entry && !detail.isPlaceholderData;
@@ -290,6 +291,23 @@ function ArticleScreen({
         <span aria-hidden="true">&middot;</span>
         <time dateTime={entry.publishedAt}>{DATE.format(new Date(entry.publishedAt))}</time>
       </p>
+      {/* Owner request 2026-11-26: the assigned topics as plain tags, not links. */}
+      {entry.topics.length > 0 && (
+        <ul
+          aria-label="Topics"
+          data-testid="article-topics"
+          className="mt-2 flex flex-wrap gap-1.5"
+        >
+          {entry.topics.map((slug) => (
+            <li
+              key={slug}
+              className="rounded-full border border-line px-2 py-0.5 text-xs text-fg-muted"
+            >
+              {topicName(slug, topics.data)}
+            </li>
+          ))}
+        </ul>
+      )}
       <div className="mt-6">
         {!loaded ? (
           <Skeleton />

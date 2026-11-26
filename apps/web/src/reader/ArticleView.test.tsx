@@ -153,6 +153,23 @@ describe('AC1: the article', () => {
     expect(original.getAttribute('rel')).toMatch(/noreferrer/);
   });
 
+  it('shows the assigned topics as plain tags under the date, and none when untagged', async () => {
+    api.set('GET /api/entries/1', { body: entry(1, { topics: ['formula-1', 'uk-politics'] }) });
+    renderApp('/all/a/1');
+    const tags = await screen.findByRole('list', { name: 'Topics' });
+    const items = within(tags).getAllByRole('listitem');
+    expect(items.map((li) => li.textContent)).toEqual(['Formula 1', 'UK politics']);
+    expect(within(tags).queryByRole('link')).toBeNull();
+    expect(within(tags).queryByRole('button')).toBeNull();
+  });
+
+  it('has no topic list for an untagged article', async () => {
+    api.set('GET /api/entries/1', { body: entry(1) });
+    renderApp('/all/a/1');
+    expect(await screen.findByRole('heading', { level: 2 })).toBeInTheDocument();
+    expect(screen.queryByRole('list', { name: 'Topics' })).toBeNull();
+  });
+
   it('an entry with no URL has no Open original, and one with no content says so', async () => {
     api.set('GET /api/entries/1', { body: entry(1, { url: null, contentHtml: null }) });
     renderApp('/all/a/1');
