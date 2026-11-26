@@ -62,7 +62,7 @@ export interface RecommendedParams extends Omit<ListEntriesParams, 'unreadOnly'>
 
 const SELECT_ROW =
   'SELECT ue.entry_id, ue.feed_id, ue.published_at, ue.is_read, ue.is_starred, ' +
-  'e.title, e.author, e.url, e.summary, e.image_url ';
+  'e.title, e.author, e.url, e.summary, e.image_url, e.topics ';
 
 /** The user's stored profile, or null when none has been built. One row read. */
 export async function loadProfile(

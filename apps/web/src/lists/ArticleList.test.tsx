@@ -29,6 +29,7 @@ function entry(id: number, over: Partial<EntrySummary> = {}): EntrySummary {
     publishedAt: new Date(NOW - id * 3_600_000).toISOString(),
     isRead: false,
     isStarred: false,
+    topics: [],
     ...over,
   };
 }

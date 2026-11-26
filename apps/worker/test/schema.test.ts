@@ -22,6 +22,7 @@ const SPEC_TABLES = [
   'embed_queue',
   'image_queue',
   'user_profiles',
+  'topic_vectors',
 ];
 const SPEC_INDEXES = [
   'passkeys_user',
