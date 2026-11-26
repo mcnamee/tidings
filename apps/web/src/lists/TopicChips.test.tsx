@@ -1,5 +1,5 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { render, screen, waitFor, within } from '@testing-library/react';
+import { act, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter, useLocation } from 'react-router';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
@@ -7,6 +7,7 @@ import { TOPICS, type Counts, type EntrySummary, type Subscription } from '@tidi
 import { App } from '../App';
 import { reportReachable } from '../lib/connectivity';
 import { SESSION_KEY } from '../lib/session';
+import { applyRead } from '../lib/readState';
 import { toastStore } from '../lib/toast';
 import { installFakeApi, type FakeApi } from '../test-api';
 import { installMatchMedia } from '../test-utils';
@@ -449,5 +450,132 @@ describe('AC5: mark all as read with a topic', () => {
         before: AS_OF,
       }),
     );
+  });
+});
+
+const TOPIC_COUNTS = 'GET /api/counts/topics';
+const chipNames = () =>
+  within(screen.getByRole('group', { name: 'Topics' }))
+    .getAllByRole('button')
+    .map((b) => b.getAttribute('aria-label') ?? b.textContent);
+
+describe('Owner request: a chip shows only while its topic has unread articles', () => {
+  it('hides a chosen topic with none unread; "All" stays; the row is fed by the per-topic counts', async () => {
+    api.set(TOPIC_COUNTS, { body: { topics: { ai: 4, 'uk-politics': 1 } } });
+    renderApp('/all', CHIPS);
+    await waitFor(() => expect(chipNames()).toEqual(['All topics', 'AI', 'UK politics']));
+    expect(api.calls.some((c) => c.path === '/api/counts/topics')).toBe(true);
+  });
+
+  it('keeps the selected chip even at 0 unread, so the person is not stranded', async () => {
+    api.set(TOPIC_COUNTS, { body: { topics: { ai: 4 } } });
+    api.set(topicUnread('formula-1'), page([]));
+    renderApp('/all?topic=formula-1', CHIPS);
+    await waitFor(() => expect(chipNames()).toEqual(['All topics', 'AI', 'Formula 1']));
+    expect(chip('Formula 1')).toHaveAttribute('aria-pressed', 'true');
+  });
+
+  it('shows no row at all when no chosen topic has unread articles', async () => {
+    api.set(TOPIC_COUNTS, { body: { topics: { technology: 9 } } });
+    renderApp('/all', CHIPS);
+    await screen.findByText('Title 1');
+    await waitFor(() => expect(api.calls.some((c) => c.path === '/api/counts/topics')).toBe(true));
+    await waitFor(() => expect(chipRow()).toBeNull());
+    expect(screen.queryByTestId('topic-chips-skeleton')).toBeNull();
+  });
+
+  it('shows every chosen chip with Unread only off (read articles are in the list), and when the counts cannot load', async () => {
+    api.set(TOPIC_COUNTS, { body: { topics: {} } });
+    api.set(LIST('view=all&state=all&limit=50'), page([entry(1)]));
+    const view = renderApp('/all?state=all', CHIPS);
+    await screen.findByText('Title 1');
+    expect(chipNames()).toEqual(['All topics', 'AI', 'Formula 1', 'UK politics']);
+    expect(api.calls.some((c) => c.path === '/api/counts/topics')).toBe(false);
+    view.unmount();
+
+    api.set(TOPIC_COUNTS, { status: 500, body: { error: { code: 'internal', message: 'x' } } });
+    renderApp('/all', CHIPS);
+    await screen.findByText('Title 1');
+    await waitFor(() =>
+      expect(chipNames()).toEqual(['All topics', 'AI', 'Formula 1', 'UK politics']),
+    );
+  });
+
+  it('refetches the topic counts after a read-state change (the counts cadence)', async () => {
+    api.set(TOPIC_COUNTS, { body: { topics: { ai: 1, 'formula-1': 2 } } });
+    renderApp('/all', CHIPS);
+    await waitFor(() => expect(chipNames()).toEqual(['All topics', 'AI', 'Formula 1']));
+    const before = api.calls.filter((c) => c.path === '/api/counts/topics').length;
+    api.set(TOPIC_COUNTS, { body: { topics: { 'formula-1': 2 } } });
+    await act(async () => {
+      await client.invalidateQueries({ queryKey: ['counts'] });
+    });
+    await waitFor(() => expect(chipNames()).toEqual(['All topics', 'Formula 1']));
+    expect(api.calls.filter((c) => c.path === '/api/counts/topics').length).toBeGreaterThan(before);
+  });
+});
+
+describe('Owner request: choosing a chip counts as leaving the list (FR-RD-4)', () => {
+  it('read some articles in a topic, then All: the ones read are not shown, and All was fetched again', async () => {
+    const user = userEvent.setup();
+    const aiRow = entry(2, { topics: ['ai'] });
+    api.set(ALL_UNREAD, page([entry(1), aiRow, entry(3)]));
+    api.set(topicUnread('ai'), page([aiRow, entry(4, { topics: ['ai'] })]));
+    renderApp('/all', CHIPS);
+    await screen.findByText('Title 3');
+
+    await user.click(chip('AI'));
+    await screen.findByText('Title 4');
+    // The person reads Title 2 in the AI view (mark read on scroll, or opening it): every cached list changes.
+    act(() => applyRead(client, { id: '2', subscriptionId: 's1' }, true));
+    // The server's All list no longer has it.
+    api.set(ALL_UNREAD, page([entry(1), entry(3)]));
+    const allCalls = () => entryCalls().filter((c) => c.path === ALL_UNREAD.slice('GET '.length));
+    const before = allCalls().length;
+
+    await user.click(chip('All topics'));
+    await waitFor(() => expect(allCalls().length).toBe(before + 1));
+    await screen.findByText('Title 3');
+    expect(screen.queryByText('Title 2')).toBeNull();
+    // Not even as a greyed row while the list loads: the cached read row was dropped on the way in.
+    expect(screen.queryByRole('heading', { level: 2, name: 'Title 2' })).toBeNull();
+  });
+
+  it('drops a row read elsewhere from the cached list before it is shown, even if the refetch is slow', async () => {
+    const user = userEvent.setup();
+    api.set(ALL_UNREAD, page([entry(1), entry(2, { topics: ['ai'] })]));
+    api.set(topicUnread('ai'), page([entry(2, { topics: ['ai'] })]));
+    renderApp('/all', CHIPS);
+    await screen.findByText('Title 2');
+    await user.click(chip('AI'));
+    await waitFor(() => expect(url()).toBe('/all?topic=ai'));
+    act(() => applyRead(client, { id: '2', subscriptionId: 's1' }, true));
+    // The All answer never arrives.
+    api.set(ALL_UNREAD, { body: {}, status: 500 });
+    await user.click(chip('All topics'));
+    await screen.findByText('Title 1');
+    expect(screen.queryByRole('heading', { level: 2, name: 'Title 2' })).toBeNull();
+  });
+
+  it('with Unread only off the read rows stay (they belong to that list), and the list is still fetched again', async () => {
+    const user = userEvent.setup();
+    const all = LIST('view=all&state=all&limit=50');
+    const ai = LIST('view=all&state=all&limit=50&topic=ai');
+    api.set(all, page([entry(1), entry(2, { topics: ['ai'] })]));
+    api.set(ai, page([entry(2, { topics: ['ai'] })]));
+    renderApp('/all?state=all', CHIPS);
+    await screen.findByText('Title 1');
+    await user.click(chip('AI'));
+    await waitFor(() => expect(url()).toBe('/all?state=all&topic=ai'));
+    act(() => applyRead(client, { id: '2', subscriptionId: 's1' }, true));
+    api.set(all, page([entry(1), entry(2, { topics: ['ai'], isRead: true })]));
+    const before = entryCalls().filter((c) => c.path.includes('state=all&limit=50')).length;
+    await user.click(chip('All topics'));
+    await waitFor(() =>
+      expect(entryCalls().filter((c) => c.path.includes('state=all&limit=50')).length).toBe(
+        before + 1,
+      ),
+    );
+    expect(screen.getByRole('heading', { level: 2, name: 'Title 2' })).toHaveClass('text-fg-muted');
   });
 });

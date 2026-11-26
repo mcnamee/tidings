@@ -132,7 +132,7 @@ export function TopicChips({
         data-fade-start={count >= FADE_FROM && fade.start ? 'true' : undefined}
         data-fade-end={count >= FADE_FROM && fade.end ? 'true' : undefined}
         onScroll={measure}
-        className="scroll-row relative flex touch-pan-x touch-pan-y px-4 pb-1 pt-2 scroll-px-4 lg:px-0"
+        className="scroll-row relative flex px-4 pb-1 pt-2 scroll-px-4 lg:px-0"
       >
         <div className="flex w-max">
           {chip(null, 'All', 'All topics')}

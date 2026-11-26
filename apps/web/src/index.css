@@ -395,9 +395,13 @@ html.scroll-locked {
 html {
   touch-action: pan-x pan-y;
 }
-/* Swipe gestures (useSwipe): the browser keeps vertical pans, we get the rest. */
+/* Swipe gestures (useSwipe) are driven by touch events that call preventDefault, so <html> needs no
+   narrower touch-action than the rule above. It must not be `pan-y` (TID-078 fix): touch-action
+   intersects down the tree, and WebKit does not stop at a scroll container, so a `pan-y` on <html>
+   removed horizontal panning from every sideways scroller below it (the topic chip row) and the row
+   scrolled in fits and starts on iOS. Pinch and double-tap zoom stay off (pan-x pan-y). */
 html.swipe-nav {
-  touch-action: pan-y;
+  touch-action: pan-x pan-y;
 }
 
 /* A row that scrolls sideways with no visible scrollbar (TID-078, DESIGN_SYSTEM 12.2). Edge fades are
@@ -405,6 +409,10 @@ html.swipe-nav {
 .scroll-row {
   overflow-x: auto;
   overscroll-behavior-x: contain;
+  -webkit-overflow-scrolling: touch;
+  /* Sideways pans scroll the row, vertical ones the page (pan-x alone would stop a pull or a scroll that
+     starts on the row). No ancestor may narrow this: see html.swipe-nav above. */
+  touch-action: pan-x pan-y;
   scrollbar-width: none;
 }
 .scroll-row::-webkit-scrollbar {

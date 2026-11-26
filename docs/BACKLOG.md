@@ -1267,7 +1267,9 @@ The owner approved a second AI feature: tag each new article with up to 3 topics
 9. **Layout and themes.** The chip row and the Topics screen work at 375 px and 1280 px, in light and dark, and at 200% text. Chips are 44 px tap targets. The row coexists with the translucent header, pull to refresh, mark-read-on-scroll and the reveal drawers (TID-069, TID-075) without breaking them. UX decides whether the row scrolls away or stays under the header, and records it. CSS classes and CSSOM only (no style attributes).
 10. **Tests.** Unit tests cover the chip row, chip selection, URL state and the settings reorder (including the keyboard path). E2E covers mobile-light (choose topics in Settings, reorder, filter All, open and go back, mark all as read for a topic) and desktop-dark (chips and filter). Spec §8 and FR-RD-13 and FR-ST-5 match the build.
 
-**Out of scope:** per-topic unread counts on chips or in the drawer, multi-select chips, topic chips on folder and feed views (Q20), showing an article's topics on rows or in the article view (Q20), user-defined topics, hiding articles by topic (TID-079), and remembering the chosen chip across app launches beyond the URL.
+**Owner fixes after the first real-iPhone use (2026-11-26, branch `tid-078-chip-fixes`, ADR 0021 amendment 4):** (1) a chip shows only while its topic has unread articles (new `GET /api/counts/topics`; the selected chip stays; no chip but All hides the row; this reverses the exclusion of per-topic counts below, for the chip row only); (2) switching chips refetches the list and drops rows read meanwhile; (3) the chip row scrolls natively on iOS (`html.swipe-nav` no longer narrows `touch-action`).
+
+**Out of scope:** per-topic unread counts in the drawer (on chips, see the owner fixes above), multi-select chips, topic chips on folder and feed views (Q20), showing an article's topics on rows or in the article view (Q20), user-defined topics, hiding articles by topic (TID-079), and remembering the chosen chip across app launches beyond the URL.
 
 ### TID-079: Hide articles by topic or keyword, per feed or folder (deferred)
 

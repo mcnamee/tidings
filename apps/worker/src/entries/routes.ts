@@ -6,6 +6,7 @@ import { Hono, type Context } from 'hono';
 import type {
   ApiError,
   Counts,
+  TopicCounts,
   EngagementResponse,
   EntriesResponse,
   Entry,
@@ -46,6 +47,7 @@ import {
   systemClock,
   toIso,
   unreadCounts,
+  unreadTopicCounts,
   ValidationError,
   type Clock,
   type EntrySummaryRow,
@@ -272,6 +274,11 @@ export function createCountsRoutes(): Hono<AppEnv> {
   app.get('/', async (c) => {
     const { counts } = await unreadCounts(new Db(c.env.DB), c.get('session').user.id);
     return c.json<Counts>(counts);
+  });
+  // TID-078: per-topic unread, a sibling so the sidebar's counts stay one cheap read.
+  app.get('/topics', async (c) => {
+    const { counts } = await unreadTopicCounts(new Db(c.env.DB), c.get('session').user.id);
+    return c.json<TopicCounts>(counts);
   });
   return app;
 }

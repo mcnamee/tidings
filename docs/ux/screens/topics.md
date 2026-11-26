@@ -57,6 +57,7 @@ Chosen chip ("Formula 1"), list scrolled a little so the row is partly under the
 | Row box | `flex gap-0 overflow-x-auto px-4 pt-2 pb-1`, `scroll-px-4`, `overscroll-behavior-x: contain`, `touch-action: pan-x pan-y`, hidden scrollbar. Left and right padding follow the page gutter (`max(1rem, env(safe-area-inset-*))`). Content is `w-max` so it never wraps. |
 | Chip hit area | A `button`, `min-h-11 min-w-11` (44 px), no visible background. |
 | Chip visual | Inside the button a pill: `min-h-9` (36 px, grows with text size), `rounded-full`, `px-4`, `mx-1` (so pills are 8 px apart and hit areas touch), `text-sm font-medium`, `whitespace-nowrap`, vertically centred. |
+| Visible chips | With Unread only on, a chip shows only while its topic has unread articles (owner, 2026-11-26). The pressed chip always stays; with no chip but "All" there is no row. With Unread only off every chosen chip shows. |
 | Default chip | `bg-surface text-fg border border-line-strong`. Press: the `active:` overlay from DS section 7. |
 | Selected chip | `bg-accent text-accent-fg border border-accent`, `aria-pressed="true"`. Exactly one chip is pressed. In forced-colors mode: `border-2` and `forced-color-adjust: none` with `Highlight` / `HighlightText`. |
 | "All" chip | Always first, label **All**, accessible name **All topics**. Pressed when there is no valid `?topic=`. Tapping it removes the param (`replace`). |
@@ -87,6 +88,7 @@ Below 1024 px in the installed app, `useSwipe` opens the menu on a rightward dra
 5. **Pull to refresh:** a vertical pull that starts on the row works as anywhere else; a sideways move gives it up (as `usePullToRefresh` already does).
 6. In a Safari tab (not installed) the edge belongs to the browser, so nothing changes there.
 7. The row is not a scroll-chain trap: `overscroll-behavior-x: contain` stops the end of the row from starting the browser's back navigation in Chrome and from chaining into the page.
+8. **No ancestor may narrow `touch-action`** (found on a real iPhone, 2026-11-26: the row scrolled in fits and starts). `touch-action` intersects down the tree and WebKit does not stop at a scroll container, so `html.swipe-nav { touch-action: pan-y }` took horizontal panning away from the row. Every root rule is now `pan-x pan-y` (still no pinch or double-tap zoom), and the row sets the same itself. Guarded by `apps/web/src/touchAction.test.ts` and an e2e check of every ancestor's computed value.
 
 ### 1.4 States
 

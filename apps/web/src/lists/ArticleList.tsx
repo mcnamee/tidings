@@ -20,8 +20,10 @@ import { ApiRequestError } from '../api';
 import {
   COUNTS_KEY,
   entriesKey,
+  refreshOnEnter,
   trimToFirstPage,
   useCounts,
+  useTopicCounts,
   useEntries,
   useSubscriptions,
 } from '../lib/queries';
@@ -268,6 +270,14 @@ export function ArticleList({
   // pages, the rows read meanwhile (shown as read, FR-RD-4) and the scroll position as they were.
   // Any other arrival starts again from page 1, with the browser's scroll restoration off.
   useState(() => trimToFirstPage(client, key));
+  // TID-078, FR-RD-4: a chip (or the Unread only switch) changes the key while this list stays mounted, so
+  // the new key's cache would be served as it was left. Choosing one counts as leaving the list: read rows
+  // go, and page 1 is fetched again. Done before `useEntries` reads the cache; idempotent.
+  const lastKey = useRef(JSON.stringify(key));
+  if (lastKey.current !== JSON.stringify(key)) {
+    lastKey.current = JSON.stringify(key);
+    refreshOnEnter(client, key, state);
+  }
   useLayoutEffect(() => {
     if ('scrollRestoration' in window.history) window.history.scrollRestoration = 'manual';
   }, []);
@@ -385,12 +395,27 @@ export function ArticleList({
     setParams(p, { replace: true });
   }, [covered, params, topicSlug, setParams]);
   const chosenTopics = chips.flatMap((slug) => topics.data?.find((t) => t.id === slug) ?? []);
-  const chipRow =
-    view !== 'all' || chips.length === 0 ? null : topics.data ? (
-      <TopicChips topics={chosenTopics} selected={topicSlug} onSelect={chooseTopic} />
-    ) : topics.isPending && topics.fetchStatus === 'fetching' ? (
+  // TID-078 amendment: with Unread only on, a chip shows only while that topic has unread articles (the
+  // chosen one always stays, so the person is never stranded). No chip but All: no row. While the numbers
+  // load a skeleton holds the place; if they cannot load, every chosen chip shows.
+  const showRow = view === 'all' && chips.length > 0;
+  const topicCounts = useTopicCounts(showRow && state === 'unread');
+  const unreadByTopic = topicCounts.data?.topics;
+  const shownTopics =
+    state !== 'unread' || !unreadByTopic
+      ? chosenTopics
+      : chosenTopics.filter((t) => (unreadByTopic[t.id] ?? 0) > 0 || t.id === topicSlug);
+  const countsLoading =
+    state === 'unread' && topicCounts.isPending && topicCounts.fetchStatus === 'fetching';
+  const chipRow = !showRow ? null : topics.data ? (
+    countsLoading ? (
       <TopicChipsSkeleton chosen={chips.length} />
-    ) : null;
+    ) : shownTopics.length === 0 ? null : (
+      <TopicChips topics={shownTopics} selected={topicSlug} onSelect={chooseTopic} />
+    )
+  ) : topics.isPending && topics.fetchStatus === 'fetching' ? (
+    <TopicChipsSkeleton chosen={chips.length} />
+  ) : null;
 
   const notFound =
     entries.error instanceof ApiRequestError && entries.error.status === 404 && !entries.data;

@@ -14,6 +14,7 @@ import {
   type EntryListView,
   type FoldersResponse,
   type SubscriptionsResponse,
+  type TopicCounts,
 } from '@tidings/shared';
 import { ApiRequestError, apiGet } from '../api';
 
@@ -21,6 +22,8 @@ import { ApiRequestError, apiGet } from '../api';
 export const FOLDERS_KEY = ['folders'] as const;
 export const SUBSCRIPTIONS_KEY = ['subscriptions'] as const;
 export const COUNTS_KEY = ['counts'] as const;
+/** Under COUNTS_KEY, so every refetch or invalidation of the counts covers it too (FR-RD-10). */
+export const TOPIC_COUNTS_KEY = ['counts', 'topics'] as const;
 export const entryKey = (id: string) => ['entry', id] as const;
 export const entriesKey = (
   view: EntryListView,
@@ -72,6 +75,23 @@ export function useCounts() {
   });
 }
 
+/**
+ * TID-078 (ADR 0021 amendment 3): unread per topic, for the chip row. Same cadence as `useCounts`, and it
+ * sits under `COUNTS_KEY`, so the refetch after a read-state change covers it. `enabled` is false when the
+ * row is not shown, so a person with no chips never pays for it.
+ */
+export function useTopicCounts(enabled: boolean) {
+  return useQuery({
+    queryKey: TOPIC_COUNTS_KEY,
+    queryFn: ({ signal }) => apiGet<TopicCounts>('/api/counts/topics', { signal }),
+    staleTime: 30 * SECOND,
+    refetchOnWindowFocus: 'always',
+    refetchInterval: 5 * MINUTE,
+    refetchIntervalInBackground: false,
+    enabled,
+  });
+}
+
 let countsTimer: ReturnType<typeof setTimeout> | undefined;
 /** FR-RD-10: after any read-state mutation, refetch the counts once things have settled (2 s). */
 export function scheduleCountsRefetch(client: QueryClient, delayMs = 2000): void {
@@ -118,6 +138,33 @@ export function trimToFirstPage(client: QueryClient, key: readonly unknown[]): v
       ? { pages: data.pages.slice(0, 1), pageParams: data.pageParams.slice(0, 1) }
       : data,
   );
+}
+
+/**
+ * FR-RD-4: choosing another chip (or any change of the list's key) leaves the list. Before the list for
+ * `key` is shown, what is cached for it is made fit to show: rows read since (in this list or in another
+ * topic's view) are dropped when the list is unread-only, the pages after the first go, and the query is
+ * marked stale so the observer fetches page 1 again. The cached rows still show meanwhile, so offline a
+ * list opened before is not lost.
+ */
+export function refreshOnEnter(
+  client: QueryClient,
+  key: readonly unknown[],
+  state: EntryListState,
+): void {
+  if (!client.getQueryData(key)) return;
+  if (state === 'unread') {
+    client.setQueryData<InfiniteData<EntriesResponse, string | null>>(key, (data) =>
+      data?.pages.some((p) => p.items.some((i) => i.isRead))
+        ? {
+            ...data,
+            pages: data.pages.map((p) => ({ ...p, items: p.items.filter((i) => !i.isRead) })),
+          }
+        : data,
+    );
+  }
+  trimToFirstPage(client, key);
+  void client.invalidateQueries({ queryKey: key, exact: true, refetchType: 'none' });
 }
 
 /**

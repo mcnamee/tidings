@@ -442,6 +442,15 @@ export interface Counts {
   subscriptions: Record<string, number>;
 }
 
+/**
+ * `GET /api/counts/topics` (TID-078 amendment): unread articles per topic slug among the newest
+ * `TOPIC_SCAN_LIMIT` unread rows, so a count is exact up to that bound and a floor beyond it. Topics
+ * with none are absent. An article with three topics counts once under each.
+ */
+export interface TopicCounts {
+  topics: Record<string, number>;
+}
+
 /** A topic as the API shows it (TID-077). `id` is the slug for system topics; a string so user topics can follow. */
 export interface Topic {
   id: string;
