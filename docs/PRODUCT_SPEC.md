@@ -703,7 +703,7 @@ Some feeds carry no image in any item (Formula1.com, Al Jazeera, The Guardian F1
 
 ### 7.9 Topic tagging: the hourly tag step (TID-077, ADR 0021 as amended)
 
-Every new article that is linked unread to a user is tagged with **up to 3 topics, most relevant first**, from the system list below. Tagging is its own step in the `Recommender` entrypoint (`tagPending`), separate from the embed step (§7.7), which still runs every minute. It has **no queue**: it finds its own work, so it adds one row written per article and nothing else. Like the embed step, it never runs in a refresh or a user request, and a failure never fails either.
+Every new article that is linked to a user (read or unread) is tagged with **up to 3 topics, most relevant first**, from the system list below. Tagging is its own step in the `Recommender` entrypoint (`tagPending`), separate from the embed step (§7.7), which still runs every minute. It has **no queue**: it finds its own work, so it adds one row written per article and nothing else. Like the embed step, it never runs in a refresh or a user request, and a failure never fails either.
 
 **System topics** (`packages/shared/src/topics.ts`, `TOPICS_VERSION = 1`). IDs are stable and never reused, and the API uses the slug. Display order is as listed. Descriptions are those in `docs/testing/topic-tagging-2026-11-26/topics.json`, plus the one for UK politics in ADR 0021 §9.
 
@@ -727,7 +727,7 @@ Every new article that is linked unread to a user is tagged with **up to 3 topic
 
 **When it runs.** The dispatcher tick at **minute 41 of each UTC hour** (clear of the :17 maintenance run), and every minute while the last run left a backlog (the `rate_limits` row `ai:tagmore` is 1: one primary-key read a minute). Never without the `AI` binding. So an article is tagged within about **60 minutes** of arriving (`TAG_FLUSH_MINUTE = 41`); its embedding does not wait.
 
-**The work list.** One query: `entries` with `id` in the newest `TAG_LOOKBACK_IDS = 1,000` IDs (a primary-key range; IDs are dense, so about 2 days at 400 articles a day), `topics IS NULL`, not purged, with a title or summary, and linked unread to at least one user (`EXISTS` on `user_entries` through `ue_entry`), newest first. No index is added (a partial index on `topics IS NULL` would cost 2 rows written per article, which is what a queue costs). Entries linked only as already read are never tagged.
+**The work list.** One query: `entries` with `id` in the newest `TAG_LOOKBACK_IDS = 1,000` IDs (a primary-key range; IDs are dense, so about 2 days at 400 articles a day), `topics IS NULL`, not purged, with a title or summary, and linked to at least one user, read or unread (`EXISTS` on `user_entries` through `ue_entry`), newest first. No index is added (a partial index on `topics IS NULL` would cost 2 rows written per article, which is what a queue costs). Entries already read are tagged too (owner decision 2026-11-26), so a topic filter with read articles shown still finds them; this is the volume the budget below already assumes (every new linked article).
 
 **A run:**
 

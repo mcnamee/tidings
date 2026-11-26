@@ -104,10 +104,14 @@ const deps = (tagger: Tagger, embedder: Embedder | null = fakeEmbedder(), clockM
   sleep: () => new Promise<void>(() => undefined),
 });
 
-/** Only these entries are unread and untagged; everything else is read. */
+/** Only these entries are untagged (and unread); everything else is read and already tagged. */
 async function only(ids: number[]) {
-  await env.DB.exec('UPDATE entries SET topics = NULL');
+  await run('UPDATE entries SET topics = ?', packTopics([1], SOURCE_MODEL));
   await env.DB.exec('UPDATE user_entries SET is_read = 1');
+  await run(
+    'UPDATE entries SET topics = NULL WHERE id IN (SELECT value FROM json_each(?))',
+    JSON.stringify(ids),
+  );
   await run(
     'UPDATE user_entries SET is_read = 0 WHERE entry_id IN (SELECT value FROM json_each(?))',
     JSON.stringify(ids),
@@ -491,14 +495,17 @@ describe('AC7 fallback to the embedding, and AC8 topic vectors', () => {
 });
 
 describe('work list: what the step picks up, and how many reads it costs', () => {
-  it('takes untagged, unread, linked, un-purged entries with text, newest first', async () => {
+  it('takes untagged, linked (read or unread), un-purged entries with text, newest first', async () => {
     await only([10, 11, 12, 13, 14]);
+    // 15 is untagged but read: read entries are tagged too.
+    await run('UPDATE entries SET topics = NULL WHERE id = 15');
     await run('UPDATE entries SET topics = ? WHERE id = 10', packTopics([1], SOURCE_MODEL));
     await run('UPDATE entries SET purged_at = 5 WHERE id = 11');
     await run("UPDATE entries SET title = '', summary = NULL WHERE id = 12");
     await run('DELETE FROM user_entries WHERE entry_id = 14');
     const { rows } = await findUntagged(db, 50);
-    expect(rows.map((r) => r.id)).toEqual([13]);
+    // 15 is linked but read: still picked up. 14 is linked to no one: skipped.
+    expect(rows.map((r) => r.id)).toEqual([15, 13]);
     await run('UPDATE entries SET purged_at = NULL WHERE id = 11');
     await run(
       "UPDATE entries SET title = 'Entry 12', summary = 'Summary of entry 12' WHERE id = 12",

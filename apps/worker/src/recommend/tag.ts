@@ -4,8 +4,8 @@
  *
  * It is separate from the embed step on purpose (ADR 0021 amendment): embedding stays every minute, so
  * the Recommended order never waits for tagging, and tagging runs as an hourly batch that finds its
- * own work. The work list is "recent entries whose `topics` is NULL and that are linked unread to
- * someone", read with a primary-key range scan, so no queue rows are written and the only write per
+ * own work. The work list is "recent entries whose `topics` is NULL and that are linked to
+ * someone (read or unread, so a filter with read articles shown still finds them)", read with a primary-key range scan, so no queue rows are written and the only write per
  * article is the one `UPDATE entries SET topics`. One model call tags up to 20 articles (the fixed
  * prompt part is the bulk of a call's cost). Past the daily neuron cap, or when the call fails, an
  * article with an embedding gets one topic by cosine against the topic vectors. Every statement is
@@ -169,7 +169,7 @@ interface Candidate {
 }
 
 /**
- * Recent entries that are untagged, linked unread to some user, not purged and have text, newest
+ * Recent entries that are untagged, linked to some user (read or not), not purged and have text, newest
  * first. A primary-key range over the newest {@link TAG_LOOKBACK_IDS} IDs: bounded reads, no index.
  */
 export async function findUntagged(db: Db, limit: number) {
@@ -179,7 +179,7 @@ export async function findUntagged(db: Db, limit: number) {
         WHERE e.id > (SELECT MAX(id) FROM entries) - ?1
           AND e.topics IS NULL AND e.purged_at IS NULL
           AND (COALESCE(e.title, '') <> '' OR COALESCE(e.summary, '') <> '')
-          AND EXISTS (SELECT 1 FROM user_entries ue WHERE ue.entry_id = e.id AND ue.is_read = 0)
+          AND EXISTS (SELECT 1 FROM user_entries ue WHERE ue.entry_id = e.id)
         ORDER BY e.id DESC LIMIT ?2`,
       TAG_LOOKBACK_IDS,
       limit,
