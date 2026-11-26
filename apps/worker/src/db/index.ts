@@ -12,6 +12,8 @@ export { canonicalizeUrl, tryCanonicalizeUrl } from './url';
 export {
   listEntries,
   MAX_PAGE_LIMIT,
+  TOPIC_MATCH,
+  topicIdFor,
   type EntryPage,
   type EntrySummaryRow,
   type EntryView,

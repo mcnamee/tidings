@@ -5,7 +5,7 @@
  * puts `user_id = ?` in its SQL (spec 10.8).
  */
 import { Db, sql, type Meta, type SqlValue } from './client';
-import type { EntrySummaryRow, EntryView } from './entries';
+import { TOPIC_MATCH, topicIdFor, type EntrySummaryRow, type EntryView } from './entries';
 
 export interface EntryRow extends EntrySummaryRow {
   content_html: string | null;
@@ -89,9 +89,20 @@ export async function markAllRead(
   id: string | number | undefined,
   beforeSeconds: number,
   nowSeconds: number,
+  topic?: string,
 ): Promise<{ entryIds: number[]; meta: Meta }> {
   const binds: SqlValue[] = [nowSeconds, userId, beforeSeconds];
   let scope = '';
+  if (topic !== undefined) {
+    // TID-078: only that topic's entries (view=all). The entry is looked up by primary key per unread
+    // row, so the statement reads about 2 rows per unread article and never scans `entries`.
+    const t = topicIdFor(view, topic);
+    scope =
+      ' AND EXISTS (SELECT 1 FROM entries e WHERE e.id = user_entries.entry_id AND ' +
+      TOPIC_MATCH('e.topics') +
+      ')';
+    binds.push(t, t, t);
+  }
   if (view === 'feed') {
     scope = ' AND feed_id = ?';
     binds.push(Number(id));

@@ -9,6 +9,8 @@ import {
   TEXT_SIZES,
   ENTRY_SORTS,
   THEMES,
+  TOPIC_CHIPS_MAX,
+  isTopicSlug,
 } from './index';
 import { cleanName, tidyText } from './text';
 
@@ -117,6 +119,9 @@ export const updateSubscriptionRequestSchema = z
     message: 'Provide title or folderId',
   });
 
+/** TID-078: the slug of an active system topic; unknown and retired slugs are rejected. */
+const topicSlugSchema = z.string().max(64).refine(isTopicSlug, { message: 'Unknown topic' });
+
 /** `GET /api/entries` query (spec 8.5). `state` is absent when the user's setting decides. */
 export const entriesQuerySchema = z
   .object({
@@ -126,10 +131,15 @@ export const entriesQuerySchema = z
     sort: z.enum(ENTRY_SORTS).optional(),
     limit: z.coerce.number().int().min(1).max(100).default(50),
     cursor: z.string().min(1).max(200).optional(),
+    topic: topicSlugSchema.optional(),
   })
   .refine((q) => q.view === 'all' || q.id !== undefined, {
     message: 'id is required unless view=all',
     path: ['id'],
+  })
+  .refine((q) => q.topic === undefined || q.view === 'all', {
+    message: 'topic is only allowed with view=all',
+    path: ['topic'],
   });
 
 const clip = (max: number) => (t: string) => cleanName(t, max);
@@ -185,11 +195,16 @@ export const markAllReadRequestSchema = z
       .max(40)
       .regex(/^[+-]?\d{4,6}-\d{2}-\d{2}T\d{2}:\d{2}/, 'before must be an ISO timestamp')
       .refine((v) => !Number.isNaN(Date.parse(v)), { message: 'before must be an ISO timestamp' }),
+    topic: topicSlugSchema.optional(),
   })
   .strict()
   .refine((q) => q.view === 'all' || q.id !== undefined, {
     message: 'id is required unless view=all',
     path: ['id'],
+  })
+  .refine((q) => q.topic === undefined || q.view === 'all', {
+    message: 'topic is only allowed with view=all',
+    path: ['topic'],
   });
 
 /** TID-053. Any string up to 254 characters is well formed; the server trims and lower-cases before comparing. */
@@ -210,6 +225,12 @@ export const userSettingsPatchSchema = z.strictObject({
   textSize: z.enum(TEXT_SIZES).optional(),
   hideReadFeeds: z.boolean().optional(),
   listSort: z.enum(ENTRY_SORTS).optional(),
+  // TID-078: known active slugs, no repeats, at most one of each topic. The array replaces the stored one.
+  topicChips: z
+    .array(topicSlugSchema)
+    .max(TOPIC_CHIPS_MAX)
+    .refine((a) => new Set(a).size === a.length, { message: 'Topics must not repeat' })
+    .optional(),
 });
 
 export const updateMeRequestSchema = z

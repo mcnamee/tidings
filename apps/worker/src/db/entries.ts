@@ -1,3 +1,4 @@
+import { TOPIC_SCAN_LIMIT, topicIdOfSlug } from '@tidings/shared';
 import { Db, sql, type Meta, type SqlValue } from './client';
 import { decodeCursor, encodeCursor } from './cursor';
 import { ValidationError } from './errors';
@@ -11,6 +12,8 @@ export interface ListEntriesParams {
   unreadOnly: boolean;
   limit: number;
   cursor?: string | null;
+  /** TID-078: an active topic slug. Only with `view=all`. */
+  topic?: string;
 }
 
 export interface EntrySummaryRow {
@@ -35,6 +38,20 @@ export interface EntryPage {
 }
 
 export const MAX_PAGE_LIMIT = 100;
+
+/** True when any of the three packed topic slots of `column` holds `?`. NULL (untagged) never matches. */
+export const TOPIC_MATCH = (column: string) =>
+  `((${column} & 255) = ? OR ((${column} >> 8) & 255) = ? OR ((${column} >> 16) & 255) = ?)`;
+
+/** The numeric ID of the topic slug, or a validation error (unknown, retired or not allowed with this view). */
+export function topicIdFor(view: EntryView, slug: string): number {
+  const id = topicIdOfSlug(slug);
+  if (id === null) throw new ValidationError('Unknown topic', { field: 'topic' });
+  if (view !== 'all') {
+    throw new ValidationError('topic is only allowed with view=all', { field: 'topic' });
+  }
+  return id;
+}
 
 const SELECT =
   'SELECT ue.entry_id, ue.feed_id, ue.published_at, ue.is_read, ue.is_starred, ' +
@@ -64,6 +81,8 @@ export async function listEntries(
   if (view !== 'all' && (params.id === undefined || params.id === '')) {
     throw new ValidationError('id is required unless view=all', { field: 'id' });
   }
+
+  if (params.topic !== undefined) return listTopicEntries(db, userId, params);
 
   const index = INDEX_FOR[view][unreadOnly ? 'unread' : 'all'];
   const binds: SqlValue[] = [userId];
@@ -125,5 +144,83 @@ export async function listEntries(
     items,
     nextCursor: hasMore && last ? encodeCursor({ p: last.published_at, i: last.entry_id }) : null,
     meta,
+  };
+}
+
+/**
+ * One page of All articles filtered by topic (TID-078, ADR 0021 section 7, spec 8.6). `entries.topics`
+ * is not indexed, so the page walks the same index as the unfiltered list and reads at most
+ * {@link TOPIC_SCAN_LIMIT} of the caller's rows after the cursor (a subquery bound), joining each to
+ * `entries` by primary key and keeping those whose topic matches. The page can therefore be short or
+ * empty with a cursor: when the page fills it is the last item served, when the scan limit comes first it
+ * is the last row scanned, and `null` only when the index is exhausted. `user_id = ?` is in the scan.
+ */
+async function listTopicEntries(
+  db: Db,
+  userId: string,
+  params: ListEntriesParams,
+): Promise<EntryPage> {
+  const { unreadOnly, limit } = params;
+  const topicId = topicIdFor(params.view, params.topic ?? '');
+  const index = INDEX_FOR.all[unreadOnly ? 'unread' : 'all'];
+
+  // The scan: the caller's index rows after the cursor, newest first, at most TOPIC_SCAN_LIMIT.
+  const scanBinds: SqlValue[] = [userId];
+  let scan =
+    'FROM user_entries INDEXED BY ' +
+    index +
+    ' WHERE user_id = ?' +
+    (unreadOnly ? ' AND is_read = 0' : '');
+  if (params.cursor) {
+    const c = decodeCursor(params.cursor);
+    scan += ' AND (published_at, entry_id) < (?, ?)';
+    scanBinds.push(c.p, c.i);
+  }
+  scan += ' ORDER BY published_at DESC, entry_id DESC LIMIT ' + TOPIC_SCAN_LIMIT;
+
+  const { rows, meta } = await db.all<EntrySummaryRow>(
+    sql(
+      SELECT +
+        'FROM (SELECT entry_id, feed_id, published_at, is_read, is_starred ' +
+        scan +
+        ') ue JOIN entries e ON e.id = ue.entry_id WHERE ' +
+        TOPIC_MATCH('e.topics') +
+        ' ORDER BY ue.published_at DESC, ue.entry_id DESC LIMIT ?',
+      ...scanBinds,
+      topicId,
+      topicId,
+      topicId,
+      limit + 1,
+    ),
+  );
+  if (rows.length > limit) {
+    const items = rows.slice(0, limit);
+    const last = items[items.length - 1] as EntrySummaryRow;
+    return {
+      items,
+      nextCursor: encodeCursor({ p: last.published_at, i: last.entry_id }),
+      meta,
+    };
+  }
+
+  // Fewer matches than a page: the whole scan was read. If the index goes on past it, carry on from the
+  // last row scanned (a covering index read, and only on a page that did not fill).
+  const edge = await db.all<{ published_at: number; entry_id: number }>(
+    sql(
+      'SELECT published_at, entry_id ' +
+        scan.replace(/ LIMIT \d+$/, '') +
+        ' LIMIT 2 OFFSET ' +
+        (TOPIC_SCAN_LIMIT - 1),
+      ...scanBinds,
+    ),
+  );
+  const [lastScanned, beyond] = edge.rows;
+  return {
+    items: rows,
+    nextCursor:
+      lastScanned && beyond
+        ? encodeCursor({ p: lastScanned.published_at, i: lastScanned.entry_id })
+        : null,
+    meta: { ...meta, rows_read: Number(meta.rows_read ?? 0) + Number(edge.meta.rows_read ?? 0) },
   };
 }

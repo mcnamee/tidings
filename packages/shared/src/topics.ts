@@ -214,3 +214,18 @@ export const TOPICS_VERSION = 1;
 
 /** IDs that were removed from `TOPICS` and must never be reused. Stored tags that carry one are ignored on read. */
 export const RETIRED_TOPIC_IDS: readonly number[] = [];
+
+/** The most chips the owner can choose: every active topic (spec 6.2). */
+export const TOPIC_CHIPS_MAX = 28;
+
+/** A topic page scans at most this many of the caller's list index rows (ADR 0021 section 7, spec 8.6). */
+export const TOPIC_SCAN_LIMIT = 1000;
+
+const BY_SLUG = new Map<string, SystemTopic>(TOPICS.map((t) => [t.slug, t]));
+
+/** True for the slug of an active system topic. Unknown and retired slugs are false. */
+export const isTopicSlug = (slug: unknown): slug is string =>
+  typeof slug === 'string' && BY_SLUG.has(slug);
+
+/** The numeric topic ID (as packed in `entries.topics`) of an active slug, or null. */
+export const topicIdOfSlug = (slug: string): number | null => BY_SLUG.get(slug)?.id ?? null;
