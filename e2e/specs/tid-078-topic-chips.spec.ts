@@ -92,6 +92,13 @@ const titles = (page: Page) => page.getByRole('heading', { level: 2 }).allTextCo
 const story = (page: Page, title: string) =>
   page.getByRole('heading', { level: 2, name: title, exact: true });
 
+/** The long-row tests are about scrolling 14 chips, not about counts: every topic reads as having unread. */
+async function everyTopicUnread(page: Page) {
+  await page.route('**/api/counts/topics', (route) =>
+    route.fulfill({ json: { topics: Object.fromEntries(ALL_SLUGS.map((s) => [s, 3])) } }),
+  );
+}
+
 async function installed(page: Page) {
   await page.addInitScript(() => {
     Object.defineProperty(navigator, 'standalone', { value: true, configurable: true });
@@ -296,6 +303,88 @@ test('Unread only applies within a topic, and Mark all as read marks only that t
   await expect(story(page, 'AI story 1')).toBeVisible();
 });
 
+test('a chip shows only while its topic has unread articles; the chosen one stays; no chip but All hides the row', async ({
+  page,
+}) => {
+  // 'gaming' and 'science' have no articles at all.
+  await setChips(page.request, ['ai', 'gaming', 'formula-1', 'science']);
+  await page.goto('/all');
+  await expect(story(page, 'F1 story 1')).toBeVisible();
+  await expect(chip(page, 'AI')).toBeVisible();
+  await expect(chip(page, 'Formula 1')).toBeVisible();
+  await expect(chip(page, 'Gaming')).toHaveCount(0);
+  await expect(chip(page, 'Science')).toHaveCount(0);
+  await expect(chip(page, 'All topics')).toBeVisible();
+  const counts = await (await page.request.get('/api/counts/topics')).json();
+  expect(counts.topics['formula-1']).toBeGreaterThan(19);
+  expect(counts.topics['ai']).toBe(6);
+  expect(counts.topics['gaming']).toBeUndefined();
+
+  // The chosen topic stays at 0 unread, so the person is never stranded.
+  await page.goto('/all?topic=gaming');
+  await expect(chip(page, 'Gaming')).toHaveAttribute('aria-pressed', 'true');
+  await expect(chip(page, 'Science')).toHaveCount(0);
+});
+
+test('a chip shows only while its topic has unread articles: nothing unread for any chosen topic means no row', async ({
+  page,
+}) => {
+  await setChips(page.request, ['gaming', 'science']);
+  await page.goto('/all');
+  await expect(story(page, 'F1 story 1')).toBeVisible();
+  await expect(page.getByRole('group', { name: 'Topics' })).toHaveCount(0);
+  await expect(page.getByTestId('topic-chips-skeleton')).toHaveCount(0);
+});
+
+test('owner sequence: read everything in a topic, go back to All, and the read articles are not there; the emptied chip goes', async ({
+  page,
+}) => {
+  await setChips(page.request, ['ai', 'formula-1']);
+  await page.goto('/all');
+  await expect(story(page, 'F1 story 1')).toBeVisible();
+  await expect(story(page, 'AI story 1')).toBeVisible();
+
+  await chip(page, 'Formula 1').click();
+  await expect(page).toHaveURL('/all?topic=formula-1');
+  await expect(story(page, 'F1 story 1')).toBeVisible();
+  await page.getByRole('button', { name: 'Mark all as read' }).click();
+  await page
+    .getByRole('dialog', { name: /^Mark \d+ Formula 1 articles as read\?$/ })
+    .getByRole('button', { name: /^Mark \d+ as read$/ })
+    .click();
+  await expect(page.getByRole('heading', { name: 'Nothing unread in Formula 1' })).toBeVisible();
+
+  // Back to All: the list is fetched again, so none of the Formula 1 articles is in it, not even greyed.
+  await chip(page, 'All topics').click();
+  await expect(page).toHaveURL('/all');
+  await expect(story(page, 'AI story 1')).toBeVisible();
+  await expect(story(page, 'Plain story 1')).toBeVisible();
+  expect((await titles(page)).filter((x) => x.startsWith('F1 story'))).toEqual([]);
+  // Formula 1 has nothing unread now, and the counts have caught up: its chip is gone, AI stays.
+  await expect(chip(page, 'AI')).toBeVisible();
+  await expect(chip(page, 'Formula 1')).toHaveCount(0, { timeout: 10_000 });
+});
+
+test('owner sequence, article read in one topic view: All does not show it after switching chips', async ({
+  page,
+}) => {
+  await setChips(page.request, ['ai', 'formula-1']);
+  await page.goto('/all');
+  await expect(story(page, 'AI story 1')).toBeVisible();
+  await chip(page, 'AI').click();
+  await expect(page).toHaveURL('/all?topic=ai');
+  await expect(story(page, 'AI story 1')).toBeVisible();
+  // Open it (it is marked read), then Back to the AI list.
+  await story(page, 'AI story 1').click();
+  await expect(page).toHaveURL(/\/all\/a\/\d+\?state=unread&topic=ai$/);
+  await page.getByRole('button', { name: 'Back' }).click();
+  await expect(page).toHaveURL('/all?topic=ai');
+  await chip(page, 'All topics').click();
+  await expect(page).toHaveURL('/all');
+  await expect(story(page, 'AI story 2')).toBeVisible();
+  await expect(story(page, 'AI story 1')).toHaveCount(0);
+});
+
 test('a topic page that comes back empty with a cursor keeps loading until it finds rows (scan limit)', async ({
   page,
 }) => {
@@ -326,6 +415,7 @@ test('the chip row scrolls sideways without opening the menu or scrolling the li
   mobileOnly(testInfo.project.name);
   await installed(page);
   await setChips(page.request, ALL_SLUGS);
+  await everyTopicUnread(page);
   await page.goto('/all');
   await expect(row(page)).toBeVisible();
   await expect(story(page, 'F1 story 1')).toBeVisible();
@@ -338,6 +428,20 @@ test('the chip row scrolls sideways without opening the menu or scrolling the li
   expect(await row(page).evaluate((e) => e.scrollWidth > e.clientWidth + 100)).toBe(true);
   await expect(row(page)).toHaveAttribute('data-fade-end', 'true');
   const pageY = await scrollY(page);
+
+  // Root cause of the jagged scroll on iOS: touch-action intersects down the tree, so no ancestor of the row
+  // may narrow it. Installed, <html> carries swipe-nav; every ancestor must still allow pan-x and pan-y.
+  await expect(page.locator('html')).toHaveClass(/swipe-nav/);
+  const actions = await row(page).evaluate((el) => {
+    const out: string[] = [];
+    for (let n: Element | null = el; n; n = n.parentElement) {
+      out.push(`${n.tagName.toLowerCase()}: ${getComputedStyle(n).touchAction}`);
+    }
+    return out;
+  });
+  for (const a of actions) expect(a, a).toMatch(/: (auto|pan-x pan-y)$/);
+  expect(actions[0]).toMatch(/: pan-x pan-y$/);
+  expect(actions.at(-1)).toMatch(/^html: pan-x pan-y$/); // pinch and double-tap zoom stay off
 
   // A swipe left on the row scrolls the chips, and neither the menu nor the list moves.
   await hold(cdp, 300, 80, y);
@@ -385,6 +489,7 @@ test('desktop: the chips are one row at the top of the column, keyboard-operable
 
   // A long row has a scroll button at the end (mouse users with no horizontal wheel); it scrolls the row.
   await setChips(page.request, ALL_SLUGS);
+  await everyTopicUnread(page);
   await page.goto('/all');
   await expect(row(page)).toBeVisible();
   const next = page.getByTestId('topic-chips').locator('button[aria-hidden="true"]').first();
@@ -418,6 +523,7 @@ test('review screenshots', async ({ page }, testInfo) => {
   await page.screenshot({ path: `${dir}/375-${theme}-chips-scrolled-header.png` });
 
   await setChips(page.request, ALL_SLUGS);
+  await everyTopicUnread(page);
   await page.goto('/all?topic=ai');
   await expect(row(page)).toBeVisible();
   await page.waitForTimeout(300);

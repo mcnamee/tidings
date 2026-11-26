@@ -3,7 +3,8 @@
  * query puts `user_id = ?` in its SQL, so an ID that came from a request can only resolve to the
  * caller's own rows (spec 10.8).
  */
-import type { Counts } from '@tidings/shared';
+import { TOPIC_SCAN_LIMIT, type Counts, type TopicCounts } from '@tidings/shared';
+import { topicSlugs } from '../recommend/topics';
 import { Db, sql, type Meta } from './client';
 
 export interface FeedLabel {
@@ -105,6 +106,34 @@ export async function unreadCounts(db: Db, userId: string): Promise<CountsResult
     if (s.folder_id !== null) counts.folders[s.folder_id] = (counts.folders[s.folder_id] ?? 0) + n;
   }
   return { counts, rowsRead: rowsRead(unread.meta) + rowsRead(subs.meta) };
+}
+
+export interface TopicCountsResult {
+  counts: TopicCounts;
+  rowsRead: number;
+}
+
+/**
+ * Unread articles per topic (TID-078, ADR 0021 amendment 3). `entries.topics` is not indexed, so this
+ * reads the newest {@link TOPIC_SCAN_LIMIT} unread rows of the caller from `ue_unread_all` (a bounded
+ * subquery, `user_id = ?` in it), joins each to its `entries` row by primary key and unpacks the column
+ * here. At most about 2 x TOPIC_SCAN_LIMIT rows read, none written. Retired and unknown IDs are left out.
+ */
+export async function unreadTopicCounts(db: Db, userId: string): Promise<TopicCountsResult> {
+  const { rows, meta } = await db.all<{ topics: number }>(
+    sql(
+      'SELECT e.topics FROM (SELECT entry_id FROM user_entries INDEXED BY ue_unread_all ' +
+        'WHERE user_id = ? AND is_read = 0 ORDER BY published_at DESC, entry_id DESC LIMIT ' +
+        TOPIC_SCAN_LIMIT +
+        ') ue JOIN entries e ON e.id = ue.entry_id WHERE e.topics IS NOT NULL',
+      userId,
+    ),
+  );
+  const topics: Record<string, number> = {};
+  for (const r of rows) {
+    for (const slug of topicSlugs(r.topics)) topics[slug] = (topics[slug] ?? 0) + 1;
+  }
+  return { counts: { topics }, rowsRead: rowsRead(meta) };
 }
 
 function rowsRead(meta: Meta): number {

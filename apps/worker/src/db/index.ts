@@ -32,6 +32,7 @@ export {
   feedIdForSubscription,
   labelsForFeeds,
   unreadCounts,
+  unreadTopicCounts,
   type CountsResult,
   type FeedLabel,
 } from './lists';
