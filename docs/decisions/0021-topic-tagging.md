@@ -231,3 +231,13 @@ No batch had a misaligned item in any run. With numbers the model misread its ow
 
 - **Timeout and charging.** A call that times out (30 s) is charged its upper bound (it may have run); one that throws is not charged. After either, the rest of that run uses the fallback.
 - **API.** `topics` is decoded from `entries.topics` in the row the list and entry queries already read (`e.topics` added to the three `SELECT`s), so it costs no extra reads (tested: the same `rows_read` for a 50-item page).
+
+## Amendment 2 (2026-11-26, TID-078 build)
+
+Written by the software engineer from the build; the PM confirms at acceptance. It changes the read estimate in section 7 and fixes two details the section left open.
+
+- **A topic page that does not fill reads up to about 3,000 rows, not 2,000.** The scan (1,000 `user_entries` index rows, each joined to its `entries` row) is one statement. To give the page a cursor when the scan limit comes first, a page that did not fill runs a second statement, a covering-index read of the same rows (`LIMIT 2 OFFSET 999`), to find the last row scanned and whether the index goes on. A page that fills stops early and never runs it. The worst case is a deep topic (a miss everywhere): 2,000 + up to 1,000 reads, 0 written. At the assumed 1,000-row backlog and a few topic taps a day this is well inside the daily read budget (spec 9.5); if it matters, `TOPIC_SCAN_LIMIT` is one constant.
+- **Recommended plus a topic is one candidate query.** It scans the newest `TOPIC_SCAN_LIMIT` unread rows, returns every scanned row with a match flag, and reads an embedding only for matches; the matches (at most `CANDIDATE_LIMIT`) are ranked as in TID-067. The phase 2 boundary is the last row scanned when the scan did not reach the end of the index, and the oldest ranked candidate when the cap cut the ranked set.
+- **Mark all as read with a topic** uses `EXISTS (SELECT 1 FROM entries WHERE id = user_entries.entry_id AND <topic match>)`, so it looks each unread row's entry up by primary key (about 2 reads per unread article) and never scans `entries`.
+- **The SPA treats `?topic=` as valid only when it is one of the chosen chips** (a deep link to a known topic that is not chosen is "All"). The server accepts any active slug.
+

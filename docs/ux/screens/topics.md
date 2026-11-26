@@ -111,8 +111,8 @@ Below 1024 px in the installed app, `useSwipe` opens the menu on a rightward dra
 | First chip | **All** (accessible name **All topics**) |
 | Live status on select | **Showing Formula 1** / **Showing all articles** |
 | Header kicker | **All articles** |
-| Empty, Unread only on | Title **Nothing unread in Formula 1**. Body **New articles are sorted into topics within about an hour of arriving.** Buttons (stacked, 44 px+): **Show read articles too** (sets `state=all`), **Show all topics** (clears the topic). |
-| Empty, Unread only off | Title **No articles about Formula 1 yet**. Body **New articles are sorted into topics within about an hour of arriving.** Button **Show all topics**. |
+| Empty, Unread only on | Title **Nothing unread in Formula 1**. Buttons (stacked, 44 px+): **Show read articles too** (sets `state=all`), **Show all topics** (clears the topic). |
+| Empty, Unread only off | Title **No articles about Formula 1 yet**. Button **Show all topics**. |
 | Offline, topic not saved | Title **This topic isn't saved on this device**. Body **Reconnect to load Formula 1.** Button **Show all topics**. |
 | Mark all as read confirm (more than 20) | Title **Mark 84 Formula 1 articles as read?** Buttons **Mark 84 as read**, **Cancel**. |
 | Mark all as read toast | **Marked 14 Formula 1 articles as read** with **Undo** (5 s). Other articles stay unread. |
@@ -129,8 +129,6 @@ The empty states use the plain `State` block (no random "caught up" art; that be
 |  ( All ) ( AI ) (=Formula 1=) ( UK p  |
 |                                       |
 |         Nothing unread in Formula 1   |
-|  New articles are sorted into topics  |
-|  within about an hour of arriving.    |
 |                                       |
 |     [ Show read articles too ]        |
 |     [   Show all topics      ]        |
@@ -283,8 +281,15 @@ Cards are `surface` on the `canvas` page, with `border-line` outlines (the same 
 
 ---
 
-## Open questions for the PM
+## Decisions on the open questions (orchestrator, 2026-11-26, applied in the TID-078 build)
 
-1. Does `GET /api/topics` also return the one-line description of each topic (ADR 0021 lists them for the prompt)? This design shows names only. If descriptions are returned, a muted one-line hint under each name in "Other topics" would help the owner pick, at the cost of taller rows. Left out unless the API provides it for free.
-2. The `useSwipe` edge exception (section 1.3, rule 2) touches shared gesture code that TID-078 otherwise does not need. Confirm it is in scope for this story; if not, the row is simply ignored by the drawer swipe over its whole width, and the menu swipe works everywhere except that 52 px strip (the Menu button still opens it).
-3. Topic tags appear up to about an hour after an article arrives (ADR 0021). The empty-state copy says so. If the owner would rather not see that, the body can go.
+1. The Topics setting shows names only. `GET /api/topics` returns `id` and `name`, no descriptions.
+2. The `useSwipe` edge exception is in scope. Built as an opt-in option, `ignoreExemptEdgePx` (the menu swipe passes `SWIPE_EDGE_PX`), not as a change to every `ignoreWithin` user, so the article swipe-back keeps ignoring tables and code blocks from the very edge as before.
+3. The "within about an hour of arriving" sentence is dropped from the empty-state copy (done above).
+
+## Build notes (what differs from this design)
+
+- **A `?topic=` counts only when it is one of the chosen chips.** A known topic that is not chosen falls back to All and the parameter is removed, the same as an unknown or retired one (the row has no pressed chip to show it with).
+- **Desktop scroll buttons** are shown only while the row can scroll that way on a fine pointer (`pointer-fine`), at the 44 px ends.
+- **Alt+Up and Alt+Down** on a row, mentioned nowhere above, were not built (the Move buttons are the keyboard path).
+- **Drag scroll** zones: 64 px at the bottom of the viewport and 48 px below the header, at most 12 px a frame.

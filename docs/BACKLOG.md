@@ -55,7 +55,7 @@ Owner: product-manager. Last updated 2026-11-17 (TID-053 email sign-in added, AD
 | TID-066 | Recommended sort, stage 1: record engagement signals (owner request 2026-11-19, ADR 0018) | R3 | Done (deployed 2026-11-19; owner confirmed combined scoring) | TID-019, TID-021 |
 | TID-067 | Recommended sort, stage 2: embeddings, interest profile and "Recommended" sort (ADR 0018) | R3 | Built (branch `tid-067-recommended`; awaiting tester verification, UX review and PM acceptance) | TID-066 |
 | TID-077 | Topic tagging pipeline: migration 0013, model tags in batches, daily neuron cap, embedding fallback (ADR 0021) | R3 | Built on `tid-077-topic-tagging`, ready to verify (AC3 recorded: 87% strict, 95% with UK politics) | TID-067 |
-| TID-078 | Topic chips on All articles, and the Topics setting to choose and order them (ADR 0021) | R3 | Ready for UX (design at 375 px, both themes, before build) | TID-077, TID-074 |
+| TID-078 | Topic chips on All articles, and the Topics setting to choose and order them (ADR 0021) | R3 | Built (branch `tid-078-topic-chips`; awaiting tester verification, UX review and PM acceptance) | TID-077, TID-074 |
 | TID-079 | Hide articles by topic or keyword, per feed or folder | Later | Later (deferred by the owner 2026-11-26; not scheduled) | TID-078 |
 | TID-023 | Persisted client cache and installable PWA shell | R3 | Ready | TID-018, 019 |
 | TID-036 | SSRF guard hardening (TID-010 follow-up) | R3 | Ready | TID-010 |
@@ -1250,7 +1250,7 @@ The owner approved a second AI feature: tag each new article with up to 3 topics
 - **Agents:** UX (design first), SE, QA, UX (review), PM
 - **Depends on:** TID-077 (tags and API), TID-074 and TID-075 (header, Filters panel, reveal drawers)
 - **Release:** R3
-- **Status:** Ready for UX. **UX must design both screens before build,** at 375 px first and in light and dark: the chip row in its default, chosen, scrolled, empty-topic, loading and offline states, and the Topics settings screen with drag reordering. Add them to `docs/ux/FLOWS.md` and `docs/ux/screens/`.
+- **Status:** Built (branch `tid-078-topic-chips`; awaiting tester verification, UX review and PM acceptance). Designed in `docs/ux/screens/topics.md` first. Build notes: the whole server side of the topic filter (`topic` on lists and mark-all-read, the `topicChips` validation, retired IDs dropped on read) was built here, since TID-077 left it to this story. Review screenshots: `docs/ux/reviews/tid-078/`. Owner-facing decisions taken at build (2026-11-26): the Topics screen shows names only; the `useSwipe` edge exception is in scope (opt-in `ignoreExemptEdgePx`, used by the menu swipe only); the empty-state copy drops the "within about an hour" sentence; no chip row until topics are chosen.
 
 **User story:** As the owner, I want a row of topic chips at the top of All articles that I choose and order myself, so that I can jump straight to the topics I care about, such as AI or Formula 1, without leaving the main list.
 

@@ -429,7 +429,7 @@ describe('Settings links to Topics', () => {
     const user = userEvent.setup();
     const view = renderTopics(['ai', 'formula-1', 'uk-politics'], '/settings');
     const link = await screen.findByRole('link', {
-      name: 'Topics, 3 chosen: AI, Formula 1, UK politics',
+      name: /^Topics\s*3 chosen: AI, Formula 1, UK politics$/,
     });
     expect(link).toHaveAttribute('href', '/settings/topics');
     expect(screen.getByTestId('topics-summary')).toHaveTextContent(
@@ -440,7 +440,7 @@ describe('Settings links to Topics', () => {
     view.unmount();
 
     renderTopics(null, '/settings');
-    expect(await screen.findByRole('link', { name: 'Topics, None chosen' })).toBeInTheDocument();
+    expect(await screen.findByRole('link', { name: /^Topics\s*None chosen$/ })).toBeInTheDocument();
     expect(NAME['ai']).toBe('AI');
   });
 });

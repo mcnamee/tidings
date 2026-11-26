@@ -126,7 +126,6 @@ function TopicsLink({ chips }: { chips: string[] }) {
       <Link
         to="/settings/topics"
         replace={isStandalone()}
-        aria-label={`Topics, ${summary}`}
         className="flex min-h-14 items-center gap-3 py-2 active:bg-sunken"
       >
         <span className="min-w-0 flex-1">
